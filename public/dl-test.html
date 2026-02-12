@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html><body style="background:#111;color:#eee;font-family:sans-serif;padding:40px">
+<h2>Download Test - Direct from /api/files/</h2>
+<div id="log" style="background:#222;padding:16px;border-radius:8px;white-space:pre-wrap;font-size:13px;max-height:500px;overflow:auto"></div>
+<div id="buttons" style="margin-top:20px"></div>
+<script>
+const log = s => { document.getElementById('log').textContent += s + '\n'; };
+
+// Find latest mockup
+fetch('/api/files/mockups/').catch(() => {});
+
+// Use known mockup URL from server
+const mockupUrl = '/api/files/mockups/5df3a5fb-2b7c-4c8e-b7fe-77c345cfc466.png';
+const zipUrl = '/api/files/mockups/7e0b253f-36ac-4526-91fc-92e29fbb3aef.zip';
+
+function method1(url, name) {
+    log('Method 1: fetch + blob + createObjectURL');
+    fetch(url).then(r => {
+        log('  status: ' + r.status + ' content-type: ' + r.headers.get('content-type'));
+        return r.blob();
+    }).then(blob => {
+        log('  blob: size=' + blob.size + ' type=' + blob.type);
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = name;
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => { document.body.removeChild(a); }, 3000);
+        log('  DONE');
+    }).catch(e => log('  ERROR: ' + e));
+}
+
+function method2(url, name) {
+    log('Method 2: XHR + blob');
+    const xhr = new XMLHttpRequest();
+    xhr.open('GET', url);
+    xhr.responseType = 'blob';
+    xhr.onload = () => {
+        log('  status: ' + xhr.status + ' type: ' + xhr.response.type + ' size: ' + xhr.response.size);
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(xhr.response);
+        a.download = name;
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => { document.body.removeChild(a); }, 3000);
+        log('  DONE');
+    };
+    xhr.onerror = () => log('  ERROR');
+    xhr.send();
+}
+
+function method3(url, name) {
+    log('Method 3: window.open with ?dl=');
+    window.open(url + '?dl=' + encodeURIComponent(name), '_blank');
+    log('  DONE');
+}
+
+const btns = document.getElementById('buttons');
+[
+    ['PNG fetch+blob', () => method1(mockupUrl, 'test.png')],
+    ['PNG XHR+blob', () => method2(mockupUrl, 'test.png')],
+    ['PNG window.open', () => method3(mockupUrl, 'test.png')],
+    ['ZIP fetch+blob', () => method1(zipUrl, 'test.zip')],
+].forEach(([label, fn]) => {
+    const b = document.createElement('button');
+    b.textContent = label;
+    b.style.cssText = 'padding:10px 20px;margin:8px;background:#4dacff;color:#000;border:none;border-radius:6px;cursor:pointer;font-weight:600';
+    b.onclick = fn;
+    btns.appendChild(b);
+});
+
+log('Mockup: ' + mockupUrl);
+log('ZIP: ' + zipUrl);
+log('Click buttons to test download methods...');
+</script>
+</body></html>

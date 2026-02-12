@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html><body>
+<h2>Download Test - Mockup vừa tạo</h2>
+
+<h3>1. Xem ảnh trực tiếp (ảnh có hiện không?):</h3>
+<img src="/mockups/452df7a7-cf0c-412f-8442-c394f0f3cb3a.png" style="max-width:400px" />
+
+<h3>2. Click phải ảnh trên > Save Image As...</h3>
+
+<h3>3. Link download qua iframe:</h3>
+<button onclick="
+var iframe = document.createElement('iframe');
+iframe.style.display='none';
+iframe.src='/api/save?source=mockups/452df7a7-cf0c-412f-8442-c394f0f3cb3a.png&name=mockup-test.png';
+document.body.appendChild(iframe);
+document.getElementById('status').textContent='Downloading...';
+">Download PNG</button>
+<span id="status"></span>
+
+<h3>4. Direct link (click to download):</h3>
+<a href="/mockups/452df7a7-cf0c-412f-8442-c394f0f3cb3a.png" download="mockup-direct.png">Download direct</a>
+
+</body></html>
