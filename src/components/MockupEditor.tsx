@@ -96,9 +96,10 @@ export default function MockupEditor() {
             addToast('error', 'Không có URL để tải');
             return;
         }
+        // URL format: /api/download/mockups/uuid.png/DesiredName.png
+        // Last segment = filename browser saves as
         const filePart = imageUrl.replace(/^\/api\/files\//, '');
-        // Direct navigation to download API - Content-Disposition: attachment forces download
-        window.location.href = `/api/download?file=${encodeURIComponent(filePart)}&name=${encodeURIComponent(filename)}`;
+        window.location.href = `/api/download/${filePart}/${encodeURIComponent(filename)}`;
     };
 
     const handleDownloadSelected = () => {
