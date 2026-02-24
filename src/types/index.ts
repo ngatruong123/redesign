@@ -30,12 +30,28 @@ export interface MockupTemplate {
     mask: MockupMask | null;
 }
 
+export interface Point { x: number; y: number; }
+
 export interface MockupMask {
+    // Legacy rect (backward compat)
     x: number;
     y: number;
     width: number;
     height: number;
     rotation: number;
+    // Quad mode
+    mode: 'rect' | 'quad';
+    quad?: [Point, Point, Point, Point]; // [TL, TR, BR, BL]
+    // Edge curve control points (quadratic bezier) — [top, right, bottom, left]
+    // Each is the control point for that edge's bezier curve.
+    // undefined = straight line (control point at midpoint of edge)
+    edgeCurves?: [Point, Point, Point, Point];
+    // Fit
+    fitMode: 'contain' | 'fill'; // contain = keep aspect ratio (default), fill = stretch
+    // Blend
+    blendMode: 'normal' | 'multiply' | 'overlay' | 'screen' | 'soft-light';
+    opacity: number; // 0-100
+    shadow?: { blur: number; color: string; };
 }
 
 export interface GeneratedMockup {

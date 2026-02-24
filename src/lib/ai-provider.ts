@@ -41,23 +41,47 @@ class GeminiProvider implements AIProvider {
 
         const url = `${this.baseUrl}/models/${this.model}:generateContent`;
 
-        // Build request with source image + text prompt (image editing mode)
+        // Split prompt into system instruction + user request for better adherence
+        // prompt format: "[STYLE: ...] ...\n\n[USER REQUEST] ...\n\n..."
+        const userRequestMatch = prompt.match(/\[USER REQUEST[^\]]*\]\s*[^:]*:\s*(.+?)(?:\n\n|$)/);
+        const userRequest = userRequestMatch?.[1]?.trim() || '';
+
         const requestBody = {
+            // System instruction: style transformation rules
+            systemInstruction: {
+                parts: [{ text: 'You are an expert image transformation artist. You MUST completely redesign the input image according to the style and instructions given. Never return the original image or a near-copy. Apply dramatic visual changes: different colors, textures, rendering technique. If the user gives specific instructions, those are your TOP PRIORITY — follow them exactly.' }],
+            },
             contents: [
+                // Turn 1: User provides the image + full instructions
                 {
+                    role: 'user',
                     parts: [
-                        { text: prompt },
                         {
                             inlineData: {
                                 mimeType: 'image/png',
                                 data: sourceImageBase64,
                             },
                         },
+                        { text: prompt },
                     ],
+                },
+                // Turn 2: Model acknowledges (primes it to follow instructions)
+                {
+                    role: 'model',
+                    parts: [{ text: `Understood. I will completely redesign this image${userRequest ? ` with these specific changes: "${userRequest}".` : '.'} Generating now...` }],
+                },
+                // Turn 3: User confirms
+                {
+                    role: 'user',
+                    parts: [{ text: `Yes, generate the redesigned image now.${userRequest ? ` Remember: ${userRequest}` : ''}` }],
                 },
             ],
             generationConfig: {
                 responseModalities: ['Image'],
+                temperature: 1.5,
+                imageConfig: {
+                    imageSize: '2K',
+                },
             },
         };
 

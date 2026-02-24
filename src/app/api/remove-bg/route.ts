@@ -3,141 +3,316 @@ import { readFile, writeFile } from 'fs/promises';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import sharp from 'sharp';
+import { removeBackground } from '@imgly/background-removal-node';
 import { resolvePublicPath } from '@/lib/resolve-path';
 import { ensureStorageDir } from '@/lib/storage';
+
+// ---- Gradient presets (must match client-side) ----
+const GRADIENT_MAP: Record<string, { colors: string[]; angle: number }> = {
+    sunset: { colors: ['#f093fb', '#f5576c'], angle: 135 },
+    ocean: { colors: ['#667eea', '#764ba2'], angle: 135 },
+    mint: { colors: ['#a8edea', '#fed6e3'], angle: 135 },
+    fire: { colors: ['#f12711', '#f5af19'], angle: 135 },
+    sky: { colors: ['#89f7fe', '#66a6ff'], angle: 135 },
+    forest: { colors: ['#11998e', '#38ef7d'], angle: 135 },
+    lavender: { colors: ['#c471f5', '#fa71cd'], angle: 135 },
+    night: { colors: ['#0f0c29', '#302b63', '#24243e'], angle: 135 },
+    peach: { colors: ['#ffecd2', '#fcb69f'], angle: 135 },
+    arctic: { colors: ['#e0eafc', '#cfdef3'], angle: 135 },
+};
+
+function hexToRgb(hex: string): { r: number; g: number; b: number } {
+    const h = hex.replace('#', '');
+    return {
+        r: parseInt(h.substring(0, 2), 16),
+        g: parseInt(h.substring(2, 4), 16),
+        b: parseInt(h.substring(4, 6), 16),
+    };
+}
+
+// Convert sRGB to CIE Lab for perceptual color comparison
+function rgbToLab(r: number, g: number, b: number): [number, number, number] {
+    // sRGB → linear RGB
+    let rl = r / 255, gl = g / 255, bl = b / 255;
+    rl = rl > 0.04045 ? Math.pow((rl + 0.055) / 1.055, 2.4) : rl / 12.92;
+    gl = gl > 0.04045 ? Math.pow((gl + 0.055) / 1.055, 2.4) : gl / 12.92;
+    bl = bl > 0.04045 ? Math.pow((bl + 0.055) / 1.055, 2.4) : bl / 12.92;
+    // linear RGB → XYZ (D65)
+    let x = (rl * 0.4124564 + gl * 0.3575761 + bl * 0.1804375) / 0.95047;
+    let y = (rl * 0.2126729 + gl * 0.7151522 + bl * 0.0721750);
+    let z = (rl * 0.0193339 + gl * 0.1191920 + bl * 0.9503041) / 1.08883;
+    // XYZ → Lab
+    const f = (t: number) => t > 0.008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116;
+    x = f(x); y = f(y); z = f(z);
+    return [116 * y - 16, 500 * (x - y), 200 * (y - z)];
+}
+
+function deltaE(r1: number, g1: number, b1: number, r2: number, g2: number, b2: number): number {
+    const [L1, a1, b1Lab] = rgbToLab(r1, g1, b1);
+    const [L2, a2, b2Lab] = rgbToLab(r2, g2, b2);
+    return Math.sqrt((L1 - L2) ** 2 + (a1 - a2) ** 2 + (b1Lab - b2Lab) ** 2);
+}
+
+/** Create a gradient image buffer using sharp raw pixel data */
+async function createGradientBuffer(width: number, height: number, gradientId: string): Promise<Buffer> {
+    const preset = GRADIENT_MAP[gradientId] || GRADIENT_MAP.sunset;
+    const colors = preset.colors.map(hexToRgb);
+
+    const pixels = Buffer.alloc(width * height * 4);
+
+    for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+            // Simple diagonal gradient (135deg)
+            const t = Math.min(1, Math.max(0, (x / width + y / height) / 2));
+
+            // Interpolate between colors
+            const segmentCount = colors.length - 1;
+            const segment = Math.min(segmentCount - 1, Math.floor(t * segmentCount));
+            const localT = (t * segmentCount) - segment;
+
+            const c0 = colors[segment];
+            const c1 = colors[Math.min(segment + 1, colors.length - 1)];
+
+            const r = Math.round(c0.r + (c1.r - c0.r) * localT);
+            const g = Math.round(c0.g + (c1.g - c0.g) * localT);
+            const b = Math.round(c0.b + (c1.b - c0.b) * localT);
+
+            const off = (y * width + x) * 4;
+            pixels[off] = r;
+            pixels[off + 1] = g;
+            pixels[off + 2] = b;
+            pixels[off + 3] = 255;
+        }
+    }
+
+    return sharp(pixels, { raw: { width, height, channels: 4 } })
+        .png()
+        .toBuffer();
+}
 
 export async function POST(request: NextRequest) {
     try {
         const OUTPUT_DIR = await ensureStorageDir('variations');
 
         const body = await request.json();
-        const { imageUrl } = body;
+        const {
+            imageUrl,
+            mode = 'transparent',
+            bgColor,
+            gradientId,
+            customBgUrl,
+            edgeSmooth = false,
+            keyColor,
+            tolerance: toleranceRaw,
+            softEdge: softEdgeRaw,
+        } = body;
 
         if (!imageUrl) {
             return NextResponse.json({ error: 'No image URL' }, { status: 400 });
         }
 
-        const apiKey = process.env.GEMINI_API_KEY;
-        if (!apiKey) {
-            return NextResponse.json({ error: 'GEMINI_API_KEY not set' }, { status: 500 });
-        }
-
-        // Read source image
+        // Read source image — try local path first, fallback to fetching via URL
+        let fileBuffer: Buffer;
         const absolutePath = resolvePublicPath(imageUrl);
-        if (!absolutePath) {
-            return NextResponse.json({ error: 'Invalid path' }, { status: 403 });
-        }
-
-        const fileBuffer = await readFile(absolutePath);
-        const base64Image = fileBuffer.toString('base64');
-
-        // Detect mime type
-        const ext = path.extname(imageUrl).toLowerCase();
-        const mimeType = ext === '.svg' ? 'image/svg+xml'
-            : ext === '.webp' ? 'image/webp'
-                : ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg'
-                    : 'image/png';
-
-        // Use Gemini to remove background
-        const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash-preview-05-20';
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
-
-        const requestBody = {
-            contents: [
-                {
-                    parts: [
-                        {
-                            text: 'Remove the background from this image completely. Make the background fully transparent (alpha channel = 0). Keep the main subject with clean, sharp, precise edges — no blur, no feathering, no artifacts around the edges. The output must be a PNG image with a transparent background. Do NOT add any new elements or modify the subject — only remove the background.',
-                        },
-                        {
-                            inlineData: {
-                                mimeType,
-                                data: base64Image,
-                            },
-                        },
-                    ],
-                },
-            ],
-            generationConfig: {
-                responseModalities: ['IMAGE'],
-            },
-        };
-
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'x-goog-api-key': apiKey,
-            },
-            body: JSON.stringify(requestBody),
-        });
-
-        if (!response.ok) {
-            const errText = await response.text();
-            console.error('Gemini bg removal error:', errText);
-            return NextResponse.json(
-                { error: `Gemini API error: ${response.status}` },
-                { status: 502 }
-            );
-        }
-
-        const data = await response.json();
-
-        // Extract image from response
-        const candidates = data?.candidates;
-        if (!candidates || candidates.length === 0) {
-            return NextResponse.json({ error: 'No response from Gemini' }, { status: 502 });
-        }
-
-        const parts = candidates[0]?.content?.parts;
-        if (!parts) {
-            return NextResponse.json({ error: 'Invalid Gemini response' }, { status: 502 });
-        }
-
-        // Find image part
-        let resultBase64: string | null = null;
-        let resultMimeType: string = 'image/png';
-        for (const part of parts) {
-            if (part.inlineData?.data) {
-                resultBase64 = part.inlineData.data;
-                resultMimeType = part.inlineData.mimeType || 'image/png';
-                break;
+        if (absolutePath) {
+            fileBuffer = await readFile(absolutePath);
+        } else {
+            try {
+                const origin = request.headers.get('origin')
+                    || request.headers.get('referer')?.replace(/\/[^/]*$/, '')
+                    || `http://localhost:${process.env.PORT || 3000}`;
+                const fetchUrl = imageUrl.startsWith('http') ? imageUrl : `${origin}${imageUrl}`;
+                const imgRes = await fetch(fetchUrl);
+                if (!imgRes.ok) throw new Error(`Fetch failed: ${imgRes.status}`);
+                fileBuffer = Buffer.from(await imgRes.arrayBuffer());
+            } catch {
+                return NextResponse.json(
+                    { error: 'Không tìm thấy ảnh gốc. Vui lòng tải lại ảnh.' },
+                    { status: 404 },
+                );
             }
         }
 
-        if (!resultBase64) {
-            return NextResponse.json({ error: 'No image in Gemini response' }, { status: 502 });
-        }
+        const sourceMeta = await sharp(fileBuffer).metadata();
+        const imgWidth = sourceMeta.width || 1024;
+        const imgHeight = sourceMeta.height || 1024;
 
-        // Convert to PNG with transparency using sharp
-        // Gemini may return JPEG (no alpha) or PNG with white background instead of transparent
-        const inputBuffer = Buffer.from(resultBase64, 'base64');
+        // ---- Color key mode: perceptual color removal using CIE Lab ----
+        if (mode === 'colorkey') {
+            const color = keyColor || '#00ff00';
+            const tol = Math.max(0, Math.min(100, Number(toleranceRaw) || 30));
+            const soft = Math.max(0, Math.min(50, Number(softEdgeRaw) || 15));
+            const target = hexToRgb(color);
 
-        // Convert to PNG with transparency using sharp
-        // Gemini may return JPEG (no alpha) — need to convert and remove white bg
-        let outputBuffer: Buffer;
-
-        if (resultMimeType.includes('jpeg') || resultMimeType.includes('jpg')) {
-            const { data, info } = await sharp(inputBuffer)
+            const { data, info } = await sharp(fileBuffer)
                 .ensureAlpha()
                 .raw()
                 .toBuffer({ resolveWithObject: true });
 
-            // Remove white/near-white pixels (make them transparent)
-            const threshold = 240;
-            const pixels = new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
-            for (let i = 0; i < info.width * info.height; i++) {
-                const off = i * 4;
-                if (pixels[off] >= threshold && pixels[off + 1] >= threshold && pixels[off + 2] >= threshold) {
-                    pixels[off + 3] = 0;
+            const pixels = new Uint8Array(data.buffer, data.byteOffset, data.length);
+
+            // CIE Lab deltaE: tol 0-100 maps to deltaE threshold ~0-50
+            // deltaE < 2.3 = "just noticeable difference" for reference
+            const threshold = tol * 0.5;
+            const softZone = soft * 0.5;
+
+            for (let i = 0; i < pixels.length; i += 4) {
+                const dist = deltaE(pixels[i], pixels[i + 1], pixels[i + 2], target.r, target.g, target.b);
+
+                if (dist <= threshold) {
+                    // Fully transparent
+                    pixels[i + 3] = 0;
+                } else if (softZone > 0 && dist <= threshold + softZone) {
+                    // Smooth transition zone — cubic ease for natural falloff
+                    const t = (dist - threshold) / softZone; // 0→1
+                    const easedAlpha = t * t * (3 - 2 * t); // smoothstep
+                    pixels[i + 3] = Math.min(pixels[i + 3], Math.round(easedAlpha * pixels[i + 3]));
                 }
+                // else: keep original alpha
             }
 
-            outputBuffer = await sharp(pixels, { raw: { width: info.width, height: info.height, channels: 4 } })
-                .png()
-                .toBuffer();
-        } else {
-            outputBuffer = await sharp(inputBuffer).png().toBuffer();
+            let outputBuffer = await sharp(Buffer.from(pixels.buffer), {
+                raw: { width: info.width, height: info.height, channels: 4 },
+            }).png().toBuffer();
+
+            if (edgeSmooth) {
+                outputBuffer = await sharp(outputBuffer).blur(1.5).png().toBuffer();
+            }
+
+            const resultId = uuidv4();
+            const filename = `${resultId}.png`;
+            const filepath = path.join(OUTPUT_DIR, filename);
+            await writeFile(filepath, outputBuffer);
+            return NextResponse.json({ url: `/api/files/variations/${filename}` });
+        }
+
+        // ---- Use @imgly/background-removal to remove background ----
+        let subjectBuffer: Buffer;
+        try {
+            const blob = new Blob([new Uint8Array(fileBuffer)], { type: 'image/png' });
+            const resultBlob = await removeBackground(blob, {
+                output: { format: 'image/png' as const, quality: 0.9 },
+            });
+            const arrayBuffer = await resultBlob.arrayBuffer();
+            subjectBuffer = Buffer.from(arrayBuffer);
+
+            // Apply edge smoothing if requested (feather alpha channel)
+            if (edgeSmooth) {
+                subjectBuffer = await sharp(subjectBuffer)
+                    .blur(1.5)
+                    .png()
+                    .toBuffer();
+            }
+        } catch (err) {
+            console.error('Background removal error:', err);
+            return NextResponse.json(
+                { error: 'Background removal failed.' },
+                { status: 500 },
+            );
+        }
+
+        // ---- Compose final output based on mode ----
+        let outputBuffer: Buffer;
+
+        switch (mode) {
+            case 'transparent': {
+                outputBuffer = subjectBuffer;
+                break;
+            }
+
+            case 'solid': {
+                const color = bgColor || '#ffffff';
+                const rgb = hexToRgb(color);
+                const bgCanvas = await sharp({
+                    create: {
+                        width: imgWidth,
+                        height: imgHeight,
+                        channels: 4,
+                        background: { r: rgb.r, g: rgb.g, b: rgb.b, alpha: 255 },
+                    },
+                }).png().toBuffer();
+
+                // Resize subject to fit canvas
+                const resizedSubject = await sharp(subjectBuffer)
+                    .resize(imgWidth, imgHeight, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+                    .png()
+                    .toBuffer();
+
+                outputBuffer = await sharp(bgCanvas)
+                    .composite([{ input: resizedSubject, gravity: 'centre' }])
+                    .png()
+                    .toBuffer();
+                break;
+            }
+
+            case 'blur': {
+                // Blur original image as background
+                const blurredBg = await sharp(fileBuffer)
+                    .resize(imgWidth, imgHeight, { fit: 'cover' })
+                    .blur(30)
+                    .png()
+                    .toBuffer();
+
+                const resizedSubject = await sharp(subjectBuffer)
+                    .resize(imgWidth, imgHeight, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+                    .png()
+                    .toBuffer();
+
+                outputBuffer = await sharp(blurredBg)
+                    .composite([{ input: resizedSubject, gravity: 'centre' }])
+                    .png()
+                    .toBuffer();
+                break;
+            }
+
+            case 'gradient': {
+                const gId = gradientId || 'sunset';
+                const gradBg = await createGradientBuffer(imgWidth, imgHeight, gId);
+
+                const resizedSubject = await sharp(subjectBuffer)
+                    .resize(imgWidth, imgHeight, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+                    .png()
+                    .toBuffer();
+
+                outputBuffer = await sharp(gradBg)
+                    .composite([{ input: resizedSubject, gravity: 'centre' }])
+                    .png()
+                    .toBuffer();
+                break;
+            }
+
+            case 'custom': {
+                if (!customBgUrl) {
+                    outputBuffer = subjectBuffer;
+                    break;
+                }
+
+                const bgAbsPath = resolvePublicPath(customBgUrl);
+                if (!bgAbsPath) {
+                    outputBuffer = subjectBuffer;
+                    break;
+                }
+
+                const bgFileBuffer = await readFile(bgAbsPath);
+                const bgResized = await sharp(bgFileBuffer)
+                    .resize(imgWidth, imgHeight, { fit: 'cover' })
+                    .png()
+                    .toBuffer();
+
+                const resizedSubject = await sharp(subjectBuffer)
+                    .resize(imgWidth, imgHeight, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+                    .png()
+                    .toBuffer();
+
+                outputBuffer = await sharp(bgResized)
+                    .composite([{ input: resizedSubject, gravity: 'centre' }])
+                    .png()
+                    .toBuffer();
+                break;
+            }
+
+            default:
+                outputBuffer = subjectBuffer;
         }
 
         // Save result

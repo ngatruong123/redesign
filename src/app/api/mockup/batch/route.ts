@@ -1,19 +1,33 @@
 import { NextRequest, NextResponse } from 'next/server';
-import sharp from 'sharp';
+import { createCanvas, loadImage } from '@napi-rs/canvas';
 import { readFile, writeFile } from 'fs/promises';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import JSZip from 'jszip';
 import { resolvePublicPath } from '@/lib/resolve-path';
 import { ensureStorageDir } from '@/lib/storage';
+import { drawPerspective, rectToQuad, type FitMode } from '@/lib/perspective';
+
+interface Point { x: number; y: number; }
 
 interface BatchItem {
     mockupImagePath: string;
     designImagePath: string;
-    mask: { x: number; y: number; width: number; height: number; rotation?: number };
+    mask: {
+        x: number; y: number; width: number; height: number; rotation?: number;
+        mode?: 'rect' | 'quad';
+        quad?: [Point, Point, Point, Point];
+        edgeCurves?: [Point, Point, Point, Point];
+        fitMode?: FitMode;
+        blendMode?: string;
+        opacity?: number;
+        shadow?: { blur: number; color: string; };
+    };
     templateName: string;
     variationName: string;
 }
+
+const VALID_BLEND_MODES = ['normal', 'multiply', 'overlay', 'screen', 'soft-light'] as const;
 
 export async function POST(request: NextRequest) {
     try {
@@ -38,38 +52,74 @@ export async function POST(request: NextRequest) {
                 const mockupBuffer = await readFile(mockupPath);
                 const designBuffer = await readFile(designPath);
 
-                const rotation = item.mask.rotation || 0;
-                let resizedDesign = await sharp(designBuffer)
-                    .resize(Math.round(item.mask.width), Math.round(item.mask.height), {
-                        fit: 'contain',
-                        background: { r: 0, g: 0, b: 0, alpha: 0 },
-                    })
-                    .png()
-                    .toBuffer();
+                const mockupImg = await loadImage(mockupBuffer);
+                const designImg = await loadImage(designBuffer);
 
-                if (rotation !== 0) {
-                    resizedDesign = await sharp(resizedDesign)
-                        .rotate(rotation, { background: { r: 0, g: 0, b: 0, alpha: 0 } })
-                        .png()
-                        .toBuffer();
+                const canvas = createCanvas(mockupImg.width, mockupImg.height);
+                const ctx = canvas.getContext('2d');
+
+                // 1. Draw mockup background
+                ctx.drawImage(mockupImg, 0, 0);
+
+                // 2. Determine quad
+                const mask = item.mask;
+                const mode = mask.mode || 'rect';
+                let quad: [Point, Point, Point, Point];
+
+                if (mode === 'quad' && mask.quad) {
+                    quad = mask.quad;
+                } else {
+                    quad = rectToQuad(
+                        mask.x, mask.y, mask.width, mask.height,
+                        mask.rotation || 0,
+                    );
                 }
 
-                const result = await sharp(mockupBuffer)
-                    .composite([{
-                        input: resizedDesign,
-                        left: Math.round(item.mask.x),
-                        top: Math.round(item.mask.y),
-                    }])
-                    .png()
-                    .toBuffer();
+                const blendMode = mask.blendMode && VALID_BLEND_MODES.includes(mask.blendMode as typeof VALID_BLEND_MODES[number])
+                    ? mask.blendMode
+                    : 'normal';
+                const opacity = typeof mask.opacity === 'number' ? mask.opacity / 100 : 1;
+
+                // 3. Render warped design onto a temp canvas
+                const tmpCanvas = createCanvas(mockupImg.width, mockupImg.height);
+                const tmpCtx = tmpCanvas.getContext('2d');
+                const fitMode: FitMode = mask.fitMode === 'fill' ? 'fill' : 'contain';
+                drawPerspective(tmpCtx, designImg, quad, mask.edgeCurves, 16, fitMode);
+
+                // 4. Set blend mode and opacity
+                const compositeMap: Record<string, GlobalCompositeOperation> = {
+                    'normal': 'source-over',
+                    'multiply': 'multiply',
+                    'overlay': 'overlay',
+                    'screen': 'screen',
+                    'soft-light': 'soft-light',
+                };
+                ctx.globalCompositeOperation = compositeMap[blendMode] || 'source-over';
+                ctx.globalAlpha = opacity;
+
+                // 5. Draw with shadow applied to the design shape
+                if (mask.shadow && mask.shadow.blur > 0) {
+                    ctx.shadowBlur = mask.shadow.blur;
+                    ctx.shadowColor = mask.shadow.color || 'rgba(0,0,0,0.5)';
+                }
+
+                ctx.drawImage(tmpCanvas, 0, 0);
+
+                // Reset
+                ctx.shadowBlur = 0;
+                ctx.shadowColor = 'transparent';
+                ctx.globalCompositeOperation = 'source-over';
+                ctx.globalAlpha = 1;
+
+                const resultBuffer = canvas.toBuffer('image/png');
 
                 const id = uuidv4();
                 const filename = `${id}.png`;
                 const filepath = path.join(MOCKUP_OUTPUT_DIR, filename);
-                await writeFile(filepath, result);
+                await writeFile(filepath, resultBuffer);
 
                 const zipFilename = `${item.templateName}_${item.variationName}.png`.replace(/\s+/g, '_');
-                zip.file(zipFilename, result);
+                zip.file(zipFilename, resultBuffer);
 
                 results.push({
                     id,

@@ -161,12 +161,24 @@ export function buildVariationPrompt(
     stylePreset: StylePreset,
     additionalContext?: string
 ): string {
-    const parts = [
-        stylePreset.prompt,
-        basePrompt ? `Original concept: ${basePrompt}` : '',
-        additionalContext || '',
-        'High quality, print-ready, clean edges, no text unless part of the original design.',
-    ].filter(Boolean);
+    const parts: string[] = [];
 
-    return parts.join('. ');
+    // User request goes FIRST if present — highest priority
+    if (basePrompt) {
+        parts.push(`[USER REQUEST — HIGHEST PRIORITY] You MUST apply these changes: ${basePrompt}`);
+    }
+
+    // Style directive
+    parts.push(`[STYLE: ${stylePreset.name.toUpperCase()}] ${stylePreset.prompt}`);
+
+    if (additionalContext) {
+        parts.push(additionalContext);
+    }
+
+    // Closing mandate — repeat user request if present
+    parts.push(
+        `Fully transform the image into "${stylePreset.name}" style.${basePrompt ? ` AND you MUST also: ${basePrompt}.` : ''} High quality, print-ready.`
+    );
+
+    return parts.join('\n\n');
 }

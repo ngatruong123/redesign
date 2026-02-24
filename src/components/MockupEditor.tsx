@@ -5,99 +5,242 @@ import { useWorkflowStore } from '@/store/workflow-store';
 import { useToastStore } from '@/store/toast-store';
 import { v4 as uuidv4 } from 'uuid';
 import Lightbox from './Lightbox';
-import type { MockupMask } from '@/types';
+import RemoveBgPanel from './RemoveBgPanel';
+import type { MockupMask, Point } from '@/types';
 
 const MAX_HISTORY = 20;
+const CORNER_LABELS = ['1', '2', '3', '4'];
+const EDGE_LABELS = ['T', 'R', 'B', 'L'];
+const CORNER_HIT_RADIUS = 15;
+const CORNER_DRAW_RADIUS = 8;
+const EDGE_DRAW_RADIUS = 6;
+
+const BLEND_OPTIONS: MockupMask['blendMode'][] = ['normal', 'multiply', 'overlay', 'screen', 'soft-light'];
+
+function mid(a: Point, b: Point): Point {
+    return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+}
+
+function qbez(p0: Point, cp: Point, p1: Point, t: number): Point {
+    const it = 1 - t;
+    return {
+        x: it * it * p0.x + 2 * it * t * cp.x + t * t * p1.x,
+        y: it * it * p0.y + 2 * it * t * cp.y + t * t * p1.y,
+    };
+}
+
+/** Default edge CPs = midpoints (straight lines) */
+function defaultEdgeCurves(quad: Point[]): [Point, Point, Point, Point] {
+    const [tl, tr, br, bl] = quad;
+    return [mid(tl, tr), mid(tr, br), mid(br, bl), mid(tl, bl)];
+}
+
+/** Edge endpoint pairs: [start, end] for top, right, bottom, left */
+function edgeEndpoints(quad: Point[]): [Point, Point][] {
+    const [tl, tr, br, bl] = quad;
+    return [[tl, tr], [tr, br], [br, bl], [tl, bl]];
+}
+
+// Handle type: 'corner-0'..'corner-3' or 'edge-0'..'edge-3'
+type HandleId = { type: 'corner'; index: number } | { type: 'edge'; index: number };
 
 export default function MockupEditor() {
     const {
         variations, mockupTemplates, generatedMockups,
         addMockupTemplate, removeMockupTemplate, updateMockupTemplate,
+        setVariations, toggleVariationSelection, updateVariation,
         setGeneratedMockups, setStep, isCompositing, setIsCompositing, setError,
     } = useWorkflowStore();
     const addToast = useToastStore((s) => s.addToast);
 
     const [activeTemplateId, setActiveTemplateId] = useState<string | null>(null);
+    const [selectedTemplateIds, setSelectedTemplateIds] = useState<Set<string>>(new Set());
     const [dragActive, setDragActive] = useState(false);
     const [selectedMockupIds, setSelectedMockupIds] = useState<Set<string>>(new Set());
     const [lightboxImage, setLightboxImage] = useState<{ url: string; alt: string } | null>(null);
     const [downloading, setDownloading] = useState(false);
     const [zipUrl, setZipUrl] = useState<string | null>(null);
-    const [rotation, setRotation] = useState(0);
+    const [removeBgVariationId, setRemoveBgVariationId] = useState<string | null>(null);
 
-    // Undo/Redo
+    // Quad placement state
+    const [placingCorner, setPlacingCorner] = useState(0);
+    const [corners, setCorners] = useState<Point[]>([]);
+    const [edgeCPs, setEdgeCPs] = useState<[Point, Point, Point, Point] | null>(null);
+    const [dragging, setDragging] = useState<HandleId | null>(null);
+
+    // Blend controls
+    const [blendMode, setBlendMode] = useState<MockupMask['blendMode']>('normal');
+    const [fitMode, setFitMode] = useState<MockupMask['fitMode']>('contain');
+    const [opacity, setOpacity] = useState(100);
+    const [shadowEnabled, setShadowEnabled] = useState(false);
+    const [shadowBlur, setShadowBlur] = useState(10);
+
+    // Undo/Redo — use refs to avoid stale closures
     const [maskHistory, setMaskHistory] = useState<(MockupMask | null)[]>([]);
     const [historyIndex, setHistoryIndex] = useState(-1);
+    const historyRef = useRef<{ history: (MockupMask | null)[]; index: number }>({ history: [], index: -1 });
+    // Keep ref in sync
+    historyRef.current = { history: maskHistory, index: historyIndex };
 
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
-
-    // Drawing state for mask
-    const [isDrawing, setIsDrawing] = useState(false);
-    const [drawStart, setDrawStart] = useState<{ x: number; y: number } | null>(null);
+    const designInputRef = useRef<HTMLInputElement>(null);
+    const imgCacheRef = useRef<HTMLImageElement | null>(null);
 
     const activeTemplate = mockupTemplates.find((t) => t.id === activeTemplateId);
     const selectedVariations = variations.filter((v) => v.selected && v.imageUrl);
 
-    // Sync rotation when switching templates
+    const quadDone = corners.length === 4;
+
+    // Build mask
+    const buildMask = useCallback((): MockupMask => {
+        const quad = corners as [Point, Point, Point, Point];
+        const xs = quad.map(p => p.x);
+        const ys = quad.map(p => p.y);
+        const minX = Math.min(...xs);
+        const minY = Math.min(...ys);
+
+        // Check if edge CPs differ from default midpoints
+        const defCPs = defaultEdgeCurves(corners);
+        const hasCustomCurves = edgeCPs && edgeCPs.some((cp, i) =>
+            Math.abs(cp.x - defCPs[i].x) > 1 || Math.abs(cp.y - defCPs[i].y) > 1
+        );
+
+        return {
+            x: minX, y: minY,
+            width: Math.max(...xs) - minX,
+            height: Math.max(...ys) - minY,
+            rotation: 0,
+            mode: 'quad',
+            quad,
+            edgeCurves: hasCustomCurves ? edgeCPs! : undefined,
+            fitMode,
+            blendMode,
+            opacity,
+            shadow: shadowEnabled ? { blur: shadowBlur, color: 'rgba(0,0,0,0.5)' } : undefined,
+        };
+    }, [corners, edgeCPs, fitMode, blendMode, opacity, shadowEnabled, shadowBlur]);
+
+    // Sync state when switching templates
     useEffect(() => {
-        setRotation(activeTemplate?.mask?.rotation || 0);
-        // Reset history when switching
-        setMaskHistory(activeTemplate?.mask ? [activeTemplate.mask] : []);
-        setHistoryIndex(activeTemplate?.mask ? 0 : -1);
+        const mask = activeTemplate?.mask;
+        if (mask && mask.mode === 'quad' && mask.quad) {
+            setCorners([...mask.quad]);
+            setEdgeCPs(mask.edgeCurves ? [...mask.edgeCurves] : defaultEdgeCurves(mask.quad));
+            setPlacingCorner(4);
+            setFitMode(mask.fitMode || 'contain');
+            setBlendMode(mask.blendMode || 'normal');
+            setOpacity(mask.opacity ?? 100);
+            setShadowEnabled(!!mask.shadow);
+            setShadowBlur(mask.shadow?.blur ?? 10);
+        } else if (mask) {
+            const rad = ((mask.rotation || 0) * Math.PI) / 180;
+            const cx = mask.x + mask.width / 2;
+            const cy = mask.y + mask.height / 2;
+            const rot = (px: number, py: number): Point => ({
+                x: Math.cos(rad) * (px - cx) - Math.sin(rad) * (py - cy) + cx,
+                y: Math.sin(rad) * (px - cx) + Math.cos(rad) * (py - cy) + cy,
+            });
+            const q: Point[] = [
+                rot(mask.x, mask.y),
+                rot(mask.x + mask.width, mask.y),
+                rot(mask.x + mask.width, mask.y + mask.height),
+                rot(mask.x, mask.y + mask.height),
+            ];
+            setCorners(q);
+            setEdgeCPs(defaultEdgeCurves(q));
+            setPlacingCorner(4);
+            setFitMode(mask.fitMode || 'contain');
+            setBlendMode(mask.blendMode || 'normal');
+            setOpacity(mask.opacity ?? 100);
+            setShadowEnabled(!!mask.shadow);
+            setShadowBlur(mask.shadow?.blur ?? 10);
+        } else {
+            setCorners([]);
+            setEdgeCPs(null);
+            setPlacingCorner(0);
+            setFitMode('contain');
+            setBlendMode('normal');
+            setOpacity(100);
+            setShadowEnabled(false);
+            setShadowBlur(10);
+        }
+        setMaskHistory(mask ? [mask] : []);
+        setHistoryIndex(mask ? 0 : -1);
+        imgCacheRef.current = null;
     }, [activeTemplateId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    // Push mask to history
+    // History — read from ref to avoid stale closures
     const pushHistory = useCallback((mask: MockupMask | null) => {
-        setMaskHistory((prev) => {
-            const next = [...prev.slice(0, historyIndex + 1), mask].slice(-MAX_HISTORY);
-            return next;
-        });
-        setHistoryIndex((prev) => Math.min(prev + 1, MAX_HISTORY - 1));
-    }, [historyIndex]);
+        const { history, index } = historyRef.current;
+        const next = [...history.slice(0, index + 1), mask].slice(-MAX_HISTORY);
+        const newIdx = next.length - 1;
+        setMaskHistory(next);
+        setHistoryIndex(newIdx);
+    }, []);
+
+    const restoreMask = useCallback((mask: MockupMask | null) => {
+        if (!activeTemplate) return;
+        updateMockupTemplate(activeTemplate.id, { mask });
+        if (mask?.quad) {
+            setCorners([...mask.quad]);
+            setEdgeCPs(mask.edgeCurves ? [...mask.edgeCurves] : defaultEdgeCurves(mask.quad));
+            setPlacingCorner(4);
+        } else {
+            setCorners([]);
+            setEdgeCPs(null);
+            setPlacingCorner(0);
+        }
+    }, [activeTemplate, updateMockupTemplate]);
 
     const undo = useCallback(() => {
-        if (historyIndex <= 0 || !activeTemplate) return;
-        const newIdx = historyIndex - 1;
+        const { history, index } = historyRef.current;
+        if (index <= 0 || !activeTemplate) return;
+        const newIdx = index - 1;
         setHistoryIndex(newIdx);
-        const mask = maskHistory[newIdx];
-        updateMockupTemplate(activeTemplate.id, { mask });
-        setRotation(mask?.rotation || 0);
-    }, [historyIndex, maskHistory, activeTemplate, updateMockupTemplate]);
+        restoreMask(history[newIdx]);
+    }, [activeTemplate, restoreMask]);
 
     const redo = useCallback(() => {
-        if (historyIndex >= maskHistory.length - 1 || !activeTemplate) return;
-        const newIdx = historyIndex + 1;
+        const { history, index } = historyRef.current;
+        if (index >= history.length - 1 || !activeTemplate) return;
+        const newIdx = index + 1;
         setHistoryIndex(newIdx);
-        const mask = maskHistory[newIdx];
-        updateMockupTemplate(activeTemplate.id, { mask });
-        setRotation(mask?.rotation || 0);
-    }, [historyIndex, maskHistory, activeTemplate, updateMockupTemplate]);
+        restoreMask(history[newIdx]);
+    }, [activeTemplate, restoreMask]);
 
-    // Keyboard shortcuts for undo/redo
     useEffect(() => {
         const handler = (e: KeyboardEvent) => {
             if ((e.metaKey || e.ctrlKey) && e.key === 'z') {
                 e.preventDefault();
-                if (e.shiftKey) redo();
-                else undo();
+                if (e.shiftKey) redo(); else undo();
             }
         };
         window.addEventListener('keydown', handler);
         return () => window.removeEventListener('keydown', handler);
     }, [undo, redo]);
 
+    const commitMask = useCallback(() => {
+        if (!activeTemplate || corners.length < 4) return;
+        const mask = buildMask();
+        updateMockupTemplate(activeTemplate.id, { mask });
+        pushHistory(mask);
+    }, [activeTemplate, corners, buildMask, updateMockupTemplate, pushHistory]);
+
+    // Update mask when blend/opacity/shadow change
+    useEffect(() => {
+        if (quadDone && activeTemplate) {
+            const mask = buildMask();
+            updateMockupTemplate(activeTemplate.id, { mask });
+        }
+    }, [fitMode, blendMode, opacity, shadowEnabled, shadowBlur]); // eslint-disable-line react-hooks/exhaustive-deps
+
     // --- File naming ---
     const makeSafeFilename = (templateName: string, variationName: string) =>
         `${templateName}-${variationName}.png`.replace(/[^a-zA-Z0-9._-]/g, '_');
 
     const triggerDownload = (imageUrl: string, filename: string) => {
-        if (!imageUrl) {
-            addToast('error', 'Không có URL để tải');
-            return;
-        }
-        // URL format: /api/download/mockups/uuid.png/DesiredName.png
-        // Last segment = filename browser saves as
+        if (!imageUrl) { addToast('error', 'Không có URL để tải'); return; }
         const filePart = imageUrl.replace(/^\/api\/files\//, '');
         window.location.href = `/api/download/${filePart}/${encodeURIComponent(filename)}`;
     };
@@ -105,7 +248,6 @@ export default function MockupEditor() {
     const handleDownloadSelected = () => {
         const toDownload = generatedMockups.filter((m) => selectedMockupIds.has(m.id) && m.imageUrl);
         if (toDownload.length === 0) return;
-        // For multiple files, use ZIP download instead of opening many tabs
         if (toDownload.length > 1 && zipUrl) {
             triggerDownload(zipUrl, 'mockups.zip');
         } else {
@@ -127,7 +269,42 @@ export default function MockupEditor() {
         setSelectedMockupIds(new Set(generatedMockups.filter((m) => m.imageUrl).map((m) => m.id)));
     };
 
-    // --- Upload mockup template ---
+    // --- Template multi-select ---
+    const toggleTemplateSelection = (id: string, e: React.MouseEvent) => {
+        e.stopPropagation();
+        setSelectedTemplateIds(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id); else next.add(id);
+            return next;
+        });
+    };
+
+    const selectAllTemplates = () => {
+        setSelectedTemplateIds(new Set(mockupTemplates.map(t => t.id)));
+    };
+
+    const deselectAllTemplates = () => {
+        setSelectedTemplateIds(new Set());
+    };
+
+    // Copy active template's mask to all selected templates
+    const applyMaskToSelected = () => {
+        if (!activeTemplate?.mask) {
+            addToast('error', 'Template hiện tại chưa có mask');
+            return;
+        }
+        const targets = mockupTemplates.filter(t => selectedTemplateIds.has(t.id) && t.id !== activeTemplateId);
+        if (targets.length === 0) {
+            addToast('error', 'Chưa chọn template nào để áp dụng');
+            return;
+        }
+        for (const t of targets) {
+            updateMockupTemplate(t.id, { mask: { ...activeTemplate.mask } });
+        }
+        addToast('success', `Đã áp dụng mask cho ${targets.length} template`);
+    };
+
+    // --- Upload (supports multiple files) ---
     const handleUploadTemplate = useCallback(async (file: File) => {
         if (!file.type.startsWith('image/')) return;
         const formData = new FormData();
@@ -136,7 +313,6 @@ export default function MockupEditor() {
             const res = await fetch('/api/upload', { method: 'POST', body: formData });
             const data = await res.json();
             if (!res.ok) throw new Error(data.error);
-
             const newTemplate = {
                 id: uuidv4(),
                 name: file.name.replace(/\.[^.]+$/, ''),
@@ -150,146 +326,332 @@ export default function MockupEditor() {
         }
     }, [addMockupTemplate, addToast]);
 
-    // --- Canvas drawing for mask ---
-    const drawCanvas = useCallback((template: typeof activeTemplate) => {
-        if (!template || !canvasRef.current) return;
+    const handleUploadMultiple = useCallback(async (files: FileList | File[]) => {
+        const imageFiles = Array.from(files).filter(f => f.type.startsWith('image/'));
+        if (imageFiles.length === 0) return;
+
+        const uploads = imageFiles.map(async (file) => {
+            const formData = new FormData();
+            formData.append('file', file);
+            const res = await fetch('/api/upload', { method: 'POST', body: formData });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error);
+            return {
+                id: uuidv4(),
+                name: file.name.replace(/\.[^.]+$/, ''),
+                imageUrl: data.url,
+                mask: null,
+            };
+        });
+
+        const results = await Promise.allSettled(uploads);
+        let added = 0;
+        let lastId: string | null = null;
+        for (const r of results) {
+            if (r.status === 'fulfilled') {
+                addMockupTemplate(r.value);
+                lastId = r.value.id;
+                added++;
+            }
+        }
+        if (lastId) setActiveTemplateId(lastId);
+        const failed = results.filter(r => r.status === 'rejected').length;
+        if (added > 0) addToast('success', `Đã thêm ${added} template`);
+        if (failed > 0) addToast('error', `${failed} file upload thất bại`);
+    }, [addMockupTemplate, addToast]);
+
+    // --- Upload design images (add to variations) ---
+    const handleUploadDesigns = useCallback(async (files: FileList | File[]) => {
+        const imageFiles = Array.from(files).filter(f => f.type.startsWith('image/'));
+        if (imageFiles.length === 0) return;
+
+        const uploads = imageFiles.map(async (file) => {
+            const formData = new FormData();
+            formData.append('file', file);
+            const res = await fetch('/api/upload', { method: 'POST', body: formData });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error);
+            return {
+                id: uuidv4(),
+                styleId: 'custom',
+                styleName: file.name.replace(/\.[^.]+$/, ''),
+                imageUrl: data.url,
+                selected: true,
+                loading: false,
+            } satisfies import('@/types').GeneratedVariation;
+        });
+
+        const results = await Promise.allSettled(uploads);
+        const newVariations: import('@/types').GeneratedVariation[] = [];
+        for (const r of results) {
+            if (r.status === 'fulfilled') newVariations.push(r.value);
+        }
+        if (newVariations.length > 0) {
+            setVariations([...variations, ...newVariations]);
+            addToast('success', `Đã thêm ${newVariations.length} ảnh thiết kế`);
+        }
+        const failed = results.filter(r => r.status === 'rejected').length;
+        if (failed > 0) addToast('error', `${failed} file upload thất bại`);
+    }, [variations, setVariations, addToast]);
+
+    // --- Canvas drawing ---
+    const drawCanvas = useCallback(() => {
+        if (!activeTemplate || !canvasRef.current) return;
         const canvas = canvasRef.current;
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
 
-        const img = new Image();
-        img.onload = () => {
+        const draw = (img: HTMLImageElement) => {
             canvas.width = img.naturalWidth;
             canvas.height = img.naturalHeight;
             ctx.drawImage(img, 0, 0);
 
-            if (template.mask) {
-                const m = template.mask;
-                ctx.save();
+            if (corners.length === 0) return;
 
-                if (m.rotation) {
-                    const cx = m.x + m.width / 2;
-                    const cy = m.y + m.height / 2;
-                    ctx.translate(cx, cy);
-                    ctx.rotate((m.rotation * Math.PI) / 180);
-                    ctx.translate(-cx, -cy);
-                }
+            ctx.save();
 
-                ctx.strokeStyle = 'rgba(0, 230, 138, 0.8)';
-                ctx.lineWidth = 3;
-                ctx.setLineDash([6, 4]);
-                ctx.fillStyle = 'rgba(0, 230, 138, 0.15)';
-                ctx.fillRect(m.x, m.y, m.width, m.height);
-                ctx.strokeRect(m.x, m.y, m.width, m.height);
-                ctx.setLineDash([]);
-                ctx.restore();
-            }
-        };
-        img.src = template.imageUrl;
-    }, []);
-
-    useEffect(() => {
-        drawCanvas(activeTemplate);
-    }, [activeTemplate, drawCanvas]);
-
-    // Unified coord helper for mouse and touch
-    const getCoords = useCallback((clientX: number, clientY: number) => {
-        const canvas = canvasRef.current;
-        if (!canvas) return { x: 0, y: 0 };
-        const rect = canvas.getBoundingClientRect();
-        const scaleX = canvas.width / rect.width;
-        const scaleY = canvas.height / rect.height;
-        return {
-            x: (clientX - rect.left) * scaleX,
-            y: (clientY - rect.top) * scaleY,
-        };
-    }, []);
-
-    const handlePointerDown = (clientX: number, clientY: number) => {
-        const coords = getCoords(clientX, clientY);
-        setIsDrawing(true);
-        setDrawStart(coords);
-    };
-
-    const handlePointerMove = (clientX: number, clientY: number) => {
-        if (!isDrawing || !drawStart || !canvasRef.current || !activeTemplate) return;
-        const coords = getCoords(clientX, clientY);
-        const ctx = canvasRef.current.getContext('2d');
-        if (!ctx) return;
-
-        const img = new Image();
-        img.onload = () => {
-            ctx.clearRect(0, 0, canvasRef.current!.width, canvasRef.current!.height);
-            ctx.drawImage(img, 0, 0);
-
-            const x = Math.min(drawStart.x, coords.x);
-            const y = Math.min(drawStart.y, coords.y);
-            const w = Math.abs(coords.x - drawStart.x);
-            const h = Math.abs(coords.y - drawStart.y);
-
+            // Draw edges (bezier curves if quadDone + edgeCPs, else straight)
             ctx.strokeStyle = 'rgba(0, 230, 138, 0.8)';
             ctx.lineWidth = 3;
             ctx.setLineDash([6, 4]);
-            ctx.fillStyle = 'rgba(0, 230, 138, 0.15)';
-            ctx.fillRect(x, y, w, h);
-            ctx.strokeRect(x, y, w, h);
+
+            if (corners.length >= 2 && quadDone && edgeCPs) {
+                // Draw 4 bezier edges
+                const edges = edgeEndpoints(corners);
+                ctx.beginPath();
+                ctx.moveTo(corners[0].x, corners[0].y);
+                // top: TL→TR
+                ctx.quadraticCurveTo(edgeCPs[0].x, edgeCPs[0].y, corners[1].x, corners[1].y);
+                // right: TR→BR
+                ctx.quadraticCurveTo(edgeCPs[1].x, edgeCPs[1].y, corners[2].x, corners[2].y);
+                // bottom: BR→BL
+                ctx.quadraticCurveTo(edgeCPs[2].x, edgeCPs[2].y, corners[3].x, corners[3].y);
+                // left: BL→TL
+                ctx.quadraticCurveTo(edgeCPs[3].x, edgeCPs[3].y, corners[0].x, corners[0].y);
+                ctx.closePath();
+                ctx.fillStyle = 'rgba(0, 230, 138, 0.12)';
+                ctx.fill();
+                ctx.stroke();
+
+                // Draw control point tangent lines (dashed, thinner)
+                ctx.setLineDash([3, 3]);
+                ctx.lineWidth = 1;
+                ctx.strokeStyle = 'rgba(255, 200, 0, 0.5)';
+                edges.forEach(([start, end], i) => {
+                    ctx.beginPath();
+                    ctx.moveTo(start.x, start.y);
+                    ctx.lineTo(edgeCPs[i].x, edgeCPs[i].y);
+                    ctx.lineTo(end.x, end.y);
+                    ctx.stroke();
+                });
+            } else if (corners.length >= 2) {
+                ctx.beginPath();
+                ctx.moveTo(corners[0].x, corners[0].y);
+                for (let i = 1; i < corners.length; i++) {
+                    ctx.lineTo(corners[i].x, corners[i].y);
+                }
+                if (corners.length === 4) {
+                    ctx.closePath();
+                    ctx.fillStyle = 'rgba(0, 230, 138, 0.15)';
+                    ctx.fill();
+                }
+                ctx.stroke();
+            }
             ctx.setLineDash([]);
+
+            // Draw corner handles
+            corners.forEach((p, i) => {
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, CORNER_DRAW_RADIUS, 0, Math.PI * 2);
+                const isActive = dragging?.type === 'corner' && dragging.index === i;
+                ctx.fillStyle = isActive ? 'rgba(255, 200, 0, 0.9)' : 'rgba(0, 230, 138, 0.9)';
+                ctx.fill();
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+                ctx.fillStyle = '#fff';
+                ctx.font = 'bold 14px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(CORNER_LABELS[i], p.x, p.y);
+            });
+
+            // Draw edge curve handles (diamond shape)
+            if (quadDone && edgeCPs) {
+                edgeCPs.forEach((cp, i) => {
+                    ctx.save();
+                    ctx.translate(cp.x, cp.y);
+                    ctx.rotate(Math.PI / 4);
+                    const isActive = dragging?.type === 'edge' && dragging.index === i;
+                    const size = EDGE_DRAW_RADIUS;
+                    ctx.fillStyle = isActive ? 'rgba(255, 150, 0, 0.9)' : 'rgba(255, 200, 0, 0.85)';
+                    ctx.fillRect(-size, -size, size * 2, size * 2);
+                    ctx.strokeStyle = '#fff';
+                    ctx.lineWidth = 1.5;
+                    ctx.strokeRect(-size, -size, size * 2, size * 2);
+                    ctx.restore();
+
+                    // Label
+                    ctx.fillStyle = '#333';
+                    ctx.font = 'bold 10px sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(EDGE_LABELS[i], cp.x, cp.y);
+                });
+            }
+
+            ctx.restore();
         };
-        img.src = activeTemplate.imageUrl;
-    };
 
-    const handlePointerUp = (clientX: number, clientY: number) => {
-        if (!isDrawing || !drawStart || !activeTemplate) return;
-        const coords = getCoords(clientX, clientY);
-        setIsDrawing(false);
-
-        const x = Math.min(drawStart.x, coords.x);
-        const y = Math.min(drawStart.y, coords.y);
-        const w = Math.abs(coords.x - drawStart.x);
-        const h = Math.abs(coords.y - drawStart.y);
-
-        if (w > 10 && h > 10) {
-            const mask = { x, y, width: w, height: h, rotation };
-            updateMockupTemplate(activeTemplate.id, { mask });
-            pushHistory(mask);
+        if (imgCacheRef.current) {
+            draw(imgCacheRef.current);
+        } else {
+            const img = new Image();
+            img.onload = () => { imgCacheRef.current = img; draw(img); };
+            img.src = activeTemplate.imageUrl;
         }
+    }, [activeTemplate, corners, edgeCPs, dragging, quadDone]);
 
-        setDrawStart(null);
+    useEffect(() => { drawCanvas(); }, [drawCanvas]);
+
+    // Coord helper
+    const getCoords = useCallback((clientX: number, clientY: number): Point => {
+        const canvas = canvasRef.current;
+        if (!canvas) return { x: 0, y: 0 };
+        const rect = canvas.getBoundingClientRect();
+        return {
+            x: (clientX - rect.left) * (canvas.width / rect.width),
+            y: (clientY - rect.top) * (canvas.height / rect.height),
+        };
+    }, []);
+
+    const findNearHandle = useCallback((p: Point): HandleId | null => {
+        const canvas = canvasRef.current;
+        const scale = canvas ? canvas.width / canvas.getBoundingClientRect().width : 1;
+        const hitR = CORNER_HIT_RADIUS * scale;
+
+        // Check corners first (higher priority)
+        for (let i = 0; i < corners.length; i++) {
+            const dx = corners[i].x - p.x, dy = corners[i].y - p.y;
+            if (Math.sqrt(dx * dx + dy * dy) < hitR) return { type: 'corner', index: i };
+        }
+        // Check edge CPs
+        if (edgeCPs) {
+            for (let i = 0; i < edgeCPs.length; i++) {
+                const dx = edgeCPs[i].x - p.x, dy = edgeCPs[i].y - p.y;
+                if (Math.sqrt(dx * dx + dy * dy) < hitR) return { type: 'edge', index: i };
+            }
+        }
+        return null;
+    }, [corners, edgeCPs]);
+
+    // Directly build & save mask from given corners (avoids stale closure issue)
+    const commitMaskDirect = useCallback((quadCorners: Point[], edgeCurvesVal: [Point, Point, Point, Point]) => {
+        if (!activeTemplate || quadCorners.length < 4) return;
+        const quad = quadCorners as [Point, Point, Point, Point];
+        const xs = quad.map(p => p.x);
+        const ys = quad.map(p => p.y);
+        const minX = Math.min(...xs);
+        const minY = Math.min(...ys);
+        const defCPs = defaultEdgeCurves(quadCorners);
+        const hasCustomCurves = edgeCurvesVal.some((cp, i) =>
+            Math.abs(cp.x - defCPs[i].x) > 1 || Math.abs(cp.y - defCPs[i].y) > 1
+        );
+        const mask: MockupMask = {
+            x: minX, y: minY,
+            width: Math.max(...xs) - minX,
+            height: Math.max(...ys) - minY,
+            rotation: 0,
+            mode: 'quad',
+            quad,
+            edgeCurves: hasCustomCurves ? edgeCurvesVal : undefined,
+            fitMode,
+            blendMode,
+            opacity,
+            shadow: shadowEnabled ? { blur: shadowBlur, color: 'rgba(0,0,0,0.5)' } : undefined,
+        };
+        updateMockupTemplate(activeTemplate.id, { mask });
+        pushHistory(mask);
+    }, [activeTemplate, fitMode, blendMode, opacity, shadowEnabled, shadowBlur, updateMockupTemplate, pushHistory]);
+
+    const handlePointerDown = (clientX: number, clientY: number) => {
+        const coords = getCoords(clientX, clientY);
+
+        if (quadDone) {
+            const handle = findNearHandle(coords);
+            if (handle) setDragging(handle);
+        } else {
+            const newCorners = [...corners, coords];
+            setCorners(newCorners);
+            const next = placingCorner + 1;
+            setPlacingCorner(next);
+            if (next === 4) {
+                const newEdgeCPs = defaultEdgeCurves(newCorners);
+                setEdgeCPs(newEdgeCPs);
+                // Directly commit with the new values (no stale closure)
+                commitMaskDirect(newCorners, newEdgeCPs);
+            }
+        }
     };
 
-    // Mouse handlers
+    const handlePointerMove = (clientX: number, clientY: number) => {
+        if (!dragging) return;
+        const coords = getCoords(clientX, clientY);
+
+        if (dragging.type === 'corner') {
+            setCorners(prev => {
+                const next = [...prev];
+                next[dragging.index] = coords;
+                return next;
+            });
+            // Also update default edge CPs for edges connected to this corner
+            // (keeps edge handles in sync unless user has moved them)
+        } else {
+            setEdgeCPs(prev => {
+                if (!prev) return prev;
+                const next: [Point, Point, Point, Point] = [...prev];
+                next[dragging.index] = coords;
+                return next;
+            });
+        }
+    };
+
+    const handlePointerUp = () => {
+        if (dragging) {
+            setDragging(null);
+            commitMask();
+        }
+    };
+
     const handleCanvasMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => handlePointerDown(e.clientX, e.clientY);
     const handleCanvasMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => handlePointerMove(e.clientX, e.clientY);
-    const handleCanvasMouseUp = (e: React.MouseEvent<HTMLCanvasElement>) => handlePointerUp(e.clientX, e.clientY);
+    const handleCanvasMouseUp = () => handlePointerUp();
 
-    // Touch handlers
     const handleTouchStart = (e: React.TouchEvent<HTMLCanvasElement>) => {
-        e.preventDefault();
-        const touch = e.touches[0];
-        handlePointerDown(touch.clientX, touch.clientY);
+        e.preventDefault(); handlePointerDown(e.touches[0].clientX, e.touches[0].clientY);
     };
     const handleTouchMove = (e: React.TouchEvent<HTMLCanvasElement>) => {
-        e.preventDefault();
-        const touch = e.touches[0];
-        handlePointerMove(touch.clientX, touch.clientY);
+        e.preventDefault(); handlePointerMove(e.touches[0].clientX, e.touches[0].clientY);
     };
     const handleTouchEnd = (e: React.TouchEvent<HTMLCanvasElement>) => {
-        e.preventDefault();
-        const touch = e.changedTouches[0];
-        handlePointerUp(touch.clientX, touch.clientY);
+        e.preventDefault(); handlePointerUp();
     };
 
-    // Rotation change
-    const handleRotationChange = (newRotation: number) => {
-        setRotation(newRotation);
-        if (activeTemplate?.mask) {
-            const mask = { ...activeTemplate.mask, rotation: newRotation };
-            updateMockupTemplate(activeTemplate.id, { mask });
-            pushHistory(mask);
-        }
+    const handleResetMask = () => {
+        setCorners([]);
+        setEdgeCPs(null);
+        setPlacingCorner(0);
+        setDragging(null);
+        if (activeTemplate) updateMockupTemplate(activeTemplate.id, { mask: null });
     };
 
-    // --- Generate mockups ---
+    const handleResetCurves = () => {
+        if (!quadDone) return;
+        setEdgeCPs(defaultEdgeCurves(corners));
+        setTimeout(() => commitMask(), 0);
+    };
+
+    // --- Generate ---
     const handleGenerateMockups = async () => {
         const templatesWithMask = mockupTemplates.filter((t) => t.mask);
         if (templatesWithMask.length === 0 || selectedVariations.length === 0) return;
@@ -332,7 +694,6 @@ export default function MockupEditor() {
 
     return (
         <div className="mockup-container">
-            {/* Header */}
             <div className="mockup-header">
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                     <button className="btn-ghost" onClick={() => setStep('variations')}>← Quay lại</button>
@@ -340,9 +701,7 @@ export default function MockupEditor() {
                 </div>
             </div>
 
-            {/* Layout: sidebar + canvas */}
             <div className="mockup-layout">
-                {/* Sidebar */}
                 <div className="mockup-sidebar">
                     <h3>Mockup Templates</h3>
                     <div
@@ -350,19 +709,53 @@ export default function MockupEditor() {
                         onDragOver={(e) => { e.preventDefault(); setDragActive(true); }}
                         onDragLeave={() => setDragActive(false)}
                         onDrop={(e) => {
-                            e.preventDefault();
-                            setDragActive(false);
-                            const file = e.dataTransfer.files[0];
-                            if (file) handleUploadTemplate(file);
+                            e.preventDefault(); setDragActive(false);
+                            if (e.dataTransfer.files.length > 1) {
+                                handleUploadMultiple(e.dataTransfer.files);
+                            } else {
+                                const file = e.dataTransfer.files[0];
+                                if (file) handleUploadTemplate(file);
+                            }
                         }}
                         onClick={() => fileInputRef.current?.click()}
                     >
-                        <input ref={fileInputRef} type="file" accept="image/*" onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            if (file) handleUploadTemplate(file);
+                        <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={(e) => {
+                            const files = e.target.files;
+                            if (!files) return;
+                            if (files.length > 1) {
+                                handleUploadMultiple(files);
+                            } else if (files[0]) {
+                                handleUploadTemplate(files[0]);
+                            }
+                            e.target.value = '';
                         }} hidden />
-                        + Thêm mockup template
+                        + Thêm mockup template (chọn nhiều)
                     </div>
+
+                    {/* Batch actions for templates */}
+                    {mockupTemplates.length > 1 && (
+                        <div style={{
+                            display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8,
+                            padding: '6px 0', borderBottom: '1px solid var(--border, #333)',
+                        }}>
+                            <button className="btn-ghost-sm" onClick={selectAllTemplates} style={{ fontSize: 11 }}>
+                                Chọn tất cả
+                            </button>
+                            <button className="btn-ghost-sm" onClick={deselectAllTemplates} style={{ fontSize: 11 }}>
+                                Bỏ chọn
+                            </button>
+                            {selectedTemplateIds.size > 0 && activeTemplate?.mask && (
+                                <button
+                                    className="btn-ghost-sm"
+                                    onClick={applyMaskToSelected}
+                                    style={{ fontSize: 11, color: 'var(--accent, #00e68a)' }}
+                                    title="Copy mask từ template đang active sang các template đã chọn"
+                                >
+                                    Apply mask → {selectedTemplateIds.size} selected
+                                </button>
+                            )}
+                        </div>
+                    )}
 
                     <div className="template-list">
                         {mockupTemplates.map((t) => (
@@ -371,6 +764,13 @@ export default function MockupEditor() {
                                 className={`template-item ${activeTemplateId === t.id ? 'active' : ''}`}
                                 onClick={() => setActiveTemplateId(t.id)}
                             >
+                                <div
+                                    className={`checkbox ${selectedTemplateIds.has(t.id) ? 'checked' : ''}`}
+                                    onClick={(e) => toggleTemplateSelection(t.id, e)}
+                                    style={{ flexShrink: 0, width: 20, height: 20, fontSize: 12 }}
+                                >
+                                    {selectedTemplateIds.has(t.id) && '✓'}
+                                </div>
                                 <img src={t.imageUrl} alt={t.name} />
                                 <div className="template-item-info">
                                     <span className="template-name">{t.name}</span>
@@ -382,65 +782,82 @@ export default function MockupEditor() {
                                     e.stopPropagation();
                                     removeMockupTemplate(t.id);
                                     if (activeTemplateId === t.id) setActiveTemplateId(null);
+                                    setSelectedTemplateIds(prev => { const n = new Set(prev); n.delete(t.id); return n; });
                                 }}>✕</button>
                             </div>
                         ))}
                     </div>
 
-                    {/* Selected variations mini */}
-                    <h3>Biến thể đã chọn</h3>
+                    <h3>Ảnh thiết kế ({selectedVariations.length}/{variations.length})</h3>
+                    <div
+                        className="mockup-upload-mini"
+                        onClick={() => designInputRef.current?.click()}
+                        style={{ marginBottom: 8 }}
+                    >
+                        <input ref={designInputRef} type="file" accept="image/*" multiple onChange={(e) => {
+                            if (e.target.files) handleUploadDesigns(e.target.files);
+                            e.target.value = '';
+                        }} hidden />
+                        + Thêm ảnh thiết kế
+                    </div>
                     <div className="selected-variations-mini">
-                        {selectedVariations.map((v) => (
-                            <div key={v.id} className="mini-variation">
-                                <img src={v.imageUrl} alt={v.styleName} />
-                                <span>{v.styleName}</span>
+                        {variations.filter(v => v.imageUrl).map((v) => (
+                            <div
+                                key={v.id}
+                                className="mini-variation"
+                                style={{
+                                    opacity: v.selected ? 1 : 0.4,
+                                    cursor: 'pointer',
+                                    outline: v.selected ? '2px solid var(--accent, #00e68a)' : '2px solid transparent',
+                                    borderRadius: 6,
+                                    transition: 'opacity 0.15s, outline-color 0.15s',
+                                    position: 'relative',
+                                }}
+                            >
+                                <img
+                                    src={v.imageUrl}
+                                    alt={v.styleName}
+                                    onClick={() => toggleVariationSelection(v.id)}
+                                    title={v.selected ? 'Click để bỏ chọn' : 'Click để chọn'}
+                                />
+                                <span onClick={() => toggleVariationSelection(v.id)}>{v.styleName}</span>
+                                <button
+                                    className="btn-icon-sm"
+                                    onClick={(e) => { e.stopPropagation(); setRemoveBgVariationId(v.id); }}
+                                    title="Tách nền"
+                                    style={{ fontSize: 11, padding: '2px 4px', flexShrink: 0 }}
+                                >
+                                    ✂️
+                                </button>
                             </div>
                         ))}
                     </div>
                 </div>
 
-                {/* Canvas */}
                 <div className="mockup-canvas-area">
                     {activeTemplate ? (
                         <>
                             <p className="canvas-instructions">
-                                🎯 Kéo chuột trên ảnh để chọn vùng đặt thiết kế
+                                {!quadDone
+                                    ? `Click để đặt góc ${placingCorner + 1}/4 (TL → TR → BR → BL)`
+                                    : 'Kéo góc xanh để chỉnh vùng. Kéo handle vàng (T/R/B/L) để uốn cong cạnh.'}
                             </p>
 
-                            {/* Rotation + Undo/Redo controls */}
                             <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
-                                <div className="rotation-controls">
-                                    <label>🔄 Xoay:</label>
-                                    <div className="rotation-btns">
-                                        <button className="btn-icon-sm" onClick={() => handleRotationChange(rotation - 15)}>-15°</button>
-                                        <button className="btn-icon-sm" onClick={() => handleRotationChange(rotation - 5)}>-5°</button>
-                                        <button className="btn-icon-sm" onClick={() => handleRotationChange(0)}>0°</button>
-                                        <button className="btn-icon-sm" onClick={() => handleRotationChange(rotation + 5)}>+5°</button>
-                                        <button className="btn-icon-sm" onClick={() => handleRotationChange(rotation + 15)}>+15°</button>
-                                    </div>
-                                    <input
-                                        type="range"
-                                        min="-180"
-                                        max="180"
-                                        value={rotation}
-                                        onChange={(e) => handleRotationChange(Number(e.target.value))}
-                                    />
-                                    <span className="rotation-value">{rotation}°</span>
-                                </div>
-
                                 <div className="undo-redo-bar">
-                                    <button
-                                        className="btn-icon"
-                                        title="Undo (Ctrl+Z)"
-                                        onClick={undo}
-                                        disabled={historyIndex <= 0}
-                                    >↶</button>
-                                    <button
-                                        className="btn-icon"
-                                        title="Redo (Ctrl+Shift+Z)"
-                                        onClick={redo}
-                                        disabled={historyIndex >= maskHistory.length - 1}
-                                    >↷</button>
+                                    <button className="btn-icon" title="Undo (Ctrl+Z)" onClick={undo} disabled={historyIndex <= 0}>↶</button>
+                                    <button className="btn-icon" title="Redo (Ctrl+Shift+Z)" onClick={redo} disabled={historyIndex >= maskHistory.length - 1}>↷</button>
+                                    <button className="btn-ghost-sm" onClick={handleResetMask}>Reset</button>
+                                    {quadDone && <button className="btn-ghost-sm" onClick={handleResetCurves}>Reset curves</button>}
+                                    {quadDone && selectedTemplateIds.size > 0 && (
+                                        <button
+                                            className="btn-ghost-sm"
+                                            onClick={applyMaskToSelected}
+                                            style={{ color: 'var(--accent, #00e68a)', fontWeight: 600 }}
+                                        >
+                                            Apply mask → {selectedTemplateIds.size} template
+                                        </button>
+                                    )}
                                 </div>
                             </div>
 
@@ -450,23 +867,79 @@ export default function MockupEditor() {
                                     onMouseDown={handleCanvasMouseDown}
                                     onMouseMove={handleCanvasMouseMove}
                                     onMouseUp={handleCanvasMouseUp}
+                                    onMouseLeave={handleCanvasMouseUp}
                                     onTouchStart={handleTouchStart}
                                     onTouchMove={handleTouchMove}
                                     onTouchEnd={handleTouchEnd}
-                                    style={{ cursor: 'crosshair', touchAction: 'none' }}
+                                    style={{ cursor: quadDone ? 'grab' : 'crosshair', touchAction: 'none' }}
                                 />
                             </div>
+
+                            {quadDone && (
+                                <div className="blend-controls" style={{
+                                    display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center',
+                                    marginTop: 12, padding: '12px 16px',
+                                    background: 'var(--surface-2, #1a1a2e)', borderRadius: 8,
+                                }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                        <label style={{ fontSize: 13, opacity: 0.8 }}>Fit:</label>
+                                        <select
+                                            value={fitMode}
+                                            onChange={(e) => setFitMode(e.target.value as MockupMask['fitMode'])}
+                                            style={{
+                                                background: 'var(--surface-3, #252542)', color: 'inherit',
+                                                border: '1px solid var(--border, #333)', borderRadius: 4, padding: '4px 8px',
+                                            }}
+                                        >
+                                            <option value="contain">Contain (giữ tỉ lệ)</option>
+                                            <option value="fill">Fill (kéo giãn)</option>
+                                        </select>
+                                    </div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                        <label style={{ fontSize: 13, opacity: 0.8 }}>Blend:</label>
+                                        <select
+                                            value={blendMode}
+                                            onChange={(e) => setBlendMode(e.target.value as MockupMask['blendMode'])}
+                                            style={{
+                                                background: 'var(--surface-3, #252542)', color: 'inherit',
+                                                border: '1px solid var(--border, #333)', borderRadius: 4, padding: '4px 8px',
+                                            }}
+                                        >
+                                            {BLEND_OPTIONS.map(b => <option key={b} value={b}>{b}</option>)}
+                                        </select>
+                                    </div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                        <label style={{ fontSize: 13, opacity: 0.8 }}>Opacity:</label>
+                                        <input type="range" min="0" max="100" value={opacity}
+                                            onChange={(e) => setOpacity(Number(e.target.value))} style={{ width: 100 }} />
+                                        <span style={{ fontSize: 12, minWidth: 32 }}>{opacity}%</span>
+                                    </div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                        <label style={{ fontSize: 13, opacity: 0.8 }}>
+                                            <input type="checkbox" checked={shadowEnabled}
+                                                onChange={(e) => setShadowEnabled(e.target.checked)} style={{ marginRight: 4 }} />
+                                            Shadow
+                                        </label>
+                                        {shadowEnabled && (
+                                            <>
+                                                <input type="range" min="0" max="50" value={shadowBlur}
+                                                    onChange={(e) => setShadowBlur(Number(e.target.value))} style={{ width: 80 }} />
+                                                <span style={{ fontSize: 12 }}>{shadowBlur}px</span>
+                                            </>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
                         </>
                     ) : (
                         <div className="canvas-empty">
                             <h3>Chọn hoặc thêm mockup template</h3>
-                            <p>Upload ảnh mockup (áo, cốc, poster...) rồi kéo chọn vùng để đặt thiết kế</p>
+                            <p>Upload ảnh mockup rồi click 4 góc để đặt vùng thiết kế. Kéo handle vàng để uốn cong.</p>
                         </div>
                     )}
                 </div>
             </div>
 
-            {/* Generate bar */}
             <div className="mockup-generate-bar">
                 <button
                     className="btn-primary btn-lg"
@@ -478,7 +951,6 @@ export default function MockupEditor() {
                 </button>
             </div>
 
-            {/* Generated mockups */}
             {generatedMockups.length > 0 && (
                 <div className="generated-mockups-section">
                     <div className="generated-header">
@@ -492,27 +964,19 @@ export default function MockupEditor() {
                                 </button>
                             )}
                             {selectedMockupCount > 0 && (
-                                <button
-                                    className="btn-primary"
-                                    onClick={handleDownloadSelected}
-                                    disabled={downloading}
-                                >
-                                    {downloading ? <><span className="spinner-sm" /> Đang tải...</>
-                                        : `⬇️ Tải ${selectedMockupCount} ảnh`}
+                                <button className="btn-primary" onClick={handleDownloadSelected} disabled={downloading}>
+                                    {downloading ? <><span className="spinner-sm" /> Đang tải...</> : `⬇️ Tải ${selectedMockupCount} ảnh`}
                                 </button>
                             )}
                         </div>
                     </div>
-
                     <div className="generated-grid">
                         {generatedMockups.map((mockup) => (
                             <div key={mockup.id} className={`generated-card ${selectedMockupIds.has(mockup.id) ? 'selected' : ''}`}>
                                 {mockup.imageUrl ? (
                                     <>
-                                        <div
-                                            className="generated-image-wrap"
-                                            onClick={() => setLightboxImage({ url: mockup.imageUrl, alt: `${mockup.templateName} - ${mockup.variationName}` })}
-                                        >
+                                        <div className="generated-image-wrap"
+                                            onClick={() => setLightboxImage({ url: mockup.imageUrl, alt: `${mockup.templateName} - ${mockup.variationName}` })}>
                                             <img src={mockup.imageUrl} alt={`${mockup.templateName} - ${mockup.variationName}`} />
                                             <div className="zoom-overlay"><span>🔍</span></div>
                                         </div>
@@ -523,20 +987,12 @@ export default function MockupEditor() {
                                                 <span>{mockup.variationName}</span>
                                             </div>
                                             <div className="generated-card-actions">
-                                                <button
-                                                    className="btn-icon-sm"
-                                                    title="Download"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        triggerDownload(mockup.imageUrl, makeSafeFilename(mockup.templateName, mockup.variationName));
-                                                    }}
-                                                >
-                                                    ⬇️
-                                                </button>
-                                                <div
-                                                    className={`checkbox ${selectedMockupIds.has(mockup.id) ? 'checked' : ''}`}
-                                                    onClick={() => toggleMockupSelection(mockup.id)}
-                                                >
+                                                <button className="btn-icon-sm" title="Download" onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    triggerDownload(mockup.imageUrl, makeSafeFilename(mockup.templateName, mockup.variationName));
+                                                }}>⬇️</button>
+                                                <div className={`checkbox ${selectedMockupIds.has(mockup.id) ? 'checked' : ''}`}
+                                                    onClick={() => toggleMockupSelection(mockup.id)}>
                                                     {selectedMockupIds.has(mockup.id) && '✓'}
                                                 </div>
                                             </div>
@@ -557,6 +1013,21 @@ export default function MockupEditor() {
             {lightboxImage && (
                 <Lightbox imageUrl={lightboxImage.url} alt={lightboxImage.alt} onClose={() => setLightboxImage(null)} />
             )}
+
+            {removeBgVariationId && (() => {
+                const v = variations.find(x => x.id === removeBgVariationId);
+                if (!v) return null;
+                return (
+                    <RemoveBgPanel
+                        imageUrl={v.imageUrl}
+                        onResult={(newUrl) => {
+                            updateVariation(v.id, { imageUrl: newUrl });
+                            addToast('success', `Đã tách nền: ${v.styleName}`);
+                        }}
+                        onClose={() => setRemoveBgVariationId(null)}
+                    />
+                );
+            })()}
         </div>
     );
 }

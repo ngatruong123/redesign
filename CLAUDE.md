@@ -15,6 +15,7 @@ No test framework is configured.
 Copy `.env.example` to `.env.local`. Key variables:
 - `AI_PROVIDER` — `gemini` (requires `GEMINI_API_KEY`) or `mock` (returns placeholder images, no API key needed)
 - `GEMINI_MODEL` — defaults to `gemini-2.5-flash-image`
+- `REMBG_MODEL` — rembg model for background removal (default: `u2net`). Requires `pip install rembg[cli]`
 
 ## Architecture
 

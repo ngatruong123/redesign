@@ -3,37 +3,11 @@
 import { useState, useCallback } from 'react';
 import { useWorkflowStore } from '@/store/workflow-store';
 import { useToastStore } from '@/store/toast-store';
+import { DEFAULT_STYLE_PRESETS } from '@/lib/prompt-engine';
 import Lightbox from './Lightbox';
+import RemoveBgPanel from './RemoveBgPanel';
 
-const STYLE_PRESETS = [
-    // Classic
-    { id: 'minimalist', name: 'Minimalist', icon: '◻️', prompt: 'minimalist, clean lines, simple composition' },
-    { id: 'watercolor', name: 'Watercolor', icon: '🎨', prompt: 'watercolor painting style, soft edges' },
-    { id: 'retro', name: 'Retro', icon: '📻', prompt: 'retro vintage style, aged texture' },
-    { id: 'sketch', name: 'Sketch', icon: '✏️', prompt: 'pencil sketch hand drawn, graphite' },
-    { id: 'pop-art', name: 'Pop Art', icon: '🎭', prompt: 'pop art bold colors, halftone dots' },
-    // Trending 2025
-    { id: 'y2k', name: 'Y2K', icon: '💿', prompt: 'Y2K aesthetic, chrome, holographic, futuristic 2000s' },
-    { id: 'glassmorphism', name: 'Glassmorphism', icon: '🪟', prompt: 'glassmorphism, frosted glass, translucent layers, blur' },
-    { id: 'vaporwave', name: 'Vaporwave', icon: '🌴', prompt: 'vaporwave aesthetic, pink purple sunset, retro digital' },
-    { id: 'cottagecore', name: 'Cottagecore', icon: '🌻', prompt: 'cottagecore, rustic, flowers, natural warmth' },
-    { id: 'cyberpunk', name: 'Cyberpunk', icon: '🌆', prompt: 'cyberpunk neon city, high contrast, electric blue magenta' },
-    { id: 'anime', name: 'Anime', icon: '🎌', prompt: 'anime art style, cel shading, vibrant' },
-    { id: 'grunge', name: 'Grunge', icon: '🖤', prompt: 'grunge texture, distressed, rough edges, dark tones' },
-    { id: 'isometric', name: 'Isometric 3D', icon: '📦', prompt: 'isometric 3D illustration, flat shadows, clean geometry' },
-    { id: 'line-art', name: 'Line Art', icon: '〰️', prompt: 'continuous line art, single stroke, elegant' },
-    { id: 'low-poly', name: 'Low Poly', icon: '🔺', prompt: 'low poly 3D, faceted geometry, flat shading' },
-    { id: 'pixel-art', name: 'Pixel Art', icon: '👾', prompt: 'pixel art 8-bit retro game style' },
-    { id: 'oil-paint', name: 'Oil Paint', icon: '🖌️', prompt: 'oil painting thick brushstrokes, classical art' },
-    { id: 'neon', name: 'Neon Glow', icon: '💡', prompt: 'neon glow, vibrant light trails, dark background' },
-    { id: 'pastel', name: 'Pastel', icon: '🌸', prompt: 'soft pastel colors, dreamy, gentle tones' },
-    { id: 'gradient', name: 'Gradient', icon: '🌈', prompt: 'smooth gradient, modern color transitions' },
-    { id: 'sticker', name: 'Sticker', icon: '🏷️', prompt: 'die-cut sticker style, white border, cute' },
-    { id: 'risograph', name: 'Risograph', icon: '🟠', prompt: 'risograph print, grain texture, limited color palette, offset' },
-    { id: 'claymorphism', name: 'Claymorphism', icon: '🧸', prompt: 'clay 3D render, soft material, rounded, playful' },
-    { id: 'ink-wash', name: 'Ink Wash', icon: '🖋️', prompt: 'Chinese ink wash painting, sumi-e, flowing' },
-    { id: 'collage', name: 'Collage', icon: '🗞️', prompt: 'paper collage, mixed media, torn edges, layered' },
-];
+const STYLE_PRESETS = DEFAULT_STYLE_PRESETS;
 
 export default function VariationGrid() {
     const {
@@ -44,7 +18,11 @@ export default function VariationGrid() {
     const [selectedStyles, setSelectedStyles] = useState<Set<string>>(new Set());
     const [additionalPrompt, setAdditionalPrompt] = useState('');
     const [lightboxImage, setLightboxImage] = useState<{ url: string; alt: string } | null>(null);
-    const [removingBgIds, setRemovingBgIds] = useState<Set<string>>(new Set());
+    const [removeBgTarget, setRemoveBgTarget] = useState<{ id: string; imageUrl: string } | null>(null);
+    // Track original URLs and processing state for quick bg toggle
+    const [originalUrls, setOriginalUrls] = useState<Record<string, string>>({});
+    const [bgRemoved, setBgRemoved] = useState<Set<string>>(new Set());
+    const [bgProcessing, setBgProcessing] = useState<Set<string>>(new Set());
     const addToast = useToastStore((s) => s.addToast);
     const [streamProgress, setStreamProgress] = useState<{ done: number; total: number } | null>(null);
 
@@ -192,28 +170,45 @@ export default function VariationGrid() {
         }
     };
 
-    // Remove background via Gemini AI (server-side, high quality)
-    const handleRemoveBg = useCallback(async (variationId: string, imageUrl: string) => {
-        if (removingBgIds.has(variationId)) return;
-        setRemovingBgIds((prev) => new Set(prev).add(variationId));
+    // Open BG removal panel for a variation
+    const handleOpenRemoveBg = useCallback((variationId: string, imageUrl: string) => {
+        setRemoveBgTarget({ id: variationId, imageUrl });
+    }, []);
+
+    // Quick toggle: remove bg (transparent) or restore original
+    const handleToggleBg = useCallback(async (variationId: string, currentUrl: string) => {
+        if (bgProcessing.has(variationId)) return;
+
+        // If already removed → restore original
+        if (bgRemoved.has(variationId)) {
+            const orig = originalUrls[variationId];
+            if (orig) {
+                updateVariation(variationId, { imageUrl: orig });
+                setBgRemoved((prev) => { const next = new Set(prev); next.delete(variationId); return next; });
+            }
+            return;
+        }
+
+        // Save original and call remove-bg API
+        setOriginalUrls((prev) => ({ ...prev, [variationId]: currentUrl }));
+        setBgProcessing((prev) => new Set(prev).add(variationId));
 
         try {
             const res = await fetch('/api/remove-bg', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ imageUrl }),
+                body: JSON.stringify({ imageUrl: currentUrl, mode: 'transparent' }),
             });
-
             const data = await res.json();
             if (!res.ok) throw new Error(data.error);
-
             updateVariation(variationId, { imageUrl: data.url });
+            setBgRemoved((prev) => new Set(prev).add(variationId));
         } catch (err) {
-            addToast('error', `Xóa nền thất bại: ${err instanceof Error ? err.message : 'Unknown'}`);
+            addToast('error', err instanceof Error ? err.message : 'Xoá nền thất bại');
         } finally {
-            setRemovingBgIds((prev) => { const n = new Set(prev); n.delete(variationId); return n; });
+            setBgProcessing((prev) => { const next = new Set(prev); next.delete(variationId); return next; });
         }
-    }, [removingBgIds, updateVariation]);
+    }, [bgProcessing, bgRemoved, originalUrls, updateVariation, addToast]);
 
     const selectedCount = variations.filter((v) => v.selected).length;
 
@@ -311,51 +306,73 @@ export default function VariationGrid() {
                                     </div>
                                 ) : variation.imageUrl ? (
                                     <>
-                                        {/* X button to deselect on selected cards */}
-                                        {variation.selected && (
-                                            <button
-                                                className="variation-deselect-btn"
-                                                title="Bỏ chọn"
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    toggleVariation(variation.id);
-                                                }}
-                                            >✕</button>
-                                        )}
-                                        <div className="variation-image-wrap" onClick={(e) => {
-                                            e.stopPropagation();
-                                            setLightboxImage({ url: variation.imageUrl, alt: variation.styleName });
-                                        }}>
-                                            <img src={variation.imageUrl} alt={variation.styleName} />
-                                            <div className="zoom-overlay"><span>🔍</span></div>
+                                        {/* Checkbox top-left */}
+                                        <div
+                                            className={`variation-check ${variation.selected ? 'checked' : ''}`}
+                                            onClick={(e) => { e.stopPropagation(); toggleVariation(variation.id); }}
+                                        >
+                                            {variation.selected && '✓'}
                                         </div>
-                                        <div className="variation-card-footer">
-                                            <span className="variation-label">{variation.styleName}</span>
-                                            <div className="variation-card-actions">
+
+                                        {/* BG removed badge */}
+                                        {bgRemoved.has(variation.id) && (
+                                            <span className="variation-badge-nobg">No BG</span>
+                                        )}
+
+                                        {/* Image area */}
+                                        <div className={`variation-image-wrap ${bgRemoved.has(variation.id) ? 'checkerboard' : ''}`}>
+                                            <img src={variation.imageUrl} alt={variation.styleName} />
+
+                                            {/* Hover toolbar overlay */}
+                                            <div className="variation-toolbar">
                                                 <button
-                                                    className="btn-icon"
+                                                    className="vtool-btn"
+                                                    title="Phóng to"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setLightboxImage({ url: variation.imageUrl, alt: variation.styleName });
+                                                    }}
+                                                >🔍</button>
+                                                <button
+                                                    className="vtool-btn"
                                                     title="Tạo lại"
                                                     onClick={(e) => {
                                                         e.stopPropagation();
                                                         handleRegenerate(variation.styleId);
                                                     }}
-                                                >
-                                                    🔄
-                                                </button>
+                                                >🔄</button>
                                                 <button
-                                                    className={`btn-icon ${removingBgIds.has(variation.id) ? 'removing' : ''}`}
-                                                    title="Xóa nền"
+                                                    className={`vtool-btn ${bgRemoved.has(variation.id) ? 'vtool-active' : ''}`}
+                                                    title={bgRemoved.has(variation.id) ? 'Khôi phục nền' : 'Xoá nền nhanh'}
                                                     onClick={(e) => {
                                                         e.stopPropagation();
-                                                        handleRemoveBg(variation.id, variation.imageUrl);
+                                                        handleToggleBg(variation.id, variation.imageUrl);
                                                     }}
+                                                    disabled={bgProcessing.has(variation.id)}
                                                 >
-                                                    {removingBgIds.has(variation.id) ? <span className="spinner-sm" /> : '🪄'}
+                                                    {bgProcessing.has(variation.id) ? <span className="spinner-sm" /> : bgRemoved.has(variation.id) ? '↩️' : '✂️'}
                                                 </button>
-                                                <div className={`checkbox ${variation.selected ? 'checked' : ''}`}>
-                                                    {variation.selected && '✓'}
-                                                </div>
+                                                <button
+                                                    className="vtool-btn"
+                                                    title="Xoá nền (tuỳ chỉnh)"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleOpenRemoveBg(variation.id, variation.imageUrl);
+                                                    }}
+                                                >🪄</button>
+                                                <a
+                                                    className="vtool-btn"
+                                                    title="Tải xuống"
+                                                    href={variation.imageUrl}
+                                                    download={`${variation.styleName}.png`}
+                                                    onClick={(e) => e.stopPropagation()}
+                                                >💾</a>
                                             </div>
+                                        </div>
+
+                                        {/* Footer: style name only */}
+                                        <div className="variation-card-footer">
+                                            <span className="variation-label">{variation.styleName}</span>
                                         </div>
                                     </>
                                 ) : (
@@ -391,6 +408,17 @@ export default function VariationGrid() {
 
             {lightboxImage && (
                 <Lightbox imageUrl={lightboxImage.url} alt={lightboxImage.alt} onClose={() => setLightboxImage(null)} />
+            )}
+
+            {removeBgTarget && (
+                <RemoveBgPanel
+                    imageUrl={removeBgTarget.imageUrl}
+                    onResult={(newUrl) => {
+                        updateVariation(removeBgTarget.id, { imageUrl: newUrl });
+                        setRemoveBgTarget(null);
+                    }}
+                    onClose={() => setRemoveBgTarget(null)}
+                />
             )}
         </div>
     );
