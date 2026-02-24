@@ -5,6 +5,7 @@ import StepIndicator from '@/components/StepIndicator';
 import UploadZone from '@/components/UploadZone';
 import VariationGrid from '@/components/VariationGrid';
 import MockupEditor from '@/components/MockupEditor';
+import VideoGenerator from '@/components/VideoGenerator';
 
 export default function Home() {
     const { currentStep } = useWorkflowStore();
@@ -24,6 +25,7 @@ export default function Home() {
                 {currentStep === 'upload' && <UploadZone />}
                 {currentStep === 'variations' && <VariationGrid />}
                 {currentStep === 'mockup' && <MockupEditor />}
+                {currentStep === 'video' && <VideoGenerator />}
             </main>
         </div>
     );

@@ -7,6 +7,7 @@ const steps: { id: WorkflowStep; label: string; icon: string }[] = [
     { id: 'upload', label: 'Upload Design', icon: '📤' },
     { id: 'variations', label: 'AI Variations', icon: '✨' },
     { id: 'mockup', label: 'Mockup', icon: '🖼️' },
+    { id: 'video', label: 'Video', icon: '🎬' },
 ];
 
 export default function StepIndicator() {
@@ -18,6 +19,7 @@ export default function StepIndicator() {
         if (stepId === 'upload') return true;
         if (stepId === 'variations') return !!sourceDesign;
         if (stepId === 'mockup') return variations.some((v) => v.selected && v.imageUrl);
+        if (stepId === 'video') return true;
         return false;
     };
 

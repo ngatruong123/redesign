@@ -987,6 +987,18 @@ export default function MockupEditor() {
                                                 <span>{mockup.variationName}</span>
                                             </div>
                                             <div className="generated-card-actions">
+                                                <button className="btn-icon-sm" title="Tạo Video" onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    const { setVideoGeneration, setStep } = useWorkflowStore.getState();
+                                                    setVideoGeneration({
+                                                        id: uuidv4(),
+                                                        mockupId: mockup.id,
+                                                        mockupImageUrl: mockup.imageUrl,
+                                                        prompt: '',
+                                                        status: 'pending',
+                                                    });
+                                                    setStep('video');
+                                                }}>🎬</button>
                                                 <button className="btn-icon-sm" title="Download" onClick={(e) => {
                                                     e.stopPropagation();
                                                     triggerDownload(mockup.imageUrl, makeSafeFilename(mockup.templateName, mockup.variationName));

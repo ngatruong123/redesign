@@ -4,7 +4,7 @@ import { mkdir, readdir, stat, unlink } from 'fs/promises';
 // Store outside .next/ so files survive rebuilds
 const CACHE_ROOT = path.join(process.cwd(), '.design-tool-data');
 
-type StorageType = 'uploads' | 'variations' | 'mockups';
+type StorageType = 'uploads' | 'variations' | 'mockups' | 'videos';
 
 export function getStorageDir(type: StorageType): string {
     return path.join(CACHE_ROOT, type);

@@ -64,7 +64,18 @@ export interface GeneratedMockup {
     error?: string;
 }
 
-export type WorkflowStep = 'upload' | 'variations' | 'mockup';
+export type WorkflowStep = 'upload' | 'variations' | 'mockup' | 'video';
+
+export interface VideoGeneration {
+    id: string;
+    mockupId: string;
+    mockupImageUrl: string;
+    prompt: string;
+    status: 'pending' | 'generating' | 'done' | 'error';
+    videoUrl?: string;
+    error?: string;
+    operationName?: string;
+}
 
 export interface AIProviderConfig {
     provider: 'banana-pro' | 'openai' | 'stability' | 'mock';

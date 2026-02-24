@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { DesignFile, GeneratedVariation, MockupTemplate, GeneratedMockup, WorkflowStep } from '@/types';
+import type { DesignFile, GeneratedVariation, MockupTemplate, GeneratedMockup, WorkflowStep, VideoGeneration } from '@/types';
 
 interface WorkflowState {
     currentStep: WorkflowStep;
@@ -11,6 +11,7 @@ interface WorkflowState {
     isGenerating: boolean;
     isCompositing: boolean;
     error: string | null;
+    videoGeneration: VideoGeneration | null;
 
     setStep: (step: WorkflowStep) => void;
     setSourceDesign: (design: DesignFile | null) => void;
@@ -26,6 +27,8 @@ interface WorkflowState {
     setIsGenerating: (v: boolean) => void;
     setIsCompositing: (v: boolean) => void;
     setError: (error: string | null) => void;
+    setVideoGeneration: (v: VideoGeneration | null) => void;
+    clearVideoGeneration: () => void;
     reset: () => void;
 }
 
@@ -38,6 +41,7 @@ const initialState = {
     isGenerating: false,
     isCompositing: false,
     error: null as string | null,
+    videoGeneration: null as VideoGeneration | null,
 };
 
 export const useWorkflowStore = create<WorkflowState>()(
@@ -94,6 +98,8 @@ export const useWorkflowStore = create<WorkflowState>()(
             setIsGenerating: (v) => set({ isGenerating: v }),
             setIsCompositing: (v) => set({ isCompositing: v }),
             setError: (error) => set({ error }),
+            setVideoGeneration: (v) => set({ videoGeneration: v }),
+            clearVideoGeneration: () => set({ videoGeneration: null }),
             reset: () => set(initialState),
         }),
         {
