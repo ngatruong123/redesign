@@ -1,17 +1,12 @@
 import { NextRequest } from 'next/server';
 import { createAIProvider } from '@/lib/ai-provider';
 import { DEFAULT_STYLE_PRESETS, buildVariationPrompt } from '@/lib/prompt-engine';
-import { readFile, writeFile } from 'fs/promises';
-import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
-import { resolvePublicPath } from '@/lib/resolve-path';
-import { ensureStorageDir } from '@/lib/storage';
+import { storeFile, resolveToBuffer } from '@/lib/blob-storage';
 import { parallelLimit } from '@/lib/concurrency';
 
 export async function POST(request: NextRequest) {
     try {
-        const OUTPUT_DIR = await ensureStorageDir('variations');
-
         const body = await request.json();
         const { sourceImageUrl, styles, additionalPrompt } = body;
 
@@ -21,11 +16,7 @@ export async function POST(request: NextRequest) {
 
         const provider = createAIProvider(process.env.AI_PROVIDER || 'mock');
 
-        const sourcePath = resolvePublicPath(sourceImageUrl);
-        if (!sourcePath) {
-            return Response.json({ error: 'Invalid image path' }, { status: 400 });
-        }
-        const sourceBuffer = await readFile(sourcePath);
+        const sourceBuffer = await resolveToBuffer(sourceImageUrl);
         const sourceBase64 = sourceBuffer.toString('base64');
 
         // Determine styles
@@ -54,16 +45,15 @@ export async function POST(request: NextRequest) {
                             const isSvg = resultBase64.startsWith('PHN2Zy');
                             const ext = isSvg ? 'svg' : 'png';
                             const filename = `${variationId}.${ext}`;
-                            const filepath = path.join(OUTPUT_DIR, filename);
 
                             const buffer = Buffer.from(resultBase64, 'base64');
-                            await writeFile(filepath, buffer);
+                            const { url } = await storeFile('variations', filename, buffer);
 
                             const variation = {
                                 id: variationId,
                                 styleId: style.id,
                                 styleName: style.name,
-                                imageUrl: `/api/files/variations/${filename}`,
+                                imageUrl: url,
                                 selected: false,
                                 loading: false,
                             };

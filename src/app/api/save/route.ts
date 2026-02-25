@@ -1,6 +1,5 @@
 import { NextRequest } from 'next/server';
-import { readFile } from 'fs/promises';
-import { resolvePublicPath } from '@/lib/resolve-path';
+import { resolveToBuffer } from '@/lib/blob-storage';
 
 export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
@@ -8,16 +7,11 @@ export async function GET(request: NextRequest) {
     const name = searchParams.get('name') || 'mockup.png';
 
     try {
-        const absolutePath = resolvePublicPath(source);
-        if (!absolutePath) {
-            return new Response('Invalid path', { status: 403 });
-        }
-
-        const fileBuffer = await readFile(absolutePath);
+        const fileBuffer = await resolveToBuffer(source);
         const isZip = name.endsWith('.zip');
         const contentType = isZip ? 'application/zip' : 'image/png';
 
-        return new Response(fileBuffer, {
+        return new Response(new Uint8Array(fileBuffer), {
             headers: {
                 'Content-Type': contentType,
                 'Content-Disposition': `attachment; filename="${name}"`,

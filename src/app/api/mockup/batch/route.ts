@@ -1,11 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createCanvas, loadImage } from '@napi-rs/canvas';
-import { readFile, writeFile } from 'fs/promises';
-import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import JSZip from 'jszip';
-import { resolvePublicPath } from '@/lib/resolve-path';
-import { ensureStorageDir } from '@/lib/storage';
+import { storeFile, resolveToBuffer } from '@/lib/blob-storage';
 import { drawPerspective, rectToQuad, type FitMode } from '@/lib/perspective';
 
 interface Point { x: number; y: number; }
@@ -31,8 +28,6 @@ const VALID_BLEND_MODES = ['normal', 'multiply', 'overlay', 'screen', 'soft-ligh
 
 export async function POST(request: NextRequest) {
     try {
-        const MOCKUP_OUTPUT_DIR = await ensureStorageDir('mockups');
-
         const body = await request.json();
         const { items } = body as { items: BatchItem[] };
 
@@ -45,12 +40,8 @@ export async function POST(request: NextRequest) {
 
         for (const item of items) {
             try {
-                const mockupPath = resolvePublicPath(item.mockupImagePath);
-                const designPath = resolvePublicPath(item.designImagePath);
-                if (!mockupPath || !designPath) throw new Error('Invalid image path');
-
-                const mockupBuffer = await readFile(mockupPath);
-                const designBuffer = await readFile(designPath);
+                const mockupBuffer = await resolveToBuffer(item.mockupImagePath);
+                const designBuffer = await resolveToBuffer(item.designImagePath);
 
                 const mockupImg = await loadImage(mockupBuffer);
                 const designImg = await loadImage(designBuffer);
@@ -115,15 +106,14 @@ export async function POST(request: NextRequest) {
 
                 const id = uuidv4();
                 const filename = `${id}.png`;
-                const filepath = path.join(MOCKUP_OUTPUT_DIR, filename);
-                await writeFile(filepath, resultBuffer);
+                const { url } = await storeFile('mockups', filename, resultBuffer);
 
                 const zipFilename = `${item.templateName}_${item.variationName}.png`.replace(/\s+/g, '_');
                 zip.file(zipFilename, resultBuffer);
 
                 results.push({
                     id,
-                    imageUrl: `/api/files/mockups/${filename}`,
+                    imageUrl: url,
                     templateName: item.templateName,
                     variationName: item.variationName,
                 });
@@ -142,12 +132,11 @@ export async function POST(request: NextRequest) {
         // Generate zip
         const zipBuffer = await zip.generateAsync({ type: 'nodebuffer' });
         const zipId = uuidv4();
-        const zipPath = path.join(MOCKUP_OUTPUT_DIR, `${zipId}.zip`);
-        await writeFile(zipPath, zipBuffer);
+        const { url: zipUrl } = await storeFile('mockups', `${zipId}.zip`, zipBuffer);
 
         return NextResponse.json({
             results,
-            zipUrl: `/api/files/mockups/${zipId}.zip`,
+            zipUrl,
         });
     } catch (error) {
         console.error('Batch error:', error);

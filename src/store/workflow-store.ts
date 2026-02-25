@@ -109,16 +109,22 @@ export const useWorkflowStore = create<WorkflowState>()(
                 sourceDesign: state.sourceDesign,
                 variations: state.variations,
                 mockupTemplates: state.mockupTemplates,
+                generatedMockups: state.generatedMockups,
             }),
             onRehydrateStorage: () => (state) => {
                 if (!state) return;
+                const isValidUrl = (url: string) =>
+                    url.startsWith('/api/files/') || url.startsWith('https://');
                 // Validate persisted file URLs format
-                if (state.sourceDesign && !state.sourceDesign.url.startsWith('/api/files/')) {
+                if (state.sourceDesign && !isValidUrl(state.sourceDesign.url)) {
                     state.sourceDesign = null;
                     state.currentStep = 'upload';
                 }
                 state.variations = state.variations.filter(
-                    (v) => !v.imageUrl || v.imageUrl.startsWith('/api/files/')
+                    (v) => !v.imageUrl || isValidUrl(v.imageUrl)
+                );
+                state.generatedMockups = (state.generatedMockups || []).filter(
+                    (m) => !m.imageUrl || isValidUrl(m.imageUrl)
                 );
                 // Async validate that files actually exist on server
                 const checkUrl = (url: string) => fetch(url, { method: 'HEAD' }).then(r => r.ok).catch(() => false);
@@ -127,7 +133,7 @@ export const useWorkflowStore = create<WorkflowState>()(
                     if (state.sourceDesign) {
                         const ok = await checkUrl(state.sourceDesign.url);
                         if (!ok) {
-                            useWorkflowStore.setState({ sourceDesign: null, currentStep: 'upload', variations: [], mockupTemplates: [] });
+                            useWorkflowStore.setState({ sourceDesign: null, currentStep: 'upload', variations: [], mockupTemplates: [], generatedMockups: [] });
                             return;
                         }
                     }
@@ -145,6 +151,14 @@ export const useWorkflowStore = create<WorkflowState>()(
                         const valid = state.mockupTemplates.filter((_, i) => checks[i]);
                         if (valid.length !== state.mockupTemplates.length) {
                             useWorkflowStore.setState({ mockupTemplates: valid });
+                        }
+                    }
+                    // Validate generated mockups
+                    if (state.generatedMockups?.length > 0) {
+                        const checks = await Promise.all(state.generatedMockups.map(m => m.imageUrl ? checkUrl(m.imageUrl) : Promise.resolve(false)));
+                        const valid = state.generatedMockups.filter((_, i) => checks[i]);
+                        if (valid.length !== state.generatedMockups.length) {
+                            useWorkflowStore.setState({ generatedMockups: valid });
                         }
                     }
                 })();

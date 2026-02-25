@@ -1,8 +1,6 @@
 import { NextRequest } from 'next/server';
-import { readFile } from 'fs/promises';
-import { existsSync } from 'fs';
+import { resolveToBuffer } from '@/lib/blob-storage';
 import path from 'path';
-import { getStorageDir } from '@/lib/storage';
 
 const ALLOWED_DIRS = ['uploads', 'variations', 'mockups'] as const;
 
@@ -29,28 +27,24 @@ export async function GET(
 
     const downloadName = decodeURIComponent(segments[2]);
 
-    const storageDir = getStorageDir(dir as typeof ALLOWED_DIRS[number]);
-    const cachePath = path.join(storageDir, filename);
-    const publicPath = path.join(process.cwd(), 'public', dir, filename);
+    try {
+        const buffer = await resolveToBuffer(`/api/files/${dir}/${filename}`);
 
-    let filePath: string | null = null;
-    if (existsSync(cachePath)) filePath = cachePath;
-    else if (existsSync(publicPath)) filePath = publicPath;
-    if (!filePath) return new Response('Not found', { status: 404 });
+        const ext = path.extname(filename).toLowerCase();
+        const types: Record<string, string> = {
+            '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
+            '.webp': 'image/webp', '.zip': 'application/zip',
+        };
 
-    const buffer = await readFile(filePath);
-    const ext = path.extname(filename).toLowerCase();
-    const types: Record<string, string> = {
-        '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
-        '.webp': 'image/webp', '.zip': 'application/zip',
-    };
-
-    return new Response(buffer, {
-        headers: {
-            'Content-Type': types[ext] || 'application/octet-stream',
-            'Content-Disposition': `attachment; filename="${downloadName}"; filename*=UTF-8''${encodeURIComponent(downloadName)}`,
-            'Content-Length': String(buffer.length),
-            'Cache-Control': 'no-cache',
-        },
-    });
+        return new Response(new Uint8Array(buffer), {
+            headers: {
+                'Content-Type': types[ext] || 'application/octet-stream',
+                'Content-Disposition': `attachment; filename="${downloadName}"; filename*=UTF-8''${encodeURIComponent(downloadName)}`,
+                'Content-Length': String(buffer.length),
+                'Cache-Control': 'no-cache',
+            },
+        });
+    } catch {
+        return new Response('Not found', { status: 404 });
+    }
 }

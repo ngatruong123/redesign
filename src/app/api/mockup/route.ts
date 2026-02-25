@@ -1,16 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import sharp from 'sharp';
-import { readFile, writeFile, mkdir } from 'fs/promises';
-import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
-import { resolvePublicPath } from '@/lib/resolve-path';
-
-const MOCKUP_OUTPUT_DIR = path.join(process.cwd(), 'public', 'mockups');
+import { storeFile, resolveToBuffer } from '@/lib/blob-storage';
 
 export async function POST(request: NextRequest) {
     try {
-        await mkdir(MOCKUP_OUTPUT_DIR, { recursive: true });
-
         const body = await request.json();
         const { mockupImagePath, designImagePath, mask } = body;
 
@@ -21,14 +15,8 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        const mockupPath = resolvePublicPath(mockupImagePath);
-        const designPath = resolvePublicPath(designImagePath);
-        if (!mockupPath || !designPath) {
-            return NextResponse.json({ error: 'Invalid image path' }, { status: 400 });
-        }
-
-        const mockupBuffer = await readFile(mockupPath);
-        const designBuffer = await readFile(designPath);
+        const mockupBuffer = await resolveToBuffer(mockupImagePath);
+        const designBuffer = await resolveToBuffer(designImagePath);
 
         // Resize design to fit mask area
         const resizedDesign = await sharp(designBuffer)
@@ -53,12 +41,11 @@ export async function POST(request: NextRequest) {
 
         const id = uuidv4();
         const filename = `${id}.png`;
-        const filepath = path.join(MOCKUP_OUTPUT_DIR, filename);
-        await writeFile(filepath, result);
+        const { url } = await storeFile('mockups', filename, result);
 
         return NextResponse.json({
             id,
-            imageUrl: `/api/files/mockups/${filename}`,
+            imageUrl: url,
         });
     } catch (error) {
         console.error('Mockup error:', error);

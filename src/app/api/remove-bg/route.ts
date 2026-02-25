@@ -1,11 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { readFile, writeFile } from 'fs/promises';
-import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import sharp from 'sharp';
-import { removeBackground } from '@imgly/background-removal-node';
-import { resolvePublicPath } from '@/lib/resolve-path';
-import { ensureStorageDir } from '@/lib/storage';
+import { storeFile, resolveToBuffer } from '@/lib/blob-storage';
 
 // ---- Gradient presets (must match client-side) ----
 const GRADIENT_MAP: Record<string, { colors: string[]; angle: number }> = {
@@ -32,16 +28,13 @@ function hexToRgb(hex: string): { r: number; g: number; b: number } {
 
 // Convert sRGB to CIE Lab for perceptual color comparison
 function rgbToLab(r: number, g: number, b: number): [number, number, number] {
-    // sRGB → linear RGB
     let rl = r / 255, gl = g / 255, bl = b / 255;
     rl = rl > 0.04045 ? Math.pow((rl + 0.055) / 1.055, 2.4) : rl / 12.92;
     gl = gl > 0.04045 ? Math.pow((gl + 0.055) / 1.055, 2.4) : gl / 12.92;
     bl = bl > 0.04045 ? Math.pow((bl + 0.055) / 1.055, 2.4) : bl / 12.92;
-    // linear RGB → XYZ (D65)
     let x = (rl * 0.4124564 + gl * 0.3575761 + bl * 0.1804375) / 0.95047;
     let y = (rl * 0.2126729 + gl * 0.7151522 + bl * 0.0721750);
     let z = (rl * 0.0193339 + gl * 0.1191920 + bl * 0.9503041) / 1.08883;
-    // XYZ → Lab
     const f = (t: number) => t > 0.008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116;
     x = f(x); y = f(y); z = f(z);
     return [116 * y - 16, 500 * (x - y), 200 * (y - z)];
@@ -53,7 +46,6 @@ function deltaE(r1: number, g1: number, b1: number, r2: number, g2: number, b2: 
     return Math.sqrt((L1 - L2) ** 2 + (a1 - a2) ** 2 + (b1Lab - b2Lab) ** 2);
 }
 
-/** Create a gradient image buffer using sharp raw pixel data */
 async function createGradientBuffer(width: number, height: number, gradientId: string): Promise<Buffer> {
     const preset = GRADIENT_MAP[gradientId] || GRADIENT_MAP.sunset;
     const colors = preset.colors.map(hexToRgb);
@@ -62,10 +54,7 @@ async function createGradientBuffer(width: number, height: number, gradientId: s
 
     for (let y = 0; y < height; y++) {
         for (let x = 0; x < width; x++) {
-            // Simple diagonal gradient (135deg)
             const t = Math.min(1, Math.max(0, (x / width + y / height) / 2));
-
-            // Interpolate between colors
             const segmentCount = colors.length - 1;
             const segment = Math.min(segmentCount - 1, Math.floor(t * segmentCount));
             const localT = (t * segmentCount) - segment;
@@ -92,8 +81,6 @@ async function createGradientBuffer(width: number, height: number, gradientId: s
 
 export async function POST(request: NextRequest) {
     try {
-        const OUTPUT_DIR = await ensureStorageDir('variations');
-
         const body = await request.json();
         const {
             imageUrl,
@@ -111,26 +98,15 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'No image URL' }, { status: 400 });
         }
 
-        // Read source image — try local path first, fallback to fetching via URL
+        // Read source image
         let fileBuffer: Buffer;
-        const absolutePath = resolvePublicPath(imageUrl);
-        if (absolutePath) {
-            fileBuffer = await readFile(absolutePath);
-        } else {
-            try {
-                const origin = request.headers.get('origin')
-                    || request.headers.get('referer')?.replace(/\/[^/]*$/, '')
-                    || `http://localhost:${process.env.PORT || 3000}`;
-                const fetchUrl = imageUrl.startsWith('http') ? imageUrl : `${origin}${imageUrl}`;
-                const imgRes = await fetch(fetchUrl);
-                if (!imgRes.ok) throw new Error(`Fetch failed: ${imgRes.status}`);
-                fileBuffer = Buffer.from(await imgRes.arrayBuffer());
-            } catch {
-                return NextResponse.json(
-                    { error: 'Không tìm thấy ảnh gốc. Vui lòng tải lại ảnh.' },
-                    { status: 404 },
-                );
-            }
+        try {
+            fileBuffer = await resolveToBuffer(imageUrl);
+        } catch {
+            return NextResponse.json(
+                { error: 'Không tìm thấy ảnh gốc. Vui lòng tải lại ảnh.' },
+                { status: 404 },
+            );
         }
 
         const sourceMeta = await sharp(fileBuffer).metadata();
@@ -151,8 +127,6 @@ export async function POST(request: NextRequest) {
 
             const pixels = new Uint8Array(data.buffer, data.byteOffset, data.length);
 
-            // CIE Lab deltaE: tol 0-100 maps to deltaE threshold ~0-50
-            // deltaE < 2.3 = "just noticeable difference" for reference
             const threshold = tol * 0.5;
             const softZone = soft * 0.5;
 
@@ -160,15 +134,12 @@ export async function POST(request: NextRequest) {
                 const dist = deltaE(pixels[i], pixels[i + 1], pixels[i + 2], target.r, target.g, target.b);
 
                 if (dist <= threshold) {
-                    // Fully transparent
                     pixels[i + 3] = 0;
                 } else if (softZone > 0 && dist <= threshold + softZone) {
-                    // Smooth transition zone — cubic ease for natural falloff
-                    const t = (dist - threshold) / softZone; // 0→1
-                    const easedAlpha = t * t * (3 - 2 * t); // smoothstep
+                    const t = (dist - threshold) / softZone;
+                    const easedAlpha = t * t * (3 - 2 * t);
                     pixels[i + 3] = Math.min(pixels[i + 3], Math.round(easedAlpha * pixels[i + 3]));
                 }
-                // else: keep original alpha
             }
 
             let outputBuffer = await sharp(Buffer.from(pixels.buffer), {
@@ -181,14 +152,14 @@ export async function POST(request: NextRequest) {
 
             const resultId = uuidv4();
             const filename = `${resultId}.png`;
-            const filepath = path.join(OUTPUT_DIR, filename);
-            await writeFile(filepath, outputBuffer);
-            return NextResponse.json({ url: `/api/files/variations/${filename}` });
+            const { url } = await storeFile('variations', filename, outputBuffer);
+            return NextResponse.json({ url });
         }
 
         // ---- Use @imgly/background-removal to remove background ----
         let subjectBuffer: Buffer;
         try {
+            const { removeBackground } = await import('@imgly/background-removal-node');
             const blob = new Blob([new Uint8Array(fileBuffer)], { type: 'image/png' });
             const resultBlob = await removeBackground(blob, {
                 output: { format: 'image/png' as const, quality: 0.9 },
@@ -196,7 +167,6 @@ export async function POST(request: NextRequest) {
             const arrayBuffer = await resultBlob.arrayBuffer();
             subjectBuffer = Buffer.from(arrayBuffer);
 
-            // Apply edge smoothing if requested (feather alpha channel)
             if (edgeSmooth) {
                 subjectBuffer = await sharp(subjectBuffer)
                     .blur(1.5)
@@ -232,7 +202,6 @@ export async function POST(request: NextRequest) {
                     },
                 }).png().toBuffer();
 
-                // Resize subject to fit canvas
                 const resizedSubject = await sharp(subjectBuffer)
                     .resize(imgWidth, imgHeight, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
                     .png()
@@ -246,7 +215,6 @@ export async function POST(request: NextRequest) {
             }
 
             case 'blur': {
-                // Blur original image as background
                 const blurredBg = await sharp(fileBuffer)
                     .resize(imgWidth, imgHeight, { fit: 'cover' })
                     .blur(30)
@@ -287,13 +255,14 @@ export async function POST(request: NextRequest) {
                     break;
                 }
 
-                const bgAbsPath = resolvePublicPath(customBgUrl);
-                if (!bgAbsPath) {
+                let bgFileBuffer: Buffer;
+                try {
+                    bgFileBuffer = await resolveToBuffer(customBgUrl);
+                } catch {
                     outputBuffer = subjectBuffer;
                     break;
                 }
 
-                const bgFileBuffer = await readFile(bgAbsPath);
                 const bgResized = await sharp(bgFileBuffer)
                     .resize(imgWidth, imgHeight, { fit: 'cover' })
                     .png()
@@ -318,10 +287,9 @@ export async function POST(request: NextRequest) {
         // Save result
         const resultId = uuidv4();
         const filename = `${resultId}.png`;
-        const filepath = path.join(OUTPUT_DIR, filename);
-        await writeFile(filepath, outputBuffer);
+        const { url } = await storeFile('variations', filename, outputBuffer);
 
-        return NextResponse.json({ url: `/api/files/variations/${filename}` });
+        return NextResponse.json({ url });
     } catch (error) {
         console.error('Remove BG error:', error);
         return NextResponse.json(

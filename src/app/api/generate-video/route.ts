@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { readFile } from 'fs/promises';
-import path from 'path';
 import { GoogleGenAI } from '@google/genai';
+import { resolveToBuffer } from '@/lib/blob-storage';
 
 const API_KEY = process.env.GOOGLE_AI_API_KEY || process.env.GEMINI_API_KEY;
 
@@ -19,11 +18,9 @@ export async function POST(req: NextRequest) {
         const validRatios = ['16:9', '9:16'];
         const ratio = validRatios.includes(aspectRatio) ? aspectRatio : '16:9';
 
-        // Read image from disk
-        const filePath = imageUrl.replace(/^\/api\/files\//, '');
-        const fullPath = path.join(process.cwd(), '.design-tool-data', filePath);
-        const imageBuffer = await readFile(fullPath);
-        const ext = fullPath.split('.').pop()?.toLowerCase() || 'png';
+        // Read image via storage abstraction
+        const imageBuffer = await resolveToBuffer(imageUrl);
+        const ext = imageUrl.split('.').pop()?.toLowerCase() || 'png';
         const mimeType = ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : `image/${ext}`;
 
         const ai = new GoogleGenAI({ apiKey: API_KEY });
