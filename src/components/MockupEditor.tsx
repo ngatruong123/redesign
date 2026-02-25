@@ -53,8 +53,22 @@ function edgeEndpoints(quad: Point[]): [Point, Point][] {
     return [[tl, tr], [tr, br], [br, bl], [tl, bl]];
 }
 
-// Handle type: 'corner-0'..'corner-3' or 'edge-0'..'edge-3'
-type HandleId = { type: 'corner'; index: number } | { type: 'edge'; index: number };
+// Handle type
+type HandleId = { type: 'corner'; index: number } | { type: 'edge'; index: number } | { type: 'quad' };
+
+/** Point-in-polygon test (ray casting) */
+function pointInQuad(p: Point, quad: Point[]): boolean {
+    if (quad.length < 4) return false;
+    let inside = false;
+    for (let i = 0, j = quad.length - 1; i < quad.length; j = i++) {
+        const xi = quad[i].x, yi = quad[i].y;
+        const xj = quad[j].x, yj = quad[j].y;
+        if ((yi > p.y) !== (yj > p.y) && p.x < ((xj - xi) * (p.y - yi)) / (yj - yi) + xi) {
+            inside = !inside;
+        }
+    }
+    return inside;
+}
 
 export default function MockupEditor() {
     const {
@@ -81,6 +95,12 @@ export default function MockupEditor() {
     const [corners, setCorners] = useState<Point[]>([]);
     const [edgeCPs, setEdgeCPs] = useState<[Point, Point, Point, Point] | null>(null);
     const [dragging, setDragging] = useState<HandleId | null>(null);
+
+    // Drag-to-draw state
+    const [dragStart, setDragStart] = useState<Point | null>(null);
+    const [dragCurrent, setDragCurrent] = useState<Point | null>(null);
+    // Quad move state
+    const [lastDragPos, setLastDragPos] = useState<Point | null>(null);
 
     // Blend controls
     const [blendMode, setBlendMode] = useState<MockupMask['blendMode']>('normal');
@@ -258,15 +278,35 @@ export default function MockupEditor() {
         window.location.href = `/api/download/${encodeURIComponent(filename)}?source=${encodeURIComponent(imageUrl)}`;
     };
 
-    const handleDownloadSelected = () => {
+    const handleDownloadSelected = async () => {
         const toDownload = generatedMockups.filter((m) => selectedMockupIds.has(m.id) && m.imageUrl);
         if (toDownload.length === 0) return;
-        if (toDownload.length > 1 && zipUrl) {
+        if (toDownload.length === 1) {
+            triggerDownload(toDownload[0].imageUrl, makeSafeFilename(toDownload[0].templateName, toDownload[0].variationName));
+            return;
+        }
+        // Multiple files: if all are selected and zipUrl exists, use it directly
+        if (zipUrl && toDownload.length === generatedMockups.filter(m => m.imageUrl).length) {
             triggerDownload(zipUrl, 'mockups.zip');
-        } else {
-            toDownload.forEach((mockup) => {
-                triggerDownload(mockup.imageUrl, makeSafeFilename(mockup.templateName, mockup.variationName));
-            });
+            return;
+        }
+        // Otherwise, build a zip client-side
+        setDownloading(true);
+        try {
+            const JSZip = (await import('jszip')).default;
+            const zip = new JSZip();
+            await Promise.all(toDownload.map(async (mockup) => {
+                const res = await fetch(mockup.imageUrl);
+                const blob = await res.blob();
+                zip.file(makeSafeFilename(mockup.templateName, mockup.variationName), blob);
+            }));
+            const zipBlob = await zip.generateAsync({ type: 'blob' });
+            const { saveAs } = await import('file-saver');
+            saveAs(zipBlob, 'mockups.zip');
+        } catch (err) {
+            addToast('error', `Tải ZIP thất bại: ${err instanceof Error ? err.message : 'Unknown'}`);
+        } finally {
+            setDownloading(false);
         }
     };
 
@@ -419,6 +459,23 @@ export default function MockupEditor() {
             canvas.height = img.naturalHeight;
             ctx.drawImage(img, 0, 0);
 
+            // Draw drag-to-draw preview rectangle
+            if (dragStart && dragCurrent && corners.length === 0) {
+                ctx.save();
+                ctx.strokeStyle = 'rgba(0, 230, 138, 0.8)';
+                ctx.lineWidth = 2;
+                ctx.setLineDash([8, 4]);
+                const rx = Math.min(dragStart.x, dragCurrent.x);
+                const ry = Math.min(dragStart.y, dragCurrent.y);
+                const rw = Math.abs(dragCurrent.x - dragStart.x);
+                const rh = Math.abs(dragCurrent.y - dragStart.y);
+                ctx.strokeRect(rx, ry, rw, rh);
+                ctx.fillStyle = 'rgba(0, 230, 138, 0.08)';
+                ctx.fillRect(rx, ry, rw, rh);
+                ctx.restore();
+                return;
+            }
+
             if (corners.length === 0) return;
 
             ctx.save();
@@ -523,7 +580,7 @@ export default function MockupEditor() {
             img.onload = () => { imgCacheRef.current = img; draw(img); };
             img.src = activeTemplate.imageUrl;
         }
-    }, [activeTemplate, corners, edgeCPs, dragging, quadDone]);
+    }, [activeTemplate, corners, edgeCPs, dragging, quadDone, dragStart, dragCurrent]);
 
     useEffect(() => { drawCanvas(); }, [drawCanvas]);
 
@@ -554,6 +611,10 @@ export default function MockupEditor() {
                 const dx = edgeCPs[i].x - p.x, dy = edgeCPs[i].y - p.y;
                 if (Math.sqrt(dx * dx + dy * dy) < hitR) return { type: 'edge', index: i };
             }
+        }
+        // Check if inside quad (for move)
+        if (corners.length === 4 && pointInQuad(p, corners)) {
+            return { type: 'quad' };
         }
         return null;
     }, [corners, edgeCPs]);
@@ -592,24 +653,53 @@ export default function MockupEditor() {
 
         if (quadDone) {
             const handle = findNearHandle(coords);
-            if (handle) setDragging(handle);
+            if (handle) {
+                setDragging(handle);
+                if (handle.type === 'quad') setLastDragPos(coords);
+            }
         } else {
-            const newCorners = [...corners, coords];
-            setCorners(newCorners);
-            const next = placingCorner + 1;
-            setPlacingCorner(next);
-            if (next === 4) {
-                const newEdgeCPs = defaultEdgeCurves(newCorners);
-                setEdgeCPs(newEdgeCPs);
-                // Directly commit with the new values (no stale closure)
-                commitMaskDirect(newCorners, newEdgeCPs);
+            // Start drag-to-draw (record start point)
+            if (corners.length === 0) {
+                setDragStart(coords);
+                setDragCurrent(coords);
+            } else {
+                // Fallback: click-to-place individual corners
+                const newCorners = [...corners, coords];
+                setCorners(newCorners);
+                const next = placingCorner + 1;
+                setPlacingCorner(next);
+                if (next === 4) {
+                    const newEdgeCPs = defaultEdgeCurves(newCorners);
+                    setEdgeCPs(newEdgeCPs);
+                    commitMaskDirect(newCorners, newEdgeCPs);
+                }
             }
         }
     };
 
     const handlePointerMove = (clientX: number, clientY: number) => {
-        if (!dragging) return;
         const coords = getCoords(clientX, clientY);
+
+        // Drag-to-draw preview
+        if (dragStart && !quadDone) {
+            setDragCurrent(coords);
+            drawCanvas();
+            return;
+        }
+
+        // Update cursor based on hover
+        if (!dragging && quadDone && canvasRef.current) {
+            const handle = findNearHandle(coords);
+            if (handle?.type === 'quad') {
+                canvasRef.current.style.cursor = 'move';
+            } else if (handle) {
+                canvasRef.current.style.cursor = 'grab';
+            } else {
+                canvasRef.current.style.cursor = 'default';
+            }
+        }
+
+        if (!dragging) return;
 
         if (dragging.type === 'corner') {
             setCorners(prev => {
@@ -617,21 +707,62 @@ export default function MockupEditor() {
                 next[dragging.index] = coords;
                 return next;
             });
-            // Also update default edge CPs for edges connected to this corner
-            // (keeps edge handles in sync unless user has moved them)
-        } else {
+        } else if (dragging.type === 'edge') {
             setEdgeCPs(prev => {
                 if (!prev) return prev;
                 const next: [Point, Point, Point, Point] = [...prev];
                 next[dragging.index] = coords;
                 return next;
             });
+        } else if (dragging.type === 'quad' && lastDragPos) {
+            const dx = coords.x - lastDragPos.x;
+            const dy = coords.y - lastDragPos.y;
+            setLastDragPos(coords);
+            setCorners(prev => prev.map(p => ({ x: p.x + dx, y: p.y + dy })));
+            setEdgeCPs(prev => {
+                if (!prev) return prev;
+                return prev.map(p => ({ x: p.x + dx, y: p.y + dy })) as [Point, Point, Point, Point];
+            });
         }
     };
 
+    const MIN_DRAG_SIZE = 20;
+
     const handlePointerUp = () => {
+        // Drag-to-draw completion
+        if (dragStart && dragCurrent && !quadDone) {
+            const dx = Math.abs(dragCurrent.x - dragStart.x);
+            const dy = Math.abs(dragCurrent.y - dragStart.y);
+            if (dx >= MIN_DRAG_SIZE && dy >= MIN_DRAG_SIZE) {
+                // Create rectangle from drag
+                const minX = Math.min(dragStart.x, dragCurrent.x);
+                const minY = Math.min(dragStart.y, dragCurrent.y);
+                const maxX = Math.max(dragStart.x, dragCurrent.x);
+                const maxY = Math.max(dragStart.y, dragCurrent.y);
+                const newCorners: Point[] = [
+                    { x: minX, y: minY }, // TL
+                    { x: maxX, y: minY }, // TR
+                    { x: maxX, y: maxY }, // BR
+                    { x: minX, y: maxY }, // BL
+                ];
+                setCorners(newCorners);
+                setPlacingCorner(4);
+                const newEdgeCPs = defaultEdgeCurves(newCorners);
+                setEdgeCPs(newEdgeCPs);
+                commitMaskDirect(newCorners, newEdgeCPs);
+            } else {
+                // Too small — treat as single click, place first corner
+                setCorners([dragStart]);
+                setPlacingCorner(1);
+            }
+            setDragStart(null);
+            setDragCurrent(null);
+            return;
+        }
+
         if (dragging) {
             setDragging(null);
+            setLastDragPos(null);
             commitMask();
         }
     };
@@ -655,6 +786,9 @@ export default function MockupEditor() {
         setEdgeCPs(null);
         setPlacingCorner(0);
         setDragging(null);
+        setDragStart(null);
+        setDragCurrent(null);
+        setLastDragPos(null);
         if (activeTemplate) updateMockupTemplate(activeTemplate.id, { mask: null });
     };
 
@@ -882,8 +1016,8 @@ export default function MockupEditor() {
                         <>
                             <p className="canvas-instructions">
                                 {!quadDone
-                                    ? `Click để đặt góc ${placingCorner + 1}/4 (TL → TR → BR → BL)`
-                                    : 'Kéo góc xanh để chỉnh vùng. Kéo handle vàng (T/R/B/L) để uốn cong cạnh.'}
+                                    ? 'Kéo để vẽ vùng mockup, hoặc click 4 góc (TL → TR → BR → BL)'
+                                    : 'Kéo góc xanh để chỉnh. Kéo handle vàng để uốn cong. Kéo bên trong để di chuyển.'}
                             </p>
 
                             <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -914,7 +1048,7 @@ export default function MockupEditor() {
                                     onTouchStart={handleTouchStart}
                                     onTouchMove={handleTouchMove}
                                     onTouchEnd={handleTouchEnd}
-                                    style={{ cursor: quadDone ? 'grab' : 'crosshair', touchAction: 'none' }}
+                                    style={{ cursor: quadDone ? 'default' : 'crosshair', touchAction: 'none' }}
                                 />
                             </div>
 
