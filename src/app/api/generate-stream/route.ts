@@ -39,7 +39,9 @@ export async function POST(request: NextRequest) {
                     async (style) => {
                         const variationId = uuidv4();
                         try {
-                            const prompt = buildVariationPrompt(additionalPrompt || '', style);
+                            // For custom prompt-only styles, don't pass additionalPrompt (it's already in style.prompt)
+                            const basePrompt = style.id.startsWith('custom-') ? '' : (additionalPrompt || '');
+                            const prompt = buildVariationPrompt(basePrompt, style);
                             const resultBase64 = await provider.generateVariation(sourceBase64, prompt);
 
                             const isSvg = resultBase64.startsWith('PHN2Zy');

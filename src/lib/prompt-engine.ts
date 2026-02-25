@@ -161,6 +161,15 @@ export function buildVariationPrompt(
     stylePreset: StylePreset,
     additionalContext?: string
 ): string {
+    // Custom prompt-only mode (no preset style)
+    if (stylePreset.id.startsWith('custom-')) {
+        const parts: string[] = [];
+        parts.push(`[INSTRUCTION] Transform this image according to these instructions: ${stylePreset.prompt}`);
+        if (additionalContext) parts.push(additionalContext);
+        parts.push('Apply the changes dramatically. Do NOT return the original image. High quality, print-ready.');
+        return parts.join('\n\n');
+    }
+
     const parts: string[] = [];
 
     // User request goes FIRST if present — highest priority

@@ -134,8 +134,13 @@ export default function VariationGrid() {
     // Regenerate a single variation
     const handleRegenerate = async (styleId: string) => {
         if (!sourceDesign) return;
-        const style = STYLE_PRESETS.find((s) => s.id === styleId);
-        if (!style) return;
+        // Look up from presets, or reconstruct from current variation
+        let style = STYLE_PRESETS.find((s) => s.id === styleId);
+        if (!style) {
+            const v = variations.find((v) => v.styleId === styleId);
+            if (!v) return;
+            style = { id: styleId, name: v.styleName, prompt: v.styleName, icon: '' };
+        }
 
         updateVariation(styleId, { loading: true, imageUrl: '' });
 
@@ -146,7 +151,7 @@ export default function VariationGrid() {
                 body: JSON.stringify({
                     sourceImageUrl: sourceDesign.url,
                     styles: [style],
-                    additionalPrompt,
+                    additionalPrompt: style.id.startsWith('custom-') ? '' : additionalPrompt,
                 }),
             });
 
