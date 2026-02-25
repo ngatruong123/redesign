@@ -11,13 +11,13 @@ const steps: { id: WorkflowStep; label: string }[] = [
 ];
 
 export default function StepIndicator() {
-    const { currentStep, setStep, sourceDesign, variations } = useWorkflowStore();
+    const { currentStep, setStep, sourceDesigns, variations } = useWorkflowStore();
 
     const currentIdx = steps.findIndex((s) => s.id === currentStep);
 
     const canNavigate = (stepId: WorkflowStep) => {
         if (stepId === 'upload') return true;
-        if (stepId === 'variations') return !!sourceDesign;
+        if (stepId === 'variations') return sourceDesigns.length > 0;
         if (stepId === 'mockup') return variations.some((v) => v.selected && v.imageUrl);
         if (stepId === 'video') return true;
         return false;

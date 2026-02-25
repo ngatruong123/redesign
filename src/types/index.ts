@@ -21,6 +21,7 @@ export interface GeneratedVariation {
     imageUrl: string;
     selected: boolean;
     loading: boolean;
+    sourceDesignId?: string;
 }
 
 export interface MockupTemplate {
@@ -54,6 +55,14 @@ export interface MockupMask {
     shadow?: { blur: number; color: string; };
 }
 
+export interface EtsySEO {
+    title: string;         // max 140 chars (Etsy limit)
+    description: string;   // max 10000 chars
+    tags: string[];        // max 13 tags, each max 20 chars
+    status: 'idle' | 'generating' | 'done' | 'error';
+    error?: string;
+}
+
 export interface GeneratedMockup {
     id: string;
     templateId?: string;
@@ -62,6 +71,7 @@ export interface GeneratedMockup {
     variationName: string;
     imageUrl: string;
     error?: string;
+    seo?: EtsySEO;
 }
 
 export type WorkflowStep = 'upload' | 'variations' | 'mockup' | 'video';

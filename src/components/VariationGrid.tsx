@@ -21,7 +21,7 @@ const Icons = {
 
 export default function VariationGrid() {
     const {
-        sourceDesign, variations, setVariations, setStep,
+        sourceDesigns, variations, setVariations, setStep,
         isGenerating, setIsGenerating, setError, updateVariation,
     } = useWorkflowStore();
 
@@ -43,16 +43,15 @@ export default function VariationGrid() {
         });
     };
 
-    // Generate: 1 variation per selected style (streaming), or 1 from custom prompt
+    // Generate: 1 variation per selected style × source image (streaming), or 1 from custom prompt
     const handleGenerate = async () => {
-        if (!sourceDesign) return;
+        if (sourceDesigns.length === 0) return;
 
         // Build styles list: selected presets + custom prompt if no presets selected
         let styles: { id: string; name: string; prompt: string; icon?: string }[];
         if (selectedStyles.size > 0) {
             styles = STYLE_PRESETS.filter((s) => selectedStyles.has(s.id));
         } else if (additionalPrompt.trim()) {
-            // Generate from custom prompt only
             const customId = `custom-${Date.now()}`;
             styles = [{ id: customId, name: additionalPrompt.trim().slice(0, 40), prompt: additionalPrompt.trim() }];
         } else {
@@ -62,23 +61,29 @@ export default function VariationGrid() {
         setIsGenerating(true);
         setError(null);
 
-        const placeholders = styles.map((s) => ({
-            id: s.id,
-            styleId: s.id,
-            styleName: s.name,
-            imageUrl: '',
-            selected: false,
-            loading: true,
-        }));
+        // Create placeholders: for each source × style
+        const placeholders = sourceDesigns.flatMap((design) =>
+            styles.map((s) => ({
+                id: `${design.id}_${s.id}`,
+                styleId: s.id,
+                styleName: s.name,
+                imageUrl: '',
+                selected: false,
+                loading: true,
+                sourceDesignId: design.id,
+            }))
+        );
         setVariations(placeholders);
-        setStreamProgress({ done: 0, total: styles.length });
+        const totalCount = placeholders.length;
+        setStreamProgress({ done: 0, total: totalCount });
 
         try {
+            const sourceImageUrls = sourceDesigns.map((d) => ({ id: d.id, url: d.url }));
             const res = await fetch('/api/generate-stream', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    sourceImageUrl: sourceDesign.url,
+                    sourceImageUrls,
                     styles,
                     additionalPrompt,
                 }),
@@ -111,10 +116,13 @@ export default function VariationGrid() {
                     try {
                         const variation = JSON.parse(jsonStr);
                         doneCount++;
-                        setStreamProgress({ done: doneCount, total: styles.length });
-                        updateVariation(variation.styleId, {
+                        setStreamProgress({ done: doneCount, total: totalCount });
+                        // Match by composite id (sourceDesignId_styleId)
+                        const compositeId = `${variation.sourceDesignId}_${variation.styleId}`;
+                        updateVariation(compositeId, {
                             imageUrl: variation.imageUrl,
                             loading: false,
+                            sourceDesignId: variation.sourceDesignId,
                         });
                     } catch {
                         // skip malformed SSE
@@ -132,24 +140,26 @@ export default function VariationGrid() {
     };
 
     // Regenerate a single variation
-    const handleRegenerate = async (styleId: string) => {
+    const handleRegenerate = async (variationId: string) => {
+        const v = variations.find((v) => v.id === variationId);
+        if (!v) return;
+
+        const sourceDesign = sourceDesigns.find((d) => d.id === v.sourceDesignId) || sourceDesigns[0];
         if (!sourceDesign) return;
-        // Look up from presets, or reconstruct from current variation
-        let style = STYLE_PRESETS.find((s) => s.id === styleId);
+
+        let style = STYLE_PRESETS.find((s) => s.id === v.styleId);
         if (!style) {
-            const v = variations.find((v) => v.styleId === styleId);
-            if (!v) return;
-            style = { id: styleId, name: v.styleName, prompt: v.styleName, icon: '' };
+            style = { id: v.styleId, name: v.styleName, prompt: v.styleName, icon: '' };
         }
 
-        updateVariation(styleId, { loading: true, imageUrl: '' });
+        updateVariation(variationId, { loading: true, imageUrl: '' });
 
         try {
             const res = await fetch('/api/generate-stream', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    sourceImageUrl: sourceDesign.url,
+                    sourceImageUrls: [{ id: sourceDesign.id, url: sourceDesign.url }],
                     styles: [style],
                     additionalPrompt: style.id.startsWith('custom-') ? '' : additionalPrompt,
                 }),
@@ -179,9 +189,9 @@ export default function VariationGrid() {
                     const jsonStr = line.slice(6).trim();
                     if (!jsonStr || jsonStr === '[DONE]') continue;
                     try {
-                        const variation = JSON.parse(jsonStr);
-                        updateVariation(variation.styleId, {
-                            imageUrl: variation.imageUrl,
+                        const parsed = JSON.parse(jsonStr);
+                        updateVariation(variationId, {
+                            imageUrl: parsed.imageUrl,
                             loading: false,
                         });
                     } catch {
@@ -191,7 +201,7 @@ export default function VariationGrid() {
             }
         } catch (err) {
             addToast('error', err instanceof Error ? err.message : 'Regeneration failed');
-            updateVariation(styleId, { loading: false });
+            updateVariation(variationId, { loading: false });
         }
     };
 
@@ -243,11 +253,15 @@ export default function VariationGrid() {
 
     return (
         <div className="variation-container">
-            {sourceDesign && (
-                <div className="source-preview-mini zoomable" onClick={() => setLightboxImage({ url: sourceDesign.url, alt: sourceDesign.name })}>
-                    <img src={sourceDesign.url} alt={sourceDesign.name} />
-                    <span>{sourceDesign.name}</span>
-                    <span className="zoom-hint">{Icons.search}</span>
+            {sourceDesigns.length > 0 && (
+                <div className="source-previews-row">
+                    {sourceDesigns.map((d) => (
+                        <div key={d.id} className="source-preview-mini zoomable" onClick={() => setLightboxImage({ url: d.url, alt: d.name })}>
+                            <img src={d.url} alt={d.name} />
+                            <span>{d.name}</span>
+                            <span className="zoom-hint">{Icons.search}</span>
+                        </div>
+                    ))}
                 </div>
             )}
 
@@ -318,109 +332,112 @@ export default function VariationGrid() {
                         </div>
                     </div>
 
-                    <div className="variation-grid">
-                        {variations.map((variation) => (
-                            <div
-                                key={variation.id}
-                                className={`variation-card ${variation.selected ? 'selected' : ''} ${variation.loading ? 'loading' : ''}`}
-                                onClick={() => !variation.loading && toggleVariation(variation.id)}
-                            >
-                                {variation.loading ? (
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                                        <div className="skeleton" style={{ aspectRatio: '1', width: '100%' }} />
-                                        <div style={{ padding: '8px 12px' }}>
-                                            <div className="skeleton-text" />
-                                        </div>
-                                    </div>
-                                ) : variation.imageUrl ? (
-                                    <>
-                                        {/* Checkbox top-left */}
-                                        <div
-                                            className={`variation-check ${variation.selected ? 'checked' : ''}`}
-                                            onClick={(e) => { e.stopPropagation(); toggleVariation(variation.id); }}
-                                        >
-                                            {variation.selected && '✓'}
-                                        </div>
-
-                                        {/* BG removed badge */}
-                                        {bgRemoved.has(variation.id) && (
-                                            <span className="variation-badge-nobg">No BG</span>
-                                        )}
-
-                                        {/* Image area */}
-                                        <div className={`variation-image-wrap ${bgRemoved.has(variation.id) ? 'checkerboard' : ''}`}>
-                                            <img src={variation.imageUrl} alt={variation.styleName} />
-
-                                            {/* Hover toolbar overlay */}
-                                            <div className="variation-toolbar">
-                                                <button
-                                                    className="vtool-btn"
-                                                    title="Phóng to"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        setLightboxImage({ url: variation.imageUrl, alt: variation.styleName });
-                                                    }}
-                                                >{Icons.search}</button>
-                                                <button
-                                                    className="vtool-btn"
-                                                    title="Tạo lại"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        handleRegenerate(variation.styleId);
-                                                    }}
-                                                >{Icons.refresh}</button>
-                                                <button
-                                                    className={`vtool-btn ${bgRemoved.has(variation.id) ? 'vtool-active' : ''}`}
-                                                    title={bgRemoved.has(variation.id) ? 'Khôi phục nền' : 'Xoá nền nhanh'}
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        handleToggleBg(variation.id, variation.imageUrl);
-                                                    }}
-                                                    disabled={bgProcessing.has(variation.id)}
-                                                >
-                                                    {bgProcessing.has(variation.id) ? <span className="spinner-sm" /> : bgRemoved.has(variation.id) ? Icons.undo : Icons.scissors}
-                                                </button>
-                                                <button
-                                                    className="vtool-btn"
-                                                    title="Xoá nền (tuỳ chỉnh)"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        handleOpenRemoveBg(variation.id, variation.imageUrl);
-                                                    }}
-                                                >{Icons.wand}</button>
-                                                <a
-                                                    className="vtool-btn"
-                                                    title="Tải xuống"
-                                                    href={`/api/download/${encodeURIComponent(variation.styleName + '.png')}?source=${encodeURIComponent(variation.imageUrl)}`}
-                                                    onClick={(e) => e.stopPropagation()}
-                                                >{Icons.download}</a>
-                                            </div>
-                                        </div>
-
-                                        {/* Footer: style name only */}
-                                        <div className="variation-card-footer">
-                                            <span className="variation-label">{variation.styleName}</span>
-                                        </div>
-                                    </>
-                                ) : (
-                                    <div className="variation-error">
-                                        <span>⚠️</span>
-                                        <p>Lỗi</p>
-                                        <button
-                                            className="btn-ghost-sm"
-                                            style={{ marginTop: 4 }}
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                handleRegenerate(variation.styleId);
-                                            }}
-                                        >
-                                            Thử lại
-                                        </button>
+                    {/* Group variations by source design */}
+                    {sourceDesigns.map((design) => {
+                        const group = variations.filter((v) => v.sourceDesignId === design.id);
+                        if (group.length === 0) return null;
+                        return (
+                            <div key={design.id} className="variation-group">
+                                {sourceDesigns.length > 1 && (
+                                    <div className="variation-group-header">
+                                        <img src={design.url} alt={design.name} className="variation-group-thumb" />
+                                        <span>{design.name}</span>
                                     </div>
                                 )}
+                                <div className="variation-grid">
+                                    {group.map((variation) => (
+                                        <div
+                                            key={variation.id}
+                                            className={`variation-card ${variation.selected ? 'selected' : ''} ${variation.loading ? 'loading' : ''}`}
+                                            onClick={() => !variation.loading && toggleVariation(variation.id)}
+                                        >
+                                            {variation.loading ? (
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                                    <div className="skeleton" style={{ aspectRatio: '1', width: '100%' }} />
+                                                    <div style={{ padding: '8px 12px' }}>
+                                                        <div className="skeleton-text" />
+                                                    </div>
+                                                </div>
+                                            ) : variation.imageUrl ? (
+                                                <>
+                                                    <div
+                                                        className={`variation-check ${variation.selected ? 'checked' : ''}`}
+                                                        onClick={(e) => { e.stopPropagation(); toggleVariation(variation.id); }}
+                                                    >
+                                                        {variation.selected && '✓'}
+                                                    </div>
+
+                                                    {bgRemoved.has(variation.id) && (
+                                                        <span className="variation-badge-nobg">No BG</span>
+                                                    )}
+
+                                                    <div className={`variation-image-wrap ${bgRemoved.has(variation.id) ? 'checkerboard' : ''}`}>
+                                                        <img src={variation.imageUrl} alt={variation.styleName} />
+
+                                                        <div className="variation-toolbar">
+                                                            <button className="vtool-btn" title="Phóng to" onClick={(e) => { e.stopPropagation(); setLightboxImage({ url: variation.imageUrl, alt: variation.styleName }); }}>{Icons.search}</button>
+                                                            <button className="vtool-btn" title="Tạo lại" onClick={(e) => { e.stopPropagation(); handleRegenerate(variation.id); }}>{Icons.refresh}</button>
+                                                            <button
+                                                                className={`vtool-btn ${bgRemoved.has(variation.id) ? 'vtool-active' : ''}`}
+                                                                title={bgRemoved.has(variation.id) ? 'Khôi phục nền' : 'Xoá nền nhanh'}
+                                                                onClick={(e) => { e.stopPropagation(); handleToggleBg(variation.id, variation.imageUrl); }}
+                                                                disabled={bgProcessing.has(variation.id)}
+                                                            >
+                                                                {bgProcessing.has(variation.id) ? <span className="spinner-sm" /> : bgRemoved.has(variation.id) ? Icons.undo : Icons.scissors}
+                                                            </button>
+                                                            <button className="vtool-btn" title="Xoá nền (tuỳ chỉnh)" onClick={(e) => { e.stopPropagation(); handleOpenRemoveBg(variation.id, variation.imageUrl); }}>{Icons.wand}</button>
+                                                            <a className="vtool-btn" title="Tải xuống" href={`/api/download/${encodeURIComponent(variation.styleName + '.png')}?source=${encodeURIComponent(variation.imageUrl)}`} onClick={(e) => e.stopPropagation()}>{Icons.download}</a>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="variation-card-footer">
+                                                        <span className="variation-label">{variation.styleName}</span>
+                                                    </div>
+                                                </>
+                                            ) : (
+                                                <div className="variation-error">
+                                                    <span>⚠️</span>
+                                                    <p>Lỗi</p>
+                                                    <button className="btn-ghost-sm" style={{ marginTop: 4 }} onClick={(e) => { e.stopPropagation(); handleRegenerate(variation.id); }}>Thử lại</button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
                             </div>
-                        ))}
-                    </div>
+                        );
+                    })}
+                    {/* Fallback for variations without sourceDesignId */}
+                    {(() => {
+                        const ungrouped = variations.filter((v) => !v.sourceDesignId || !sourceDesigns.find((d) => d.id === v.sourceDesignId));
+                        if (ungrouped.length === 0) return null;
+                        return (
+                            <div className="variation-grid">
+                                {ungrouped.map((variation) => (
+                                    <div
+                                        key={variation.id}
+                                        className={`variation-card ${variation.selected ? 'selected' : ''} ${variation.loading ? 'loading' : ''}`}
+                                        onClick={() => !variation.loading && toggleVariation(variation.id)}
+                                    >
+                                        {variation.loading ? (
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                                <div className="skeleton" style={{ aspectRatio: '1', width: '100%' }} />
+                                                <div style={{ padding: '8px 12px' }}><div className="skeleton-text" /></div>
+                                            </div>
+                                        ) : variation.imageUrl ? (
+                                            <>
+                                                <div className={`variation-check ${variation.selected ? 'checked' : ''}`} onClick={(e) => { e.stopPropagation(); toggleVariation(variation.id); }}>{variation.selected && '✓'}</div>
+                                                <div className="variation-image-wrap"><img src={variation.imageUrl} alt={variation.styleName} /></div>
+                                                <div className="variation-card-footer"><span className="variation-label">{variation.styleName}</span></div>
+                                            </>
+                                        ) : (
+                                            <div className="variation-error"><span>⚠️</span><p>Lỗi</p></div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        );
+                    })()}
 
                     <div className="variation-footer">
                         <button className="btn-ghost" onClick={() => setStep('upload')}>← Quay lại</button>

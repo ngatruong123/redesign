@@ -6,6 +6,7 @@ import { useToastStore } from '@/store/toast-store';
 import { v4 as uuidv4 } from 'uuid';
 import Lightbox from './Lightbox';
 import RemoveBgPanel from './RemoveBgPanel';
+import SEOPanel from './SEOPanel';
 import type { MockupMask, Point } from '@/types';
 
 const MAX_HISTORY = 20;
@@ -19,14 +20,14 @@ const BLEND_OPTIONS: MockupMask['blendMode'][] = ['normal', 'multiply', 'overlay
 
 // SVG Icons (monochrome, 16×16)
 const Icons = {
-    image: <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><rect x="2" y="2" width="12" height="12" rx="2"/><circle cx="5.5" cy="5.5" r="1.5"/><path d="M14 10l-3-3-5 5"/></svg>,
-    package: <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 5l6-3 6 3-6 3z"/><path d="M2 5v6l6 3V8"/><path d="M14 5v6l-6 3V8"/></svg>,
-    download: <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M8 2v9M4.5 7.5L8 11l3.5-3.5M3 13h10"/></svg>,
-    video: <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><rect x="1.5" y="3" width="9" height="10" rx="1.5"/><path d="M10.5 6.5L14 4.5v7l-3.5-2"/></svg>,
-    search: <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></svg>,
-    undo: <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M4 6l-3 3 3 3"/><path d="M1 9h9a4 4 0 0 0 0-8H8"/></svg>,
-    redo: <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M12 6l3 3-3 3"/><path d="M15 9H6a4 4 0 0 1 0-8h2"/></svg>,
-    refresh: <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M2.5 8a5.5 5.5 0 0 1 9.9-3.2M13.5 8a5.5 5.5 0 0 1-9.9 3.2"/><path d="M12.5 2v3h-3M3.5 14v-3h3"/></svg>,
+    image: <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><rect x="2" y="2" width="12" height="12" rx="2" /><circle cx="5.5" cy="5.5" r="1.5" /><path d="M14 10l-3-3-5 5" /></svg>,
+    package: <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 5l6-3 6 3-6 3z" /><path d="M2 5v6l6 3V8" /><path d="M14 5v6l-6 3V8" /></svg>,
+    download: <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M8 2v9M4.5 7.5L8 11l3.5-3.5M3 13h10" /></svg>,
+    video: <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><rect x="1.5" y="3" width="9" height="10" rx="1.5" /><path d="M10.5 6.5L14 4.5v7l-3.5-2" /></svg>,
+    search: <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><circle cx="7" cy="7" r="4.5" /><path d="M10.5 10.5L14 14" /></svg>,
+    undo: <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M4 6l-3 3 3 3" /><path d="M1 9h9a4 4 0 0 0 0-8H8" /></svg>,
+    redo: <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M12 6l3 3-3 3" /><path d="M15 9H6a4 4 0 0 1 0-8h2" /></svg>,
+    refresh: <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M2.5 8a5.5 5.5 0 0 1 9.9-3.2M13.5 8a5.5 5.5 0 0 1-9.9 3.2" /><path d="M12.5 2v3h-3M3.5 14v-3h3" /></svg>,
 };
 
 function mid(a: Point, b: Point): Point {
@@ -90,6 +91,7 @@ export default function MockupEditor() {
     const [downloading, setDownloading] = useState(false);
     const [zipUrl, setZipUrl] = useState<string | null>(null);
     const [removeBgVariationId, setRemoveBgVariationId] = useState<string | null>(null);
+    const [seoMockupId, setSeoMockupId] = useState<string | null>(null);
     const [showBatchPreview, setShowBatchPreview] = useState(false);
     const [batchExcluded, setBatchExcluded] = useState<Set<string>>(new Set());
 
@@ -1214,7 +1216,7 @@ export default function MockupEditor() {
                         <div className="generated-header-actions">
                             <button className="btn-ghost-sm" onClick={selectAllMockups}>Chọn tất cả</button>
                             <button className="btn-ghost-sm" onClick={() => setSelectedMockupIds(new Set())}>Bỏ chọn</button>
-{selectedMockupCount > 0 && (
+                            {selectedMockupCount > 0 && (
                                 <button className="btn-primary" onClick={handleDownloadSelected} disabled={downloading}>
                                     {downloading ? <><span className="spinner-sm" /> Đang tải...</> : <>{Icons.download} Tải {selectedMockupCount} ảnh</>}
                                 </button>
@@ -1250,6 +1252,12 @@ export default function MockupEditor() {
                                                     });
                                                     setStep('video');
                                                 }}>{Icons.video}</button>
+                                                <button className="btn-icon-sm" title="SEO Title & Description" onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setSeoMockupId(mockup.id);
+                                                }} style={mockup.seo?.status === 'done' ? { color: 'var(--accent, #00e68a)' } : undefined}>
+                                                    {'📝'}
+                                                </button>
                                                 <button className="btn-icon-sm" title="Download" onClick={(e) => {
                                                     e.stopPropagation();
                                                     triggerDownload(mockup.imageUrl, makeSafeFilename(mockup.templateName, mockup.variationName));
@@ -1341,6 +1349,17 @@ export default function MockupEditor() {
                             addToast('success', `Đã tách nền: ${v.styleName}`);
                         }}
                         onClose={() => setRemoveBgVariationId(null)}
+                    />
+                );
+            })()}
+
+            {seoMockupId && (() => {
+                const m = generatedMockups.find(x => x.id === seoMockupId);
+                if (!m) return null;
+                return (
+                    <SEOPanel
+                        mockup={m}
+                        onClose={() => setSeoMockupId(null)}
                     />
                 );
             })()}

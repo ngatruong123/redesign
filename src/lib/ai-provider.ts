@@ -20,7 +20,7 @@ export function createAIProvider(provider: string): AIProvider {
 
 /**
  * Google Gemini (Nano Banana Pro) image generation via REST API.
- * Model: gemini-2.5-flash-image
+ * Model: gemini-3-pro-image-preview (Nano Banana Pro)
  * Supports both text-to-image and image editing (text+image-to-image).
  */
 class GeminiProvider implements AIProvider {
@@ -30,7 +30,7 @@ class GeminiProvider implements AIProvider {
 
     constructor() {
         this.apiKey = process.env.GEMINI_API_KEY || '';
-        this.model = process.env.GEMINI_MODEL || 'gemini-2.5-flash-image';
+        this.model = process.env.GEMINI_MODEL || 'gemini-3-pro-image-preview';
         this.baseUrl = 'https://generativelanguage.googleapis.com/v1beta';
     }
 
@@ -41,16 +41,16 @@ class GeminiProvider implements AIProvider {
 
         const url = `${this.baseUrl}/models/${this.model}:generateContent`;
 
+        console.log(`[GeminiProvider] Prompt (first 200 chars): ${prompt.slice(0, 200)}`);
+
         const requestBody = {
-            systemInstruction: {
-                parts: [{ text: 'You are an image editor. When given an image and instructions, generate a NEW image that follows the instructions. Do NOT copy or reproduce the original image. Create something visually different based on the instructions.' }],
-            },
             contents: [
                 {
                     role: 'user',
                     parts: [
-                        // Text instruction FIRST, then image as reference
-                        { text: `Edit this image: ${prompt}\n\nIMPORTANT: Generate a new image that is visually DIFFERENT from the original. Apply the requested changes boldly.` },
+                        {
+                            text: `Here is a reference design image. I want you to CREATE A COMPLETELY NEW IMAGE based on it.\n\n${prompt}\n\nDo NOT return the original image. Do NOT make minor edits. Generate a BRAND NEW image that is clearly different from the reference while following the instructions above.`,
+                        },
                         {
                             inlineData: {
                                 mimeType: 'image/png',
@@ -61,11 +61,9 @@ class GeminiProvider implements AIProvider {
                 },
             ],
             generationConfig: {
-                responseModalities: ['Image'],
-                temperature: 1.8,
-                imageConfig: {
-                    imageSize: '2K',
-                },
+                responseModalities: ['TEXT', 'IMAGE'],
+                temperature: 2.0,
+                imageConfig: { imageSize: '2K' },
             },
         };
 

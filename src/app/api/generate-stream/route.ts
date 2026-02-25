@@ -8,16 +8,27 @@ import { parallelLimit } from '@/lib/concurrency';
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
-        const { sourceImageUrl, styles, additionalPrompt } = body;
+        const { sourceImageUrl, sourceImageUrls, styles, additionalPrompt } = body;
 
-        if (!sourceImageUrl) {
-            return Response.json({ error: 'No source image path' }, { status: 400 });
+        // Normalize to array: [{id, url}]
+        let sources: { id: string; url: string }[];
+        if (sourceImageUrls && Array.isArray(sourceImageUrls) && sourceImageUrls.length > 0) {
+            sources = sourceImageUrls;
+        } else if (sourceImageUrl) {
+            // Backward compat: single URL
+            sources = [{ id: 'single', url: sourceImageUrl }];
+        } else {
+            return Response.json({ error: 'No source image provided' }, { status: 400 });
         }
 
         const provider = createAIProvider(process.env.AI_PROVIDER || 'mock');
 
-        const sourceBuffer = await resolveToBuffer(sourceImageUrl);
-        const sourceBase64 = sourceBuffer.toString('base64');
+        // Pre-fetch all source images
+        const sourceBuffers = new Map<string, string>();
+        for (const src of sources) {
+            const buffer = await resolveToBuffer(src.url);
+            sourceBuffers.set(src.id, buffer.toString('base64'));
+        }
 
         // Determine styles
         let stylePresets: import('@/types').StylePreset[];
@@ -30,18 +41,24 @@ export async function POST(request: NextRequest) {
             stylePresets = DEFAULT_STYLE_PRESETS.slice(0, 10);
         }
 
+        // Build tasks: source × style
+        const tasks = sources.flatMap((src) =>
+            stylePresets.map((style) => ({ sourceId: src.id, style }))
+        );
+
         // SSE stream
         const encoder = new TextEncoder();
         const stream = new ReadableStream({
             async start(controller) {
                 await parallelLimit(
-                    stylePresets,
-                    async (style) => {
+                    tasks,
+                    async ({ sourceId, style }) => {
                         const variationId = uuidv4();
                         try {
-                            // For custom prompt-only styles, don't pass additionalPrompt (it's already in style.prompt)
+                            const sourceBase64 = sourceBuffers.get(sourceId)!;
                             const basePrompt = style.id.startsWith('custom-') ? '' : (additionalPrompt || '');
                             const prompt = buildVariationPrompt(basePrompt, style);
+                            console.log(`[generate-stream] Source: ${sourceId} | Style: ${style.id} | Prompt: ${prompt.slice(0, 200)}...`);
                             const resultBase64 = await provider.generateVariation(sourceBase64, prompt);
 
                             const isSvg = resultBase64.startsWith('PHN2Zy');
@@ -58,6 +75,7 @@ export async function POST(request: NextRequest) {
                                 imageUrl: url,
                                 selected: false,
                                 loading: false,
+                                sourceDesignId: sourceId,
                             };
 
                             controller.enqueue(encoder.encode(`data: ${JSON.stringify(variation)}\n\n`));
@@ -70,6 +88,7 @@ export async function POST(request: NextRequest) {
                                 imageUrl: '',
                                 selected: false,
                                 loading: false,
+                                sourceDesignId: sourceId,
                                 error: err instanceof Error ? err.message : 'Generation failed',
                             };
                             controller.enqueue(encoder.encode(`data: ${JSON.stringify(variation)}\n\n`));

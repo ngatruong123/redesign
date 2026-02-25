@@ -1,9 +1,11 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { DesignFile, GeneratedVariation, MockupTemplate, GeneratedMockup, WorkflowStep, VideoGeneration } from '@/types';
+import type { DesignFile, GeneratedVariation, MockupTemplate, GeneratedMockup, WorkflowStep, VideoGeneration, EtsySEO } from '@/types';
 
 interface WorkflowState {
     currentStep: WorkflowStep;
+    sourceDesigns: DesignFile[];
+    /** @deprecated Use sourceDesigns instead */
     sourceDesign: DesignFile | null;
     variations: GeneratedVariation[];
     mockupTemplates: MockupTemplate[];
@@ -14,6 +16,10 @@ interface WorkflowState {
     videoGeneration: VideoGeneration | null;
 
     setStep: (step: WorkflowStep) => void;
+    addSourceDesign: (design: DesignFile) => void;
+    removeSourceDesign: (id: string) => void;
+    clearSourceDesigns: () => void;
+    /** @deprecated Use addSourceDesign instead */
     setSourceDesign: (design: DesignFile | null) => void;
     setVariations: (variations: GeneratedVariation[]) => void;
     toggleVariationSelection: (id: string) => void;
@@ -24,6 +30,7 @@ interface WorkflowState {
     removeMockupTemplate: (id: string) => void;
     updateMockupTemplate: (id: string, update: Partial<MockupTemplate>) => void;
     setGeneratedMockups: (mockups: GeneratedMockup[]) => void;
+    updateMockupSEO: (mockupId: string, seo: Partial<EtsySEO>) => void;
     setIsGenerating: (v: boolean) => void;
     setIsCompositing: (v: boolean) => void;
     setError: (error: string | null) => void;
@@ -34,6 +41,7 @@ interface WorkflowState {
 
 const initialState = {
     currentStep: 'upload' as WorkflowStep,
+    sourceDesigns: [] as DesignFile[],
     sourceDesign: null as DesignFile | null,
     variations: [] as GeneratedVariation[],
     mockupTemplates: [] as MockupTemplate[],
@@ -50,7 +58,23 @@ export const useWorkflowStore = create<WorkflowState>()(
             ...initialState,
 
             setStep: (step) => set({ currentStep: step }),
-            setSourceDesign: (design) => set({ sourceDesign: design }),
+            addSourceDesign: (design) => set((state) => ({
+                sourceDesigns: [...state.sourceDesigns, design],
+                sourceDesign: design, // keep compat: last added
+            })),
+            removeSourceDesign: (id) => set((state) => {
+                const sourceDesigns = state.sourceDesigns.filter((d) => d.id !== id);
+                return { sourceDesigns, sourceDesign: sourceDesigns[sourceDesigns.length - 1] || null };
+            }),
+            clearSourceDesigns: () => set({ sourceDesigns: [], sourceDesign: null }),
+            setSourceDesign: (design) => set(design
+                ? (state) => ({
+                    sourceDesign: design,
+                    sourceDesigns: state.sourceDesigns.some((d) => d.id === design.id)
+                        ? state.sourceDesigns.map((d) => d.id === design.id ? design : d)
+                        : [...state.sourceDesigns, design],
+                })
+                : { sourceDesign: null, sourceDesigns: [] }),
             setVariations: (variations) => set({ variations }),
 
             toggleVariationSelection: (id) =>
@@ -95,6 +119,11 @@ export const useWorkflowStore = create<WorkflowState>()(
                 })),
 
             setGeneratedMockups: (mockups) => set({ generatedMockups: mockups }),
+            updateMockupSEO: (mockupId, seoUpdate) => set((state) => ({
+                generatedMockups: state.generatedMockups.map((m) =>
+                    m.id === mockupId ? { ...m, seo: { ...(m.seo || { title: '', description: '', tags: [], status: 'idle' as const }), ...seoUpdate } } : m
+                ),
+            })),
             setIsGenerating: (v) => set({ isGenerating: v }),
             setIsCompositing: (v) => set({ isCompositing: v }),
             setError: (error) => set({ error }),
@@ -106,6 +135,7 @@ export const useWorkflowStore = create<WorkflowState>()(
             name: 'design-tool-workflow',
             partialize: (state) => ({
                 currentStep: state.currentStep,
+                sourceDesigns: state.sourceDesigns,
                 sourceDesign: state.sourceDesign,
                 variations: state.variations,
                 mockupTemplates: state.mockupTemplates,
@@ -113,10 +143,11 @@ export const useWorkflowStore = create<WorkflowState>()(
             }),
             onRehydrateStorage: () => (state) => {
                 if (!state) return;
-                // On reload: clear everything, start fresh
+                // Keep mockupTemplates (with masks) across reloads
+                // Clear transient data so user starts fresh with new designs
+                state.sourceDesigns = [];
                 state.sourceDesign = null;
                 state.variations = [];
-                state.mockupTemplates = [];
                 state.generatedMockups = [];
                 state.currentStep = 'upload';
             },
