@@ -10,7 +10,7 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'GOOGLE_AI_API_KEY not configured' }, { status: 500 });
         }
 
-        const { imageUrl, prompt, aspectRatio = '16:9' } = await req.json();
+        const { imageUrl, prompt, duration, aspectRatio = '16:9' } = await req.json();
         if (!imageUrl || !prompt) {
             return NextResponse.json({ error: 'imageUrl and prompt are required' }, { status: 400 });
         }
@@ -34,6 +34,7 @@ export async function POST(req: NextRequest) {
             },
             config: {
                 aspectRatio: ratio,
+                ...(duration && [4, 6, 8].includes(Number(duration)) ? { durationSeconds: Number(duration) } : {}),
             },
         });
 

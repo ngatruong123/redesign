@@ -74,9 +74,28 @@ export default function VideoGenerator() {
         }
     };
 
-    const handleDownload = () => {
+    const [downloadingVideo, setDownloadingVideo] = useState(false);
+
+    const handleDownload = async () => {
         if (!videoGeneration?.videoUrl) return;
-        window.location.href = `/api/download/mockup-video.mp4?source=${encodeURIComponent(videoGeneration.videoUrl)}`;
+        setDownloadingVideo(true);
+        try {
+            const res = await fetch(`/api/download/mockup-video.mp4?source=${encodeURIComponent(videoGeneration.videoUrl)}`);
+            if (!res.ok) throw new Error('Download failed');
+            const blob = await res.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'mockup-video.mp4';
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+        } catch (err) {
+            addToast('error', `Download thất bại: ${err instanceof Error ? err.message : 'Unknown'}`);
+        } finally {
+            setDownloadingVideo(false);
+        }
     };
 
     if (!videoGeneration) {
@@ -226,9 +245,10 @@ export default function VideoGenerator() {
                     <button
                         className="btn-primary"
                         onClick={handleDownload}
+                        disabled={downloadingVideo}
                         style={{ marginTop: 12, width: '100%' }}
                     >
-                        Download Video
+                        {downloadingVideo ? <><span className="spinner-sm" /> Đang tải...</> : 'Download Video'}
                     </button>
                 </div>
             )}
