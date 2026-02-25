@@ -76,10 +76,7 @@ export default function VideoGenerator() {
 
     const handleDownload = () => {
         if (!videoGeneration?.videoUrl) return;
-        const a = document.createElement('a');
-        a.href = `${videoGeneration.videoUrl}?dl=mockup-video.mp4`;
-        a.download = 'mockup-video.mp4';
-        a.click();
+        window.location.href = `/api/download/mockup-video.mp4?source=${encodeURIComponent(videoGeneration.videoUrl)}`;
     };
 
     if (!videoGeneration) {

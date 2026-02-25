@@ -255,8 +255,7 @@ export default function MockupEditor() {
 
     const triggerDownload = (imageUrl: string, filename: string) => {
         if (!imageUrl) { addToast('error', 'Không có URL để tải'); return; }
-        const filePart = imageUrl.replace(/^\/api\/files\//, '');
-        window.location.href = `/api/download/${filePart}/${encodeURIComponent(filename)}`;
+        window.location.href = `/api/download/${encodeURIComponent(filename)}?source=${encodeURIComponent(imageUrl)}`;
     };
 
     const handleDownloadSelected = () => {

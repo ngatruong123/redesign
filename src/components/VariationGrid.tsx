@@ -372,8 +372,7 @@ export default function VariationGrid() {
                                                 <a
                                                     className="vtool-btn"
                                                     title="Tải xuống"
-                                                    href={variation.imageUrl}
-                                                    download={`${variation.styleName}.png`}
+                                                    href={`/api/download/${encodeURIComponent(variation.styleName + '.png')}?source=${encodeURIComponent(variation.imageUrl)}`}
                                                     onClick={(e) => e.stopPropagation()}
                                                 >{Icons.download}</a>
                                             </div>

@@ -2,38 +2,31 @@ import { NextRequest } from 'next/server';
 import { resolveToBuffer } from '@/lib/blob-storage';
 import path from 'path';
 
-const ALLOWED_DIRS = ['uploads', 'variations', 'mockups'] as const;
-
-// URL format: /api/download/{dir}/{uuid}.{ext}/{desired-filename.ext}
-// Example: /api/download/mockups/abc123.png/MyMockup.png
-// The last segment is the download filename - browser uses it as the saved filename
+// URL format: /api/download/{desired-filename}?source={imageUrl}
+// The source can be a blob URL or a local /api/files/ URL
 export async function GET(
-    _request: NextRequest,
+    request: NextRequest,
     { params }: { params: Promise<{ params: string[] }> }
 ) {
     const segments = (await params).params;
-    // Need at least: dir, file, downloadName
-    if (!segments || segments.length < 3) {
+    if (!segments || segments.length < 1) {
         return new Response('Not found', { status: 404 });
     }
 
-    const dir = segments[0];
-    if (!ALLOWED_DIRS.includes(dir as typeof ALLOWED_DIRS[number])) {
-        return new Response('Forbidden', { status: 403 });
+    const downloadName = decodeURIComponent(segments[0]);
+    const source = request.nextUrl.searchParams.get('source');
+    if (!source) {
+        return new Response('Missing source parameter', { status: 400 });
     }
 
-    const filename = segments[1];
-    if (filename.includes('..')) return new Response('Forbidden', { status: 403 });
-
-    const downloadName = decodeURIComponent(segments[2]);
-
     try {
-        const buffer = await resolveToBuffer(`/api/files/${dir}/${filename}`);
+        const buffer = await resolveToBuffer(source);
 
-        const ext = path.extname(filename).toLowerCase();
+        const ext = path.extname(downloadName).toLowerCase();
         const types: Record<string, string> = {
             '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
             '.webp': 'image/webp', '.zip': 'application/zip',
+            '.mp4': 'video/mp4',
         };
 
         return new Response(new Uint8Array(buffer), {
