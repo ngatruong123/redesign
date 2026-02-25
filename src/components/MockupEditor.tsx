@@ -316,19 +316,31 @@ export default function MockupEditor() {
             triggerDownload(zipUrl, 'mockups.zip');
             return;
         }
-        // Otherwise, build a zip client-side
+        // Otherwise, build a zip client-side (fetch sequentially in batches to avoid timeouts)
         setDownloading(true);
         try {
             const JSZip = (await import('jszip')).default;
             const zip = new JSZip();
-            await Promise.all(toDownload.map(async (mockup) => {
-                const res = await fetch(mockup.imageUrl);
-                const blob = await res.blob();
-                zip.file(makeSafeFilename(mockup.templateName, mockup.variationName), blob);
-            }));
+            const BATCH = 3;
+            let failed = 0;
+            for (let i = 0; i < toDownload.length; i += BATCH) {
+                const batch = toDownload.slice(i, i + BATCH);
+                await Promise.all(batch.map(async (mockup) => {
+                    try {
+                        const res = await fetch(mockup.imageUrl);
+                        if (!res.ok) { failed++; return; }
+                        const blob = await res.blob();
+                        if (blob.size === 0) { failed++; return; }
+                        zip.file(makeSafeFilename(mockup.templateName, mockup.variationName), blob);
+                    } catch {
+                        failed++;
+                    }
+                }));
+            }
             const zipBlob = await zip.generateAsync({ type: 'blob' });
             const { saveAs } = await import('file-saver');
             saveAs(zipBlob, 'mockups.zip');
+            if (failed > 0) addToast('warning', `${failed}/${toDownload.length} ảnh không tải được`);
         } catch (err) {
             addToast('error', `Tải ZIP thất bại: ${err instanceof Error ? err.message : 'Unknown'}`);
         } finally {
