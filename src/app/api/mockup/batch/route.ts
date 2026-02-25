@@ -140,6 +140,8 @@ export async function POST(request: NextRequest) {
         });
     } catch (error) {
         console.error('Batch error:', error);
-        return NextResponse.json({ error: 'Batch processing failed' }, { status: 500 });
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        const stack = error instanceof Error ? error.stack : '';
+        return NextResponse.json({ error: 'Batch processing failed', message, stack }, { status: 500 });
     }
 }

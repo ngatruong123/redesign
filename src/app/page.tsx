@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect } from 'react';
 import { useWorkflowStore } from '@/store/workflow-store';
 import StepIndicator from '@/components/StepIndicator';
 import UploadZone from '@/components/UploadZone';
@@ -9,6 +10,10 @@ import VideoGenerator from '@/components/VideoGenerator';
 
 export default function Home() {
     const { currentStep } = useWorkflowStore();
+
+    useEffect(() => {
+        fetch('/api/cleanup', { method: 'POST' }).catch(() => {});
+    }, []);
 
     return (
         <div className="app-container">

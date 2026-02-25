@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import ToastContainer from "@/components/Toast";
+import { SessionProvider } from "@/components/SessionProvider";
 
 export const metadata: Metadata = {
   title: "Design Variation Tool — AI-Powered POD Design Generator",
@@ -23,8 +24,10 @@ export default function RootLayout({
         />
       </head>
       <body>
-        {children}
-        <ToastContainer />
+        <SessionProvider>
+          {children}
+          <ToastContainer />
+        </SessionProvider>
       </body>
     </html>
   );

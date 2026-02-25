@@ -107,12 +107,13 @@ export function drawPerspective(
         const quadAR = quadW / quadH;
         const imgAR = sw / sh;
 
+        // Contain: fit image inside quad, preserve aspect ratio, center it
         if (imgAR > quadAR) {
-            // Image is wider than quad → fit by width, pad top/bottom
+            // Image wider than quad → fit by width, pad top/bottom
             vScale = quadAR / imgAR;
             vOff = (1 - vScale) / 2;
         } else {
-            // Image is taller than quad → fit by height, pad left/right
+            // Image taller than quad → fit by height, pad left/right
             uScale = imgAR / quadAR;
             uOff = (1 - uScale) / 2;
         }
