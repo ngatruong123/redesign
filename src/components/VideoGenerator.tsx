@@ -203,8 +203,16 @@ export default function VideoGenerator() {
                     padding: 12, borderRadius: 8, marginBottom: 20,
                     background: 'rgba(255,50,50,0.1)', border: '1px solid rgba(255,50,50,0.3)',
                     color: '#ff6b6b', fontSize: 14,
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
                 }}>
-                    {videoGeneration.error}
+                    <span>{videoGeneration.error}</span>
+                    <button
+                        className="btn-ghost-sm"
+                        style={{ color: '#ff6b6b', borderColor: 'rgba(255,50,50,0.3)', flexShrink: 0 }}
+                        onClick={handleGenerate}
+                    >
+                        Thử lại
+                    </button>
                 </div>
             )}
 

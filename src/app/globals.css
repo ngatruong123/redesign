@@ -40,6 +40,12 @@
   --transition-slow: 400ms cubic-bezier(0.4, 0, 0.2, 1);
 
   --font: 'Inter', system-ui, -apple-system, sans-serif;
+
+  /* Z-Index System */
+  --z-overlay: 10;
+  --z-modal-backdrop: 100;
+  --z-modal: 110;
+  --z-toast: 130;
 }
 
 /* --- Reset --- */
@@ -240,7 +246,7 @@ a:hover {
 }
 
 .btn-primary:disabled {
-  opacity: 0.5;
+  opacity: 0.6;
   cursor: not-allowed;
 }
 
@@ -679,7 +685,7 @@ a:hover {
 }
 
 .style-chip:disabled {
-  opacity: 0.5;
+  opacity: 0.6;
   cursor: not-allowed;
   transform: none;
 }
@@ -991,8 +997,8 @@ a:hover {
 }
 
 .vtool-btn:disabled {
-  opacity: 0.5;
-  cursor: default;
+  opacity: 0.6;
+  cursor: not-allowed;
   transform: none;
 }
 
@@ -1647,7 +1653,7 @@ a:hover {
 .lightbox-overlay {
   position: fixed;
   inset: 0;
-  z-index: 9999;
+  z-index: var(--z-modal);
   background: rgba(0, 0, 0, 0.92);
   backdrop-filter: blur(12px);
   display: flex;
@@ -1683,7 +1689,7 @@ a:hover {
   align-items: center;
   justify-content: center;
   transition: var(--transition);
-  z-index: 10000;
+  z-index: var(--z-modal);
 }
 
 .lightbox-close:hover {
@@ -1736,7 +1742,7 @@ a:hover {
   position: fixed;
   top: 20px;
   right: 20px;
-  z-index: 10001;
+  z-index: var(--z-toast);
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -1856,7 +1862,7 @@ a:hover {
 .cropper-overlay {
   position: fixed;
   inset: 0;
-  z-index: 9998;
+  z-index: var(--z-modal-backdrop);
   background: rgba(0, 0, 0, 0.85);
   backdrop-filter: blur(8px);
   display: flex;
@@ -1904,7 +1910,7 @@ a:hover {
 .removebg-panel-overlay {
   position: fixed;
   inset: 0;
-  z-index: 9999;
+  z-index: var(--z-modal);
   background: rgba(0, 0, 0, 0.8);
   backdrop-filter: blur(12px);
   display: flex;
@@ -1979,7 +1985,7 @@ a:hover {
 }
 
 .removebg-mode-btn:disabled {
-  opacity: 0.5;
+  opacity: 0.6;
   cursor: not-allowed;
   transform: none;
 }
@@ -2491,4 +2497,119 @@ a:hover {
   .colorkey-layout {
     grid-template-columns: 1fr;
   }
+}
+
+/* --- Skeleton Loader --- */
+.skeleton {
+  background: linear-gradient(90deg, var(--bg-card) 25%, var(--bg-card-hover) 50%, var(--bg-card) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+  border-radius: var(--radius-md);
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.skeleton-text {
+  height: 12px;
+  width: 60%;
+  margin: 0 auto;
+  border-radius: 6px;
+  background: linear-gradient(90deg, var(--bg-card) 25%, var(--bg-card-hover) 50%, var(--bg-card) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+/* --- Step Circle Number --- */
+.step-circle {
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+/* --- Batch Preview Modal --- */
+.batch-preview-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal-backdrop);
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: fadeIn 0.2s ease;
+  padding: 20px;
+}
+
+.batch-preview-modal {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 28px;
+  width: 100%;
+  max-width: 800px;
+  max-height: 85vh;
+  overflow-y: auto;
+  box-shadow: var(--shadow-lg);
+}
+
+.batch-preview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 12px;
+  margin: 16px 0 24px;
+}
+
+.batch-preview-item {
+  position: relative;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  border: 2px solid var(--border);
+  cursor: pointer;
+  transition: var(--transition);
+  opacity: 0.5;
+}
+
+.batch-preview-item.checked {
+  border-color: var(--accent);
+  opacity: 1;
+}
+
+.batch-preview-item:hover {
+  border-color: var(--text-muted);
+}
+
+.batch-preview-item img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  display: block;
+}
+
+.batch-preview-item-label {
+  font-size: 0.65rem;
+  padding: 4px 6px;
+  color: var(--text-secondary);
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.batch-preview-check {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  background: var(--accent);
+  color: #000;
+  font-size: 0.65rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }

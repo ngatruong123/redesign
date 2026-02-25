@@ -17,6 +17,18 @@ const EDGE_DRAW_RADIUS = 6;
 
 const BLEND_OPTIONS: MockupMask['blendMode'][] = ['normal', 'multiply', 'overlay', 'screen', 'soft-light'];
 
+// SVG Icons (monochrome, 16×16)
+const Icons = {
+    image: <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><rect x="2" y="2" width="12" height="12" rx="2"/><circle cx="5.5" cy="5.5" r="1.5"/><path d="M14 10l-3-3-5 5"/></svg>,
+    package: <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 5l6-3 6 3-6 3z"/><path d="M2 5v6l6 3V8"/><path d="M14 5v6l-6 3V8"/></svg>,
+    download: <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M8 2v9M4.5 7.5L8 11l3.5-3.5M3 13h10"/></svg>,
+    video: <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><rect x="1.5" y="3" width="9" height="10" rx="1.5"/><path d="M10.5 6.5L14 4.5v7l-3.5-2"/></svg>,
+    search: <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></svg>,
+    undo: <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M4 6l-3 3 3 3"/><path d="M1 9h9a4 4 0 0 0 0-8H8"/></svg>,
+    redo: <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M12 6l3 3-3 3"/><path d="M15 9H6a4 4 0 0 1 0-8h2"/></svg>,
+    refresh: <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M2.5 8a5.5 5.5 0 0 1 9.9-3.2M13.5 8a5.5 5.5 0 0 1-9.9 3.2"/><path d="M12.5 2v3h-3M3.5 14v-3h3"/></svg>,
+};
+
 function mid(a: Point, b: Point): Point {
     return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
 }
@@ -61,6 +73,8 @@ export default function MockupEditor() {
     const [downloading, setDownloading] = useState(false);
     const [zipUrl, setZipUrl] = useState<string | null>(null);
     const [removeBgVariationId, setRemoveBgVariationId] = useState<string | null>(null);
+    const [showBatchPreview, setShowBatchPreview] = useState(false);
+    const [batchExcluded, setBatchExcluded] = useState<Set<string>>(new Set());
 
     // Quad placement state
     const [placingCorner, setPlacingCorner] = useState(0);
@@ -651,23 +665,53 @@ export default function MockupEditor() {
         setTimeout(() => commitMask(), 0);
     };
 
+    // --- Batch preview helpers ---
+    const openBatchPreview = () => {
+        setBatchExcluded(new Set());
+        setShowBatchPreview(true);
+    };
+
+    const getBatchCombos = () => {
+        const templatesWithMask = mockupTemplates.filter((t) => t.mask);
+        return templatesWithMask.flatMap((t) =>
+            selectedVariations.map((v) => ({
+                key: `${t.id}__${v.id}`,
+                template: t,
+                variation: v,
+            }))
+        );
+    };
+
+    const toggleBatchItem = (key: string) => {
+        setBatchExcluded(prev => {
+            const next = new Set(prev);
+            if (next.has(key)) next.delete(key); else next.add(key);
+            return next;
+        });
+    };
+
     // --- Generate ---
-    const handleGenerateMockups = async () => {
+    const handleGenerateMockups = async (excludedKeys?: Set<string>) => {
         const templatesWithMask = mockupTemplates.filter((t) => t.mask);
         if (templatesWithMask.length === 0 || selectedVariations.length === 0) return;
 
+        setShowBatchPreview(false);
         setIsCompositing(true);
         setError(null);
 
         const items = templatesWithMask.flatMap((t) =>
-            selectedVariations.map((v) => ({
-                mockupImagePath: t.imageUrl,
-                designImagePath: v.imageUrl,
-                mask: t.mask,
-                templateName: t.name,
-                variationName: v.styleName,
-            }))
+            selectedVariations
+                .filter((v) => !excludedKeys || !excludedKeys.has(`${t.id}__${v.id}`))
+                .map((v) => ({
+                    mockupImagePath: t.imageUrl,
+                    designImagePath: v.imageUrl,
+                    mask: t.mask,
+                    templateName: t.name,
+                    variationName: v.styleName,
+                }))
         );
+
+        if (items.length === 0) return;
 
         try {
             const res = await fetch('/api/mockup/batch', {
@@ -845,8 +889,8 @@ export default function MockupEditor() {
 
                             <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
                                 <div className="undo-redo-bar">
-                                    <button className="btn-icon" title="Undo (Ctrl+Z)" onClick={undo} disabled={historyIndex <= 0}>↶</button>
-                                    <button className="btn-icon" title="Redo (Ctrl+Shift+Z)" onClick={redo} disabled={historyIndex >= maskHistory.length - 1}>↷</button>
+                                    <button className="btn-icon" title="Undo (Ctrl+Z)" onClick={undo} disabled={historyIndex <= 0}>{Icons.undo}</button>
+                                    <button className="btn-icon" title="Redo (Ctrl+Shift+Z)" onClick={redo} disabled={historyIndex >= maskHistory.length - 1}>{Icons.redo}</button>
                                     <button className="btn-ghost-sm" onClick={handleResetMask}>Reset</button>
                                     {quadDone && <button className="btn-ghost-sm" onClick={handleResetCurves}>Reset curves</button>}
                                     {quadDone && selectedTemplateIds.size > 0 && (
@@ -944,7 +988,7 @@ export default function MockupEditor() {
                 <button
                     className="btn-primary btn-lg"
                     disabled={readyTemplateCount === 0 || selectedVariations.length === 0 || isCompositing}
-                    onClick={handleGenerateMockups}
+                    onClick={openBatchPreview}
                 >
                     {isCompositing ? <><span className="spinner-sm" /> Đang tạo mockup...</>
                         : `Tạo ${readyTemplateCount * selectedVariations.length} mockup`}
@@ -954,18 +998,18 @@ export default function MockupEditor() {
             {generatedMockups.length > 0 && (
                 <div className="generated-mockups-section">
                     <div className="generated-header">
-                        <h3>🖼️ Mockups ({generatedMockups.length})</h3>
+                        <h3 style={{ display: 'flex', alignItems: 'center', gap: 6 }}>{Icons.image} Mockups ({generatedMockups.length})</h3>
                         <div className="generated-header-actions">
                             <button className="btn-ghost-sm" onClick={selectAllMockups}>Chọn tất cả</button>
                             <button className="btn-ghost-sm" onClick={() => setSelectedMockupIds(new Set())}>Bỏ chọn</button>
                             {zipUrl && (
                                 <button className="btn-primary" onClick={() => triggerDownload(zipUrl, 'mockups.zip')}>
-                                    📦 Tải tất cả (ZIP)
+                                    {Icons.package} Tải tất cả (ZIP)
                                 </button>
                             )}
                             {selectedMockupCount > 0 && (
                                 <button className="btn-primary" onClick={handleDownloadSelected} disabled={downloading}>
-                                    {downloading ? <><span className="spinner-sm" /> Đang tải...</> : `⬇️ Tải ${selectedMockupCount} ảnh`}
+                                    {downloading ? <><span className="spinner-sm" /> Đang tải...</> : <>{Icons.download} Tải {selectedMockupCount} ảnh</>}
                                 </button>
                             )}
                         </div>
@@ -978,7 +1022,7 @@ export default function MockupEditor() {
                                         <div className="generated-image-wrap"
                                             onClick={() => setLightboxImage({ url: mockup.imageUrl, alt: `${mockup.templateName} - ${mockup.variationName}` })}>
                                             <img src={mockup.imageUrl} alt={`${mockup.templateName} - ${mockup.variationName}`} />
-                                            <div className="zoom-overlay"><span>🔍</span></div>
+                                            <div className="zoom-overlay"><span>{Icons.search}</span></div>
                                         </div>
                                         <div className="generated-card-footer">
                                             <div className="generated-card-info">
@@ -998,11 +1042,11 @@ export default function MockupEditor() {
                                                         status: 'pending',
                                                     });
                                                     setStep('video');
-                                                }}>🎬</button>
+                                                }}>{Icons.video}</button>
                                                 <button className="btn-icon-sm" title="Download" onClick={(e) => {
                                                     e.stopPropagation();
                                                     triggerDownload(mockup.imageUrl, makeSafeFilename(mockup.templateName, mockup.variationName));
-                                                }}>⬇️</button>
+                                                }}>{Icons.download}</button>
                                                 <div className={`checkbox ${selectedMockupIds.has(mockup.id) ? 'checked' : ''}`}
                                                     onClick={() => toggleMockupSelection(mockup.id)}>
                                                     {selectedMockupIds.has(mockup.id) && '✓'}
@@ -1014,6 +1058,13 @@ export default function MockupEditor() {
                                     <div className="variation-error">
                                         <span>⚠️</span>
                                         <p>{mockup.error || 'Lỗi'}</p>
+                                        <button
+                                            className="btn-ghost-sm"
+                                            style={{ marginTop: 4 }}
+                                            onClick={() => handleGenerateMockups()}
+                                        >
+                                            Tạo lại
+                                        </button>
                                     </div>
                                 )}
                             </div>
@@ -1025,6 +1076,52 @@ export default function MockupEditor() {
             {lightboxImage && (
                 <Lightbox imageUrl={lightboxImage.url} alt={lightboxImage.alt} onClose={() => setLightboxImage(null)} />
             )}
+
+            {showBatchPreview && (() => {
+                const combos = getBatchCombos();
+                const activeCount = combos.filter(c => !batchExcluded.has(c.key)).length;
+                return (
+                    <div className="batch-preview-overlay" onClick={() => setShowBatchPreview(false)}>
+                        <div className="batch-preview-modal" onClick={(e) => e.stopPropagation()}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                                <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Preview mockup combinations</h3>
+                                <button className="btn-icon-sm" onClick={() => setShowBatchPreview(false)}>✕</button>
+                            </div>
+                            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: 12 }}>
+                                Bỏ chọn combo bạn không muốn tạo. Click vào ảnh để toggle.
+                            </p>
+                            <div className="batch-preview-grid">
+                                {combos.map(({ key, template, variation }) => {
+                                    const isChecked = !batchExcluded.has(key);
+                                    return (
+                                        <div
+                                            key={key}
+                                            className={`batch-preview-item ${isChecked ? 'checked' : ''}`}
+                                            onClick={() => toggleBatchItem(key)}
+                                        >
+                                            {isChecked && <div className="batch-preview-check">✓</div>}
+                                            <img src={template.imageUrl} alt={template.name} />
+                                            <div className="batch-preview-item-label">
+                                                {template.name} × {variation.styleName}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+                                <button className="btn-secondary" onClick={() => setShowBatchPreview(false)}>Huỷ</button>
+                                <button
+                                    className="btn-primary"
+                                    disabled={activeCount === 0}
+                                    onClick={() => handleGenerateMockups(batchExcluded)}
+                                >
+                                    Xác nhận tạo {activeCount} mockup
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                );
+            })()}
 
             {removeBgVariationId && (() => {
                 const v = variations.find(x => x.id === removeBgVariationId);

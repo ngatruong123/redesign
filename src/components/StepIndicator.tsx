@@ -3,11 +3,11 @@
 import { useWorkflowStore } from '@/store/workflow-store';
 import type { WorkflowStep } from '@/types';
 
-const steps: { id: WorkflowStep; label: string; icon: string }[] = [
-    { id: 'upload', label: 'Upload Design', icon: '📤' },
-    { id: 'variations', label: 'AI Variations', icon: '✨' },
-    { id: 'mockup', label: 'Mockup', icon: '🖼️' },
-    { id: 'video', label: 'Video', icon: '🎬' },
+const steps: { id: WorkflowStep; label: string }[] = [
+    { id: 'upload', label: 'Upload Design' },
+    { id: 'variations', label: 'AI Variations' },
+    { id: 'mockup', label: 'Mockup' },
+    { id: 'video', label: 'Video' },
 ];
 
 export default function StepIndicator() {
@@ -32,7 +32,7 @@ export default function StepIndicator() {
                         onClick={() => canNavigate(step.id) && setStep(step.id)}
                         style={{ cursor: canNavigate(step.id) ? 'pointer' : 'default' }}
                     >
-                        <div className="step-circle">{i < currentIdx ? '✓' : step.icon}</div>
+                        <div className="step-circle">{i < currentIdx ? '✓' : i + 1}</div>
                         <span className="step-label">{step.label}</span>
                     </div>
                     {i < steps.length - 1 && (

@@ -9,6 +9,16 @@ import RemoveBgPanel from './RemoveBgPanel';
 
 const STYLE_PRESETS = DEFAULT_STYLE_PRESETS;
 
+// SVG Icons (monochrome, 16×16)
+const Icons = {
+    search: <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></svg>,
+    refresh: <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M2.5 8a5.5 5.5 0 0 1 9.9-3.2M13.5 8a5.5 5.5 0 0 1-9.9 3.2"/><path d="M12.5 2v3h-3M3.5 14v-3h3"/></svg>,
+    scissors: <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><circle cx="4" cy="4" r="2"/><circle cx="4" cy="12" r="2"/><path d="M5.8 5.5L14 12M5.8 10.5L14 4"/></svg>,
+    wand: <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M2 14L10 6M7 3l1-2 1 2 2 1-2 1-1 2-1-2-2-1z"/><path d="M12.5 7.5l.5-1 .5 1 1 .5-1 .5-.5 1-.5-1-1-.5z"/></svg>,
+    download: <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M8 2v9M4.5 7.5L8 11l3.5-3.5M3 13h10"/></svg>,
+    undo: <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M4 6l-3 3 3 3"/><path d="M1 9h9a4 4 0 0 0 0-8H8"/></svg>,
+};
+
 export default function VariationGrid() {
     const {
         sourceDesign, variations, setVariations, setStep,
@@ -19,7 +29,6 @@ export default function VariationGrid() {
     const [additionalPrompt, setAdditionalPrompt] = useState('');
     const [lightboxImage, setLightboxImage] = useState<{ url: string; alt: string } | null>(null);
     const [removeBgTarget, setRemoveBgTarget] = useState<{ id: string; imageUrl: string } | null>(null);
-    // Track original URLs and processing state for quick bg toggle
     const [originalUrls, setOriginalUrls] = useState<Record<string, string>>({});
     const [bgRemoved, setBgRemoved] = useState<Set<string>>(new Set());
     const [bgProcessing, setBgProcessing] = useState<Set<string>>(new Set());
@@ -179,7 +188,6 @@ export default function VariationGrid() {
     const handleToggleBg = useCallback(async (variationId: string, currentUrl: string) => {
         if (bgProcessing.has(variationId)) return;
 
-        // If already removed → restore original
         if (bgRemoved.has(variationId)) {
             const orig = originalUrls[variationId];
             if (orig) {
@@ -189,7 +197,6 @@ export default function VariationGrid() {
             return;
         }
 
-        // Save original and call remove-bg API
         setOriginalUrls((prev) => ({ ...prev, [variationId]: currentUrl }));
         setBgProcessing((prev) => new Set(prev).add(variationId));
 
@@ -224,14 +231,14 @@ export default function VariationGrid() {
                 <div className="source-preview-mini zoomable" onClick={() => setLightboxImage({ url: sourceDesign.url, alt: sourceDesign.name })}>
                     <img src={sourceDesign.url} alt={sourceDesign.name} />
                     <span>{sourceDesign.name}</span>
-                    <span className="zoom-hint">🔍</span>
+                    <span className="zoom-hint">{Icons.search}</span>
                 </div>
             )}
 
             {/* Style picker */}
             <div className="style-picker">
                 <div className="style-picker-header">
-                    <h3>🎨 Chọn phong cách ({selectedStyles.size}/{STYLE_PRESETS.length})</h3>
+                    <h3>Chọn phong cách ({selectedStyles.size}/{STYLE_PRESETS.length})</h3>
                     <div className="style-picker-actions">
                         {selectedStyles.size > 0 && <span className="style-picker-count">{selectedStyles.size} selected</span>}
                         <button className="btn-ghost-sm" onClick={() => setSelectedStyles(new Set(STYLE_PRESETS.map((s) => s.id)))}>Chọn tất cả</button>
@@ -300,9 +307,11 @@ export default function VariationGrid() {
                                 onClick={() => !variation.loading && toggleVariation(variation.id)}
                             >
                                 {variation.loading ? (
-                                    <div className="variation-loading">
-                                        <div className="spinner" />
-                                        <span>Đang tạo...</span>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                        <div className="skeleton" style={{ aspectRatio: '1', width: '100%' }} />
+                                        <div style={{ padding: '8px 12px' }}>
+                                            <div className="skeleton-text" />
+                                        </div>
                                     </div>
                                 ) : variation.imageUrl ? (
                                     <>
@@ -332,7 +341,7 @@ export default function VariationGrid() {
                                                         e.stopPropagation();
                                                         setLightboxImage({ url: variation.imageUrl, alt: variation.styleName });
                                                     }}
-                                                >🔍</button>
+                                                >{Icons.search}</button>
                                                 <button
                                                     className="vtool-btn"
                                                     title="Tạo lại"
@@ -340,7 +349,7 @@ export default function VariationGrid() {
                                                         e.stopPropagation();
                                                         handleRegenerate(variation.styleId);
                                                     }}
-                                                >🔄</button>
+                                                >{Icons.refresh}</button>
                                                 <button
                                                     className={`vtool-btn ${bgRemoved.has(variation.id) ? 'vtool-active' : ''}`}
                                                     title={bgRemoved.has(variation.id) ? 'Khôi phục nền' : 'Xoá nền nhanh'}
@@ -350,7 +359,7 @@ export default function VariationGrid() {
                                                     }}
                                                     disabled={bgProcessing.has(variation.id)}
                                                 >
-                                                    {bgProcessing.has(variation.id) ? <span className="spinner-sm" /> : bgRemoved.has(variation.id) ? '↩️' : '✂️'}
+                                                    {bgProcessing.has(variation.id) ? <span className="spinner-sm" /> : bgRemoved.has(variation.id) ? Icons.undo : Icons.scissors}
                                                 </button>
                                                 <button
                                                     className="vtool-btn"
@@ -359,14 +368,14 @@ export default function VariationGrid() {
                                                         e.stopPropagation();
                                                         handleOpenRemoveBg(variation.id, variation.imageUrl);
                                                     }}
-                                                >🪄</button>
+                                                >{Icons.wand}</button>
                                                 <a
                                                     className="vtool-btn"
                                                     title="Tải xuống"
                                                     href={variation.imageUrl}
                                                     download={`${variation.styleName}.png`}
                                                     onClick={(e) => e.stopPropagation()}
-                                                >💾</a>
+                                                >{Icons.download}</a>
                                             </div>
                                         </div>
 
@@ -379,6 +388,16 @@ export default function VariationGrid() {
                                     <div className="variation-error">
                                         <span>⚠️</span>
                                         <p>Lỗi</p>
+                                        <button
+                                            className="btn-ghost-sm"
+                                            style={{ marginTop: 4 }}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleRegenerate(variation.styleId);
+                                            }}
+                                        >
+                                            Thử lại
+                                        </button>
                                     </div>
                                 )}
                             </div>
