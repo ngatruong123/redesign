@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 
-const CLEANUP_PREFIXES = ['uploads/', 'variations/', 'videos/'];
+const CLEANUP_PREFIXES = ['uploads/', 'variations/', 'videos/', 'mockups/'];
 
 export async function POST() {
     if (process.env.STORAGE_PROVIDER?.trim().toLowerCase() !== 'blob') {

@@ -43,13 +43,24 @@ export default function VariationGrid() {
         });
     };
 
-    // Generate: 1 variation per selected style (streaming)
+    // Generate: 1 variation per selected style (streaming), or 1 from custom prompt
     const handleGenerate = async () => {
-        if (!sourceDesign || selectedStyles.size === 0) return;
+        if (!sourceDesign) return;
+
+        // Build styles list: selected presets + custom prompt if no presets selected
+        let styles: { id: string; name: string; prompt: string; icon?: string }[];
+        if (selectedStyles.size > 0) {
+            styles = STYLE_PRESETS.filter((s) => selectedStyles.has(s.id));
+        } else if (additionalPrompt.trim()) {
+            // Generate from custom prompt only
+            const customId = `custom-${Date.now()}`;
+            styles = [{ id: customId, name: additionalPrompt.trim().slice(0, 40), prompt: additionalPrompt.trim() }];
+        } else {
+            return;
+        }
+
         setIsGenerating(true);
         setError(null);
-
-        const styles = STYLE_PRESETS.filter((s) => selectedStyles.has(s.id));
 
         const placeholders = styles.map((s) => ({
             id: s.id,
@@ -262,25 +273,28 @@ export default function VariationGrid() {
 
             {/* Prompt & Generate */}
             <div className="prompt-section">
-                <label>Prompt bổ sung (tùy chọn)</label>
+                <label>{selectedStyles.size > 0 ? 'Prompt bổ sung (tùy chọn)' : 'Nhập prompt để tạo ảnh'}</label>
                 <div className="prompt-input-row">
                     <input
                         type="text"
-                        placeholder="VD: thêm hoa văn, đổi màu nền..."
+                        placeholder={selectedStyles.size > 0 ? 'VD: thêm hoa văn, đổi màu nền...' : 'VD: chuyển sang phong cách watercolor, thêm hoa...'}
                         value={additionalPrompt}
                         onChange={(e) => setAdditionalPrompt(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter' && !isGenerating) handleGenerate(); }}
                         disabled={isGenerating}
                     />
                     <button
                         className="btn-primary"
                         onClick={handleGenerate}
-                        disabled={isGenerating || selectedStyles.size === 0}
+                        disabled={isGenerating || (selectedStyles.size === 0 && !additionalPrompt.trim())}
                     >
                         {isGenerating && streamProgress
                             ? <><span className="spinner-sm" /> {streamProgress.done}/{streamProgress.total} hoàn thành</>
                             : isGenerating
                                 ? <><span className="spinner-sm" /> Đang tạo...</>
-                                : `Tạo ${selectedStyles.size} biến thể`}
+                                : selectedStyles.size > 0
+                                    ? `Tạo ${selectedStyles.size} biến thể`
+                                    : 'Tạo từ prompt'}
                     </button>
                 </div>
             </div>

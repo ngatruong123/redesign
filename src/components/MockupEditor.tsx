@@ -82,6 +82,9 @@ export default function MockupEditor() {
     const [activeTemplateId, setActiveTemplateId] = useState<string | null>(null);
     const [selectedTemplateIds, setSelectedTemplateIds] = useState<Set<string>>(new Set());
     const [dragActive, setDragActive] = useState(false);
+    const [uploadingTemplates, setUploadingTemplates] = useState(false);
+    const [uploadingDesigns, setUploadingDesigns] = useState(false);
+    const [designDragActive, setDesignDragActive] = useState(false);
     const [selectedMockupIds, setSelectedMockupIds] = useState<Set<string>>(new Set());
     const [lightboxImage, setLightboxImage] = useState<{ url: string; alt: string } | null>(null);
     const [downloading, setDownloading] = useState(false);
@@ -119,9 +122,24 @@ export default function MockupEditor() {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const designInputRef = useRef<HTMLInputElement>(null);
-    const imgCacheRef = useRef<HTMLImageElement | null>(null);
+    const imgCacheMap = useRef<Map<string, HTMLImageElement>>(new Map());
+    const rafRef = useRef<number>(0);
+    const canvasSizedRef = useRef(false);
+
+    const MAX_CANVAS_DIM = 2000;
 
     const activeTemplate = mockupTemplates.find((t) => t.id === activeTemplateId);
+
+    // Preload all template images into cache
+    useEffect(() => {
+        for (const t of mockupTemplates) {
+            if (t.imageUrl && !imgCacheMap.current.has(t.imageUrl)) {
+                const img = new Image();
+                img.onload = () => imgCacheMap.current.set(t.imageUrl, img);
+                img.src = t.imageUrl;
+            }
+        }
+    }, [mockupTemplates]);
     const selectedVariations = variations.filter((v) => v.selected && v.imageUrl);
 
     const quadDone = corners.length === 4;
@@ -157,7 +175,9 @@ export default function MockupEditor() {
 
     // Sync state when switching templates
     useEffect(() => {
-        const mask = activeTemplate?.mask;
+        // Read directly from store to avoid stale closure
+        const template = useWorkflowStore.getState().mockupTemplates.find((t) => t.id === activeTemplateId);
+        const mask = template?.mask;
         if (mask && mask.mode === 'quad' && mask.quad) {
             setCorners([...mask.quad]);
             setEdgeCPs(mask.edgeCurves ? [...mask.edgeCurves] : defaultEdgeCurves(mask.quad));
@@ -201,7 +221,11 @@ export default function MockupEditor() {
         }
         setMaskHistory(mask ? [mask] : []);
         setHistoryIndex(mask ? 0 : -1);
-        imgCacheRef.current = null;
+        canvasSizedRef.current = false;
+        setDragStart(null);
+        setDragCurrent(null);
+        setDragging(null);
+        setLastDragPos(null);
     }, [activeTemplateId]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // History — read from ref to avoid stale closures
@@ -360,6 +384,7 @@ export default function MockupEditor() {
     // --- Upload (supports multiple files) ---
     const handleUploadTemplate = useCallback(async (file: File) => {
         if (!file.type.startsWith('image/')) return;
+        setUploadingTemplates(true);
         const formData = new FormData();
         formData.append('file', file);
         try {
@@ -376,12 +401,15 @@ export default function MockupEditor() {
             setActiveTemplateId(newTemplate.id);
         } catch (err) {
             addToast('error', `Upload failed: ${err instanceof Error ? err.message : 'Unknown'}`);
+        } finally {
+            setUploadingTemplates(false);
         }
     }, [addMockupTemplate, addToast]);
 
     const handleUploadMultiple = useCallback(async (files: FileList | File[]) => {
         const imageFiles = Array.from(files).filter(f => f.type.startsWith('image/'));
         if (imageFiles.length === 0) return;
+        setUploadingTemplates(true);
 
         const uploads = imageFiles.map(async (file) => {
             const formData = new FormData();
@@ -411,12 +439,14 @@ export default function MockupEditor() {
         const failed = results.filter(r => r.status === 'rejected').length;
         if (added > 0) addToast('success', `Đã thêm ${added} template`);
         if (failed > 0) addToast('error', `${failed} file upload thất bại`);
+        setUploadingTemplates(false);
     }, [addMockupTemplate, addToast]);
 
     // --- Upload design images (add to variations) ---
     const handleUploadDesigns = useCallback(async (files: FileList | File[]) => {
         const imageFiles = Array.from(files).filter(f => f.type.startsWith('image/'));
         if (imageFiles.length === 0) return;
+        setUploadingDesigns(true);
 
         const uploads = imageFiles.map(async (file) => {
             const formData = new FormData();
@@ -445,9 +475,12 @@ export default function MockupEditor() {
         }
         const failed = results.filter(r => r.status === 'rejected').length;
         if (failed > 0) addToast('error', `${failed} file upload thất bại`);
+        setUploadingDesigns(false);
     }, [variations, setVariations, addToast]);
 
     // --- Canvas drawing ---
+    const scaleRef = useRef(1);
+
     const drawCanvas = useCallback(() => {
         if (!activeTemplate || !canvasRef.current) return;
         const canvas = canvasRef.current;
@@ -455,9 +488,21 @@ export default function MockupEditor() {
         if (!ctx) return;
 
         const draw = (img: HTMLImageElement) => {
-            canvas.width = img.naturalWidth;
-            canvas.height = img.naturalHeight;
-            ctx.drawImage(img, 0, 0);
+            // Only resize canvas once per image
+            if (!canvasSizedRef.current) {
+                const scale = Math.min(1, MAX_CANVAS_DIM / Math.max(img.naturalWidth, img.naturalHeight));
+                scaleRef.current = scale;
+                canvas.width = Math.round(img.naturalWidth * scale);
+                canvas.height = Math.round(img.naturalHeight * scale);
+                canvasSizedRef.current = true;
+            }
+            const s = scaleRef.current;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+            // Scale context for drawing overlay (corners, edges etc use original coords)
+            ctx.save();
+            ctx.scale(s, s);
 
             // Draw drag-to-draw preview rectangle
             if (dragStart && dragCurrent && corners.length === 0) {
@@ -472,11 +517,12 @@ export default function MockupEditor() {
                 ctx.strokeRect(rx, ry, rw, rh);
                 ctx.fillStyle = 'rgba(0, 230, 138, 0.08)';
                 ctx.fillRect(rx, ry, rw, rh);
-                ctx.restore();
+                ctx.restore(); // drag preview save
+                ctx.restore(); // scale save
                 return;
             }
 
-            if (corners.length === 0) return;
+            if (corners.length === 0) { ctx.restore(); return; } // scale save
 
             ctx.save();
 
@@ -570,14 +616,16 @@ export default function MockupEditor() {
                 });
             }
 
-            ctx.restore();
+            ctx.restore(); // overlay save
+            ctx.restore(); // scale save
         };
 
-        if (imgCacheRef.current) {
-            draw(imgCacheRef.current);
+        const cachedImg = imgCacheMap.current.get(activeTemplate.imageUrl);
+        if (cachedImg) {
+            draw(cachedImg);
         } else {
             const img = new Image();
-            img.onload = () => { imgCacheRef.current = img; draw(img); };
+            img.onload = () => { imgCacheMap.current.set(activeTemplate.imageUrl, img); draw(img); };
             img.src = activeTemplate.imageUrl;
         }
     }, [activeTemplate, corners, edgeCPs, dragging, quadDone, dragStart, dragCurrent]);
@@ -585,13 +633,15 @@ export default function MockupEditor() {
     useEffect(() => { drawCanvas(); }, [drawCanvas]);
 
     // Coord helper
+    // Map client coords to original image coords (not scaled canvas coords)
     const getCoords = useCallback((clientX: number, clientY: number): Point => {
         const canvas = canvasRef.current;
         if (!canvas) return { x: 0, y: 0 };
         const rect = canvas.getBoundingClientRect();
+        const s = scaleRef.current;
         return {
-            x: (clientX - rect.left) * (canvas.width / rect.width),
-            y: (clientY - rect.top) * (canvas.height / rect.height),
+            x: (clientX - rect.left) * (canvas.width / rect.width) / s,
+            y: (clientY - rect.top) * (canvas.height / rect.height) / s,
         };
     }, []);
 
@@ -683,7 +733,6 @@ export default function MockupEditor() {
         // Drag-to-draw preview
         if (dragStart && !quadDone) {
             setDragCurrent(coords);
-            drawCanvas();
             return;
         }
 
@@ -768,14 +817,27 @@ export default function MockupEditor() {
     };
 
     const handleCanvasMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => handlePointerDown(e.clientX, e.clientY);
-    const handleCanvasMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => handlePointerMove(e.clientX, e.clientY);
+    const handleCanvasMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
+        if (rafRef.current) return;
+        const cx = e.clientX, cy = e.clientY;
+        rafRef.current = requestAnimationFrame(() => {
+            rafRef.current = 0;
+            handlePointerMove(cx, cy);
+        });
+    };
     const handleCanvasMouseUp = () => handlePointerUp();
 
     const handleTouchStart = (e: React.TouchEvent<HTMLCanvasElement>) => {
         e.preventDefault(); handlePointerDown(e.touches[0].clientX, e.touches[0].clientY);
     };
     const handleTouchMove = (e: React.TouchEvent<HTMLCanvasElement>) => {
-        e.preventDefault(); handlePointerMove(e.touches[0].clientX, e.touches[0].clientY);
+        e.preventDefault();
+        if (rafRef.current) return;
+        const cx = e.touches[0].clientX, cy = e.touches[0].clientY;
+        rafRef.current = requestAnimationFrame(() => {
+            rafRef.current = 0;
+            handlePointerMove(cx, cy);
+        });
     };
     const handleTouchEnd = (e: React.TouchEvent<HTMLCanvasElement>) => {
         e.preventDefault(); handlePointerUp();
@@ -906,7 +968,7 @@ export default function MockupEditor() {
                             }
                             e.target.value = '';
                         }} hidden />
-                        + Thêm mockup template (chọn nhiều)
+                        {uploadingTemplates ? <><span className="spinner-sm" /> Đang upload...</> : '+ Thêm mockup template (chọn nhiều)'}
                     </div>
 
                     {/* Batch actions for templates */}
@@ -967,15 +1029,21 @@ export default function MockupEditor() {
 
                     <h3>Ảnh thiết kế ({selectedVariations.length}/{variations.length})</h3>
                     <div
-                        className="mockup-upload-mini"
+                        className={`mockup-upload-mini ${designDragActive ? 'drag-active' : ''}`}
                         onClick={() => designInputRef.current?.click()}
+                        onDragOver={(e) => { e.preventDefault(); setDesignDragActive(true); }}
+                        onDragLeave={() => setDesignDragActive(false)}
+                        onDrop={(e) => {
+                            e.preventDefault(); setDesignDragActive(false);
+                            if (e.dataTransfer.files.length > 0) handleUploadDesigns(e.dataTransfer.files);
+                        }}
                         style={{ marginBottom: 8 }}
                     >
                         <input ref={designInputRef} type="file" accept="image/*" multiple onChange={(e) => {
                             if (e.target.files) handleUploadDesigns(e.target.files);
                             e.target.value = '';
                         }} hidden />
-                        + Thêm ảnh thiết kế
+                        {uploadingDesigns ? <><span className="spinner-sm" /> Đang upload...</> : '+ Thêm ảnh thiết kế'}
                     </div>
                     <div className="selected-variations-mini">
                         {variations.filter(v => v.imageUrl).map((v) => (
@@ -1005,6 +1073,17 @@ export default function MockupEditor() {
                                     style={{ fontSize: 11, padding: '2px 4px', flexShrink: 0 }}
                                 >
                                     ✂️
+                                </button>
+                                <button
+                                    className="btn-icon-sm"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setVariations(variations.filter(x => x.id !== v.id));
+                                    }}
+                                    title="Xoá"
+                                    style={{ fontSize: 11, padding: '2px 4px', flexShrink: 0 }}
+                                >
+                                    ✕
                                 </button>
                             </div>
                         ))}
@@ -1135,12 +1214,7 @@ export default function MockupEditor() {
                         <div className="generated-header-actions">
                             <button className="btn-ghost-sm" onClick={selectAllMockups}>Chọn tất cả</button>
                             <button className="btn-ghost-sm" onClick={() => setSelectedMockupIds(new Set())}>Bỏ chọn</button>
-                            {zipUrl && (
-                                <button className="btn-primary" onClick={() => triggerDownload(zipUrl, 'mockups.zip')}>
-                                    {Icons.package} Tải tất cả (ZIP)
-                                </button>
-                            )}
-                            {selectedMockupCount > 0 && (
+{selectedMockupCount > 0 && (
                                 <button className="btn-primary" onClick={handleDownloadSelected} disabled={downloading}>
                                     {downloading ? <><span className="spinner-sm" /> Đang tải...</> : <>{Icons.download} Tải {selectedMockupCount} ảnh</>}
                                 </button>
