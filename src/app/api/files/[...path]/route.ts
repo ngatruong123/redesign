@@ -4,7 +4,7 @@ import { existsSync } from 'fs';
 import path from 'path';
 import { getStorageDir } from '@/lib/storage';
 
-const ALLOWED_DIRS = ['uploads', 'variations', 'mockups', 'videos'] as const;
+const ALLOWED_DIRS = ['uploads', 'variations', 'mockups', 'videos', 'templates'] as const;
 
 export async function GET(
     request: NextRequest,

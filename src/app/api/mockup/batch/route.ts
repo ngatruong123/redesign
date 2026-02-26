@@ -108,7 +108,7 @@ export async function POST(request: NextRequest) {
                 const filename = `${id}.png`;
                 const { url } = await storeFile('mockups', filename, resultBuffer);
 
-                const zipFilename = `${item.templateName}_${item.variationName}.png`.replace(/[^a-zA-Z0-9._-]/g, '_');
+                const zipFilename = `${item.templateName}_${item.variationName}_${id}.png`.replace(/[^a-zA-Z0-9._-]/g, '_');
                 zip.file(zipFilename, resultBuffer);
 
                 results.push({

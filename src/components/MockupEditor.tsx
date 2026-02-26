@@ -6,6 +6,7 @@ import { useToastStore } from '@/store/toast-store';
 import { v4 as uuidv4 } from 'uuid';
 import Lightbox from './Lightbox';
 import RemoveBgPanel from './RemoveBgPanel';
+import BatchPreviewCanvas from './BatchPreviewCanvas';
 import SEOPanel from './SEOPanel';
 import type { MockupMask, Point } from '@/types';
 
@@ -94,6 +95,9 @@ export default function MockupEditor() {
     const [seoMockupId, setSeoMockupId] = useState<string | null>(null);
     const [showBatchPreview, setShowBatchPreview] = useState(false);
     const [batchExcluded, setBatchExcluded] = useState<Set<string>>(new Set());
+    const [brokenTemplateIds, setBrokenTemplateIds] = useState<Set<string>>(new Set());
+    const replaceImageInputRef = useRef<HTMLInputElement>(null);
+    const [replacingTemplateId, setReplacingTemplateId] = useState<string | null>(null);
 
     // Quad placement state
     const [placingCorner, setPlacingCorner] = useState(0);
@@ -331,7 +335,7 @@ export default function MockupEditor() {
                         if (!res.ok) { failed++; return; }
                         const blob = await res.blob();
                         if (blob.size === 0) { failed++; return; }
-                        zip.file(makeSafeFilename(mockup.templateName, mockup.variationName), blob);
+                        zip.file(makeSafeFilename(mockup.templateName, mockup.variationName).replace('.png', `_${mockup.id.slice(0, 8)}.png`), blob);
                     } catch {
                         failed++;
                     }
@@ -395,12 +399,52 @@ export default function MockupEditor() {
         addToast('success', `Đã áp dụng mask cho ${targets.length} template`);
     };
 
+    // --- Detect broken template images ---
+    useEffect(() => {
+        const broken = new Set<string>();
+        let remaining = mockupTemplates.length;
+        if (remaining === 0) return;
+
+        mockupTemplates.forEach((t) => {
+            const img = new Image();
+            img.onload = () => {
+                remaining--;
+                if (remaining === 0) setBrokenTemplateIds(broken);
+            };
+            img.onerror = () => {
+                broken.add(t.id);
+                remaining--;
+                if (remaining === 0) setBrokenTemplateIds(broken);
+            };
+            img.src = t.imageUrl;
+        });
+    }, [mockupTemplates]);
+
+    // --- Replace broken template image (keeps mask) ---
+    const handleReplaceTemplateImage = useCallback(async (templateId: string, file: File) => {
+        if (!file.type.startsWith('image/')) return;
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('type', 'template');
+        try {
+            const res = await fetch('/api/upload', { method: 'POST', body: formData });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error);
+            updateMockupTemplate(templateId, { imageUrl: data.url });
+            setBrokenTemplateIds(prev => { const n = new Set(prev); n.delete(templateId); return n; });
+            addToast('success', 'Đã cập nhật ảnh template');
+        } catch (err) {
+            addToast('error', `Upload failed: ${err instanceof Error ? err.message : 'Unknown'}`);
+        }
+    }, [updateMockupTemplate, addToast]);
+
     // --- Upload (supports multiple files) ---
     const handleUploadTemplate = useCallback(async (file: File) => {
         if (!file.type.startsWith('image/')) return;
         setUploadingTemplates(true);
         const formData = new FormData();
         formData.append('file', file);
+        formData.append('type', 'template');
         try {
             const res = await fetch('/api/upload', { method: 'POST', body: formData });
             const data = await res.json();
@@ -428,6 +472,7 @@ export default function MockupEditor() {
         const uploads = imageFiles.map(async (file) => {
             const formData = new FormData();
             formData.append('file', file);
+            formData.append('type', 'template');
             const res = await fetch('/api/upload', { method: 'POST', body: formData });
             const data = await res.json();
             if (!res.ok) throw new Error(data.error);
@@ -984,6 +1029,12 @@ export default function MockupEditor() {
                         }} hidden />
                         {uploadingTemplates ? <><span className="spinner-sm" /> Đang upload...</> : '+ Thêm mockup template (chọn nhiều)'}
                     </div>
+                    <input ref={replaceImageInputRef} type="file" accept="image/*" onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file && replacingTemplateId) handleReplaceTemplateImage(replacingTemplateId, file);
+                        e.target.value = '';
+                        setReplacingTemplateId(null);
+                    }} hidden />
 
                     {/* Batch actions for templates */}
                     {mockupTemplates.length > 1 && (
@@ -1024,12 +1075,32 @@ export default function MockupEditor() {
                                 >
                                     {selectedTemplateIds.has(t.id) && '✓'}
                                 </div>
-                                <img src={t.imageUrl} alt={t.name} />
+                                {brokenTemplateIds.has(t.id) ? (
+                                    <div style={{ width: 48, height: 48, background: 'var(--bg-tertiary, #333)', borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>
+                                        ?
+                                    </div>
+                                ) : (
+                                    <img src={t.imageUrl} alt={t.name} />
+                                )}
                                 <div className="template-item-info">
                                     <span className="template-name">{t.name}</span>
-                                    <span className={`template-status ${t.mask ? 'has-mask' : ''}`}>
-                                        {t.mask ? '✅ Mask defined' : '⚠️ No mask'}
-                                    </span>
+                                    {brokenTemplateIds.has(t.id) ? (
+                                        <button
+                                            className="btn-ghost-sm"
+                                            style={{ fontSize: 10, color: 'var(--warning, #f59e0b)', padding: '2px 6px' }}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setReplacingTemplateId(t.id);
+                                                replaceImageInputRef.current?.click();
+                                            }}
+                                        >
+                                            Upload lại ảnh
+                                        </button>
+                                    ) : (
+                                        <span className={`template-status ${t.mask ? 'has-mask' : ''}`}>
+                                            {t.mask ? 'Mask defined' : 'No mask'}
+                                        </span>
+                                    )}
                                 </div>
                                 <button className="btn-icon-sm" onClick={(e) => {
                                     e.stopPropagation();
@@ -1327,7 +1398,11 @@ export default function MockupEditor() {
                                             onClick={() => toggleBatchItem(key)}
                                         >
                                             {isChecked && <div className="batch-preview-check">✓</div>}
-                                            <img src={template.imageUrl} alt={template.name} />
+                                            <BatchPreviewCanvas
+                                                templateImageUrl={template.imageUrl}
+                                                designImageUrl={variation.imageUrl}
+                                                mask={template.mask!}
+                                            />
                                             <div className="batch-preview-item-label">
                                                 {template.name} × {variation.styleName}
                                             </div>

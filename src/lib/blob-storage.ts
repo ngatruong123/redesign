@@ -9,6 +9,10 @@ function isBlob(): boolean {
     return process.env.STORAGE_PROVIDER?.trim().toLowerCase() === 'blob';
 }
 
+function hasBlobToken(): boolean {
+    return !!process.env.BLOB_READ_WRITE_TOKEN;
+}
+
 function getLocalDir(type: StorageType): string {
     return path.join(CACHE_ROOT, type);
 }
@@ -27,6 +31,29 @@ export async function storeFile(
     }
 
     const dir = getLocalDir(type);
+    await mkdir(dir, { recursive: true });
+    await writeFile(path.join(dir, filename), data);
+    return { url: `/api/files/${pathname}`, pathname };
+}
+
+/**
+ * Store a mockup template file. Always uses Vercel Blob when token is available
+ * so templates persist across deploys.
+ */
+export async function storeTemplateFile(
+    filename: string,
+    data: Buffer,
+): Promise<{ url: string; pathname: string }> {
+    const pathname = `templates/${filename}`;
+
+    if (hasBlobToken()) {
+        const { put } = await import('@vercel/blob');
+        const blob = await put(pathname, data, { access: 'public' });
+        return { url: blob.url, pathname };
+    }
+
+    // Fallback to local
+    const dir = path.join(CACHE_ROOT, 'templates');
     await mkdir(dir, { recursive: true });
     await writeFile(path.join(dir, filename), data);
     return { url: `/api/files/${pathname}`, pathname };

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
-import { storeFile } from '@/lib/blob-storage';
+import { storeFile, storeTemplateFile } from '@/lib/blob-storage';
 
 export async function POST(request: NextRequest) {
     try {
@@ -26,7 +26,10 @@ export async function POST(request: NextRequest) {
         const id = uuidv4();
         const filename = `${id}.${ext}`;
 
-        const { url } = await storeFile('uploads', filename, buffer);
+        const uploadType = formData.get('type') as string | null;
+        const { url } = uploadType === 'template'
+            ? await storeTemplateFile(filename, buffer)
+            : await storeFile('uploads', filename, buffer);
 
         return NextResponse.json({
             id,
