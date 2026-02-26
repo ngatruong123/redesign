@@ -18,7 +18,7 @@ export default function StepIndicator() {
     const canNavigate = (stepId: WorkflowStep) => {
         if (stepId === 'upload') return true;
         if (stepId === 'variations') return sourceDesigns.length > 0;
-        if (stepId === 'mockup') return variations.some((v) => v.selected && v.imageUrl);
+        if (stepId === 'mockup') return true;
         if (stepId === 'video') return true;
         return false;
     };

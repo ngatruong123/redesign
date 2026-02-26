@@ -90,7 +90,7 @@ export default function MockupEditor() {
     const [selectedMockupIds, setSelectedMockupIds] = useState<Set<string>>(new Set());
     const [lightboxImage, setLightboxImage] = useState<{ url: string; alt: string } | null>(null);
     const [downloading, setDownloading] = useState(false);
-    const [zipUrl, setZipUrl] = useState<string | null>(null);
+
     const [removeBgVariationId, setRemoveBgVariationId] = useState<string | null>(null);
     const [seoMockupId, setSeoMockupId] = useState<string | null>(null);
     const [showBatchPreview, setShowBatchPreview] = useState(false);
@@ -305,7 +305,25 @@ export default function MockupEditor() {
 
     const triggerDownload = (imageUrl: string, filename: string) => {
         if (!imageUrl) { addToast('error', 'Không có URL để tải'); return; }
-        window.location.href = `/api/download/${encodeURIComponent(filename)}?source=${encodeURIComponent(imageUrl)}`;
+        if (imageUrl.startsWith('data:')) {
+            // Data URL — download directly via anchor
+            const a = document.createElement('a');
+            a.href = imageUrl;
+            a.download = filename;
+            a.click();
+        } else {
+            window.location.href = `/api/download/${encodeURIComponent(filename)}?source=${encodeURIComponent(imageUrl)}`;
+        }
+    };
+
+    /** Convert a data URL to a Blob */
+    const dataUrlToBlob = (dataUrl: string): Blob => {
+        const [header, b64] = dataUrl.split(',');
+        const mime = header.match(/:(.*?);/)?.[1] || 'image/png';
+        const bytes = atob(b64);
+        const arr = new Uint8Array(bytes.length);
+        for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
+        return new Blob([arr], { type: mime });
     };
 
     const handleDownloadSelected = async () => {
@@ -315,31 +333,27 @@ export default function MockupEditor() {
             triggerDownload(toDownload[0].imageUrl, makeSafeFilename(toDownload[0].templateName, toDownload[0].variationName));
             return;
         }
-        // Multiple files: if all are selected and zipUrl exists, use it directly
-        if (zipUrl && toDownload.length === generatedMockups.filter(m => m.imageUrl).length) {
-            triggerDownload(zipUrl, 'mockups.zip');
-            return;
-        }
-        // Otherwise, build a zip client-side (fetch sequentially in batches to avoid timeouts)
+        // Build zip client-side from data URLs or fetched images
         setDownloading(true);
         try {
             const JSZip = (await import('jszip')).default;
             const zip = new JSZip();
-            const BATCH = 3;
             let failed = 0;
-            for (let i = 0; i < toDownload.length; i += BATCH) {
-                const batch = toDownload.slice(i, i + BATCH);
-                await Promise.all(batch.map(async (mockup) => {
-                    try {
+            for (const mockup of toDownload) {
+                try {
+                    let blob: Blob;
+                    if (mockup.imageUrl.startsWith('data:')) {
+                        blob = dataUrlToBlob(mockup.imageUrl);
+                    } else {
                         const res = await fetch(mockup.imageUrl);
-                        if (!res.ok) { failed++; return; }
-                        const blob = await res.blob();
-                        if (blob.size === 0) { failed++; return; }
-                        zip.file(makeSafeFilename(mockup.templateName, mockup.variationName).replace('.png', `_${mockup.id.slice(0, 8)}.png`), blob);
-                    } catch {
-                        failed++;
+                        if (!res.ok) { failed++; continue; }
+                        blob = await res.blob();
                     }
-                }));
+                    if (blob.size === 0) { failed++; continue; }
+                    zip.file(makeSafeFilename(mockup.templateName, mockup.variationName).replace('.png', `_${mockup.id.slice(0, 8)}.png`), blob);
+                } catch {
+                    failed++;
+                }
             }
             const zipBlob = await zip.generateAsync({ type: 'blob' });
             const { saveAs } = await import('file-saver');
@@ -976,7 +990,6 @@ export default function MockupEditor() {
             const data = await res.json();
             if (!res.ok) throw new Error(data.error);
             setGeneratedMockups(data.results);
-            if (data.zipUrl) setZipUrl(data.zipUrl);
             addToast('success', `Đã tạo ${data.results.length} mockup!`);
         } catch (err) {
             const msg = err instanceof Error ? err.message : 'Mockup generation failed';

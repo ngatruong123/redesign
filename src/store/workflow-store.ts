@@ -197,7 +197,7 @@ export const useWorkflowStore = create<WorkflowState>()(
                 sourceDesign: state.sourceDesign ? (({ file, ...rest }) => rest)(state.sourceDesign) : null,
                 variations: state.variations,
                 mockupTemplates: state.mockupTemplates,
-                generatedMockups: state.generatedMockups,
+                // Don't persist generated mockups (data URLs are too large for localStorage)
             }),
             onRehydrateStorage: () => (state) => {
                 if (!state) return;

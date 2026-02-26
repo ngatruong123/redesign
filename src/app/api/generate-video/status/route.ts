@@ -1,6 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { v4 as uuidv4 } from 'uuid';
-import { storeFile } from '@/lib/blob-storage';
 
 const API_KEY = process.env.GOOGLE_AI_API_KEY || process.env.GEMINI_API_KEY;
 const BASE_URL = 'https://generativelanguage.googleapis.com/v1beta';
@@ -57,8 +55,7 @@ export async function GET(req: NextRequest) {
         const videoUri = videoEntry.uri;
         const videoB64 = videoEntry.bytesBase64Encoded;
 
-        const filename = `${uuidv4()}.mp4`;
-        let videoBuffer: Buffer;
+        let videoDataUrl: string;
 
         if (videoUri) {
             const downloadUrl = new URL(videoUri);
@@ -75,9 +72,10 @@ export async function GET(req: NextRequest) {
                     debug: errBody.slice(0, 500),
                 }, { status: 500 });
             }
-            videoBuffer = Buffer.from(await videoRes.arrayBuffer());
+            const videoBuffer = Buffer.from(await videoRes.arrayBuffer());
+            videoDataUrl = `data:video/mp4;base64,${videoBuffer.toString('base64')}`;
         } else if (videoB64) {
-            videoBuffer = Buffer.from(videoB64, 'base64');
+            videoDataUrl = `data:video/mp4;base64,${videoB64}`;
         } else {
             return NextResponse.json({
                 error: 'No video data in response',
@@ -86,8 +84,7 @@ export async function GET(req: NextRequest) {
             }, { status: 500 });
         }
 
-        const { url: videoUrl } = await storeFile('videos', filename, videoBuffer);
-        return NextResponse.json({ status: 'done', videoUrl });
+        return NextResponse.json({ status: 'done', videoUrl: videoDataUrl });
     } catch (err) {
         return NextResponse.json(
             { error: err instanceof Error ? err.message : 'Unknown error', status: 'error' },

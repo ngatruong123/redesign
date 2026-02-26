@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createCanvas, loadImage } from '@napi-rs/canvas';
 import { v4 as uuidv4 } from 'uuid';
-import JSZip from 'jszip';
-import { storeFile, resolveToBuffer } from '@/lib/blob-storage';
+import { resolveToBuffer } from '@/lib/blob-storage';
 import { drawPerspective, rectToQuad, type FitMode } from '@/lib/perspective';
 
 interface Point { x: number; y: number; }
@@ -35,7 +34,6 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'No items to process' }, { status: 400 });
         }
 
-        const zip = new JSZip();
         const results = [];
 
         for (const item of items) {
@@ -103,17 +101,14 @@ export async function POST(request: NextRequest) {
                 ctx.globalAlpha = 1;
 
                 const resultBuffer = canvas.toBuffer('image/png');
-
                 const id = uuidv4();
-                const filename = `${id}.png`;
-                const { url } = await storeFile('mockups', filename, resultBuffer);
 
-                const zipFilename = `${item.templateName}_${item.variationName}_${id}.png`.replace(/[^a-zA-Z0-9._-]/g, '_');
-                zip.file(zipFilename, resultBuffer);
+                // Return as data URL instead of storing to blob
+                const dataUrl = `data:image/png;base64,${Buffer.from(resultBuffer).toString('base64')}`;
 
                 results.push({
                     id,
-                    imageUrl: url,
+                    imageUrl: dataUrl,
                     templateName: item.templateName,
                     variationName: item.variationName,
                 });
@@ -129,14 +124,8 @@ export async function POST(request: NextRequest) {
             }
         }
 
-        // Generate zip
-        const zipBuffer = await zip.generateAsync({ type: 'nodebuffer' });
-        const zipId = uuidv4();
-        const { url: zipUrl } = await storeFile('mockups', `${zipId}.zip`, zipBuffer);
-
         return NextResponse.json({
             results,
-            zipUrl,
         });
     } catch (error) {
         console.error('Batch error:', error);

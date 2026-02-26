@@ -5,16 +5,29 @@ type StorageType = 'uploads' | 'variations' | 'mockups' | 'videos';
 
 const CACHE_ROOT = path.join(process.cwd(), '.design-tool-data');
 
-function isBlob(): boolean {
-    return process.env.STORAGE_PROVIDER?.trim().toLowerCase() === 'blob';
-}
-
-function hasBlobToken(): boolean {
-    return !!process.env.BLOB_READ_WRITE_TOKEN;
+function isR2(): boolean {
+    return !!(process.env.R2_ACCESS_KEY_ID && process.env.R2_SECRET_ACCESS_KEY);
 }
 
 function getLocalDir(type: StorageType): string {
     return path.join(CACHE_ROOT, type);
+}
+
+function getR2PublicUrl(key: string): string {
+    const base = process.env.R2_PUBLIC_URL || '';
+    return `${base.replace(/\/$/, '')}/${key}`;
+}
+
+async function getR2Client() {
+    const { S3Client } = await import('@aws-sdk/client-s3');
+    return new S3Client({
+        region: 'auto',
+        endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+        credentials: {
+            accessKeyId: process.env.R2_ACCESS_KEY_ID!,
+            secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
+        },
+    });
 }
 
 export async function storeFile(
@@ -24,10 +37,16 @@ export async function storeFile(
 ): Promise<{ url: string; pathname: string }> {
     const pathname = `${type}/${filename}`;
 
-    if (isBlob()) {
-        const { put } = await import('@vercel/blob');
-        const blob = await put(pathname, data, { access: 'public' });
-        return { url: blob.url, pathname };
+    if (isR2()) {
+        const { PutObjectCommand } = await import('@aws-sdk/client-s3');
+        const client = await getR2Client();
+        await client.send(new PutObjectCommand({
+            Bucket: process.env.R2_BUCKET_NAME!,
+            Key: pathname,
+            Body: data,
+            ContentType: filename.endsWith('.svg') ? 'image/svg+xml' : 'image/png',
+        }));
+        return { url: getR2PublicUrl(pathname), pathname };
     }
 
     const dir = getLocalDir(type);
@@ -37,7 +56,7 @@ export async function storeFile(
 }
 
 /**
- * Store a mockup template file. Always uses Vercel Blob when token is available
+ * Store a mockup template file. Uses R2 when configured
  * so templates persist across deploys.
  */
 export async function storeTemplateFile(
@@ -46,10 +65,16 @@ export async function storeTemplateFile(
 ): Promise<{ url: string; pathname: string }> {
     const pathname = `templates/${filename}`;
 
-    if (hasBlobToken()) {
-        const { put } = await import('@vercel/blob');
-        const blob = await put(pathname, data, { access: 'public' });
-        return { url: blob.url, pathname };
+    if (isR2()) {
+        const { PutObjectCommand } = await import('@aws-sdk/client-s3');
+        const client = await getR2Client();
+        await client.send(new PutObjectCommand({
+            Bucket: process.env.R2_BUCKET_NAME!,
+            Key: pathname,
+            Body: data,
+            ContentType: filename.endsWith('.svg') ? 'image/svg+xml' : 'image/png',
+        }));
+        return { url: getR2PublicUrl(pathname), pathname };
     }
 
     // Fallback to local
@@ -59,10 +84,45 @@ export async function storeTemplateFile(
     return { url: `/api/files/${pathname}`, pathname };
 }
 
+/** Delete all files under given prefixes from R2 */
+export async function deleteR2Prefix(prefixes: string[]): Promise<number> {
+    if (!isR2()) return 0;
+
+    const { ListObjectsV2Command, DeleteObjectsCommand } = await import('@aws-sdk/client-s3');
+    const client = await getR2Client();
+    const bucket = process.env.R2_BUCKET_NAME!;
+    let totalDeleted = 0;
+
+    for (const prefix of prefixes) {
+        let continuationToken: string | undefined;
+        do {
+            const list = await client.send(new ListObjectsV2Command({
+                Bucket: bucket,
+                Prefix: prefix,
+                ContinuationToken: continuationToken,
+                MaxKeys: 1000,
+            }));
+
+            const keys = list.Contents?.map((o) => ({ Key: o.Key! })) || [];
+            if (keys.length > 0) {
+                await client.send(new DeleteObjectsCommand({
+                    Bucket: bucket,
+                    Delete: { Objects: keys },
+                }));
+                totalDeleted += keys.length;
+            }
+
+            continuationToken = list.IsTruncated ? list.NextContinuationToken : undefined;
+        } while (continuationToken);
+    }
+
+    return totalDeleted;
+}
+
 export async function resolveToBuffer(url: string): Promise<Buffer> {
     if (!url) throw new Error('No URL provided');
 
-    // Blob URLs (https://*.blob.vercel-storage.com/...)
+    // Remote URLs (R2 public, Vercel Blob, etc.)
     if (url.startsWith('http://') || url.startsWith('https://')) {
         const res = await fetch(url);
         if (!res.ok) throw new Error(`Failed to fetch ${url}: ${res.status}`);

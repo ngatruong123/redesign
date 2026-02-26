@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import sharp from 'sharp';
 import { v4 as uuidv4 } from 'uuid';
-import { storeFile, resolveToBuffer } from '@/lib/blob-storage';
+import { resolveToBuffer } from '@/lib/blob-storage';
 
 export async function POST(request: NextRequest) {
     try {
@@ -40,12 +40,11 @@ export async function POST(request: NextRequest) {
             .toBuffer();
 
         const id = uuidv4();
-        const filename = `${id}.png`;
-        const { url } = await storeFile('mockups', filename, result);
+        const dataUrl = `data:image/png;base64,${result.toString('base64')}`;
 
         return NextResponse.json({
             id,
-            imageUrl: url,
+            imageUrl: dataUrl,
         });
     } catch (error) {
         console.error('Mockup error:', error);
