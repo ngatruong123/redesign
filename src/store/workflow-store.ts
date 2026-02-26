@@ -2,6 +2,11 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { DesignFile, GeneratedVariation, MockupTemplate, GeneratedMockup, WorkflowStep, VideoGeneration, EtsySEO } from '@/types';
 
+function getActiveUser(): string {
+    if (typeof window === 'undefined') return 'default';
+    return localStorage.getItem('design-tool-user') || 'default';
+}
+
 function getActiveWorkspaceId(): string {
     if (typeof window === 'undefined') return 'default';
     try {
@@ -18,7 +23,7 @@ function getActiveWorkspaceId(): string {
 function migrateFromOldKey(): void {
     if (typeof window === 'undefined') return;
     const OLD_KEY = 'design-tool-workflow';
-    const newKey = `design-tool-ws-${getActiveWorkspaceId()}`;
+    const newKey = `design-tool-${getActiveUser()}-ws-${getActiveWorkspaceId()}`;
     try {
         const oldRaw = localStorage.getItem(OLD_KEY);
         if (!oldRaw) return;
@@ -189,7 +194,7 @@ export const useWorkflowStore = create<WorkflowState>()(
             reset: () => set(initialState),
         }),
         {
-            name: `design-tool-ws-${getActiveWorkspaceId()}`,
+            name: `design-tool-${getActiveUser()}-ws-${getActiveWorkspaceId()}`,
             partialize: (state) => ({
                 currentStep: state.currentStep,
                 // Strip non-serializable File objects

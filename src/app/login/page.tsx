@@ -22,7 +22,9 @@ export default function LoginPage() {
     });
 
     if (res.ok) {
-      router.push("/");
+      localStorage.setItem("design-tool-user", username);
+      window.location.href = "/";
+      return;
     } else {
       const data = await res.json();
       setError(data.error || "Đăng nhập thất bại");

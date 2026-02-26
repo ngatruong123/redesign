@@ -1,6 +1,11 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
+function getActiveUser(): string {
+    if (typeof window === 'undefined') return 'default';
+    return localStorage.getItem('design-tool-user') || 'default';
+}
+
 export interface Workspace {
     id: string;
     name: string;
@@ -33,7 +38,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
             deleteWorkspace: (id) => {
                 if (id === 'default') return;
                 // Remove workspace data from localStorage
-                try { localStorage.removeItem(`design-tool-ws-${id}`); } catch { /* ignore */ }
+                try { localStorage.removeItem(`design-tool-${getActiveUser()}-ws-${id}`); } catch { /* ignore */ }
                 const active = get().activeId;
                 set((state) => ({
                     workspaces: state.workspaces.filter((w) => w.id !== id),
@@ -50,6 +55,6 @@ export const useWorkspaceStore = create<WorkspaceState>()(
                 window.location.reload();
             },
         }),
-        { name: 'design-tool-workspaces' }
+        { name: `design-tool-${getActiveUser()}-workspaces` }
     )
 );
