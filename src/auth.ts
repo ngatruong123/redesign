@@ -1,17 +1,16 @@
-import NextAuth from "next-auth";
-import Google from "next-auth/providers/google";
+import { cookies } from 'next/headers';
 
-export const { handlers, auth, signIn, signOut } = NextAuth({
-  providers: [Google],
-  callbacks: {
-    signIn({ profile }) {
-      const allowed = process.env.ALLOWED_EMAILS?.split(",").map((e) => e.trim()) ?? [];
-      if (allowed.length === 0) return true;
-      return allowed.includes(profile?.email ?? "");
-    },
-  },
-  pages: {
-    signIn: "/login",
-    error: "/login",
-  },
-});
+const AUTH_COOKIE = 'design-tool-auth';
+const AUTH_USER = process.env.AUTH_USERNAME || 'admin';
+const AUTH_PASS = process.env.AUTH_PASSWORD || 'design2026';
+
+export async function verifyAuth(): Promise<boolean> {
+    const cookieStore = await cookies();
+    return cookieStore.get(AUTH_COOKIE)?.value === 'authenticated';
+}
+
+export function checkCredentials(username: string, password: string): boolean {
+    return username === AUTH_USER && password === AUTH_PASS;
+}
+
+export { AUTH_COOKIE };
