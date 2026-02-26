@@ -10,7 +10,7 @@ import ImageCropper from './ImageCropper';
 import type { DesignFile } from '@/types';
 
 export default function UploadZone() {
-    const { sourceDesigns, addSourceDesign, removeSourceDesign, clearSourceDesigns, setStep } = useWorkflowStore();
+    const { sourceDesigns, addSourceDesign, removeSourceDesign, startNewDesign, setStep } = useWorkflowStore();
     const addToast = useToastStore((s) => s.addToast);
     const [dragActive, setDragActive] = useState(false);
     const [uploading, setUploading] = useState(false);
@@ -115,7 +115,7 @@ export default function UploadZone() {
 
             {sourceDesigns.length > 0 && (
                 <div className="upload-bottom-bar">
-                    <button className="btn-ghost" onClick={clearSourceDesigns}>🔄 Xoá tất cả</button>
+                    <button className="btn-ghost" onClick={startNewDesign}>🔄 Xoá tất cả</button>
                     <span className="upload-count">{sourceDesigns.length} ảnh đã chọn</span>
                     <button className="btn-primary" onClick={() => setStep('variations')}>
                         Tiếp tục →

@@ -2,6 +2,45 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { DesignFile, GeneratedVariation, MockupTemplate, GeneratedMockup, WorkflowStep, VideoGeneration, EtsySEO } from '@/types';
 
+function getActiveWorkspaceId(): string {
+    if (typeof window === 'undefined') return 'default';
+    try {
+        const raw = localStorage.getItem('design-tool-workspaces');
+        if (raw) {
+            const parsed = JSON.parse(raw);
+            return parsed?.state?.activeId || 'default';
+        }
+    } catch { /* ignore */ }
+    return 'default';
+}
+
+/** Migrate data from old persist key to new workspace-based key (one-time) */
+function migrateFromOldKey(): void {
+    if (typeof window === 'undefined') return;
+    const OLD_KEY = 'design-tool-workflow';
+    const newKey = `design-tool-ws-${getActiveWorkspaceId()}`;
+    try {
+        const oldRaw = localStorage.getItem(OLD_KEY);
+        if (!oldRaw) return;
+        const newRaw = localStorage.getItem(newKey);
+        // Only migrate if new key is empty or has no mockupTemplates
+        if (!newRaw || !JSON.parse(newRaw)?.state?.mockupTemplates?.length) {
+            const oldData = JSON.parse(oldRaw);
+            if (oldData?.state?.mockupTemplates?.length) {
+                // Merge old templates into new key
+                const newData = newRaw ? JSON.parse(newRaw) : { state: {}, version: 0 };
+                newData.state = { ...newData.state, mockupTemplates: oldData.state.mockupTemplates };
+                localStorage.setItem(newKey, JSON.stringify(newData));
+            }
+        }
+        // Remove old key after migration
+        localStorage.removeItem(OLD_KEY);
+    } catch { /* ignore */ }
+}
+
+// Run migration before store creation
+migrateFromOldKey();
+
 interface WorkflowState {
     currentStep: WorkflowStep;
     sourceDesigns: DesignFile[];
@@ -36,6 +75,8 @@ interface WorkflowState {
     setError: (error: string | null) => void;
     setVideoGeneration: (v: VideoGeneration | null) => void;
     clearVideoGeneration: () => void;
+    /** Clear all data except mockup templates/masks and delete server files */
+    startNewDesign: () => void;
     reset: () => void;
 }
 
@@ -129,27 +170,75 @@ export const useWorkflowStore = create<WorkflowState>()(
             setError: (error) => set({ error }),
             setVideoGeneration: (v) => set({ videoGeneration: v }),
             clearVideoGeneration: () => set({ videoGeneration: null }),
+            startNewDesign: () => {
+                set({
+                    currentStep: 'upload',
+                    sourceDesigns: [],
+                    sourceDesign: null,
+                    variations: [],
+                    generatedMockups: [],
+                    isGenerating: false,
+                    isCompositing: false,
+                    error: null,
+                    videoGeneration: null,
+                    // mockupTemplates preserved
+                });
+                // Clean up server files (uploads, variations, mockups, videos) — keep templates
+                fetch('/api/cleanup', { method: 'POST' }).catch(() => {});
+            },
             reset: () => set(initialState),
         }),
         {
-            name: 'design-tool-workflow',
+            name: `design-tool-ws-${getActiveWorkspaceId()}`,
             partialize: (state) => ({
                 currentStep: state.currentStep,
-                sourceDesigns: state.sourceDesigns,
-                sourceDesign: state.sourceDesign,
+                // Strip non-serializable File objects
+                sourceDesigns: state.sourceDesigns.map(({ file, ...rest }) => rest),
+                sourceDesign: state.sourceDesign ? (({ file, ...rest }) => rest)(state.sourceDesign) : null,
                 variations: state.variations,
                 mockupTemplates: state.mockupTemplates,
                 generatedMockups: state.generatedMockups,
             }),
             onRehydrateStorage: () => (state) => {
                 if (!state) return;
-                // Keep mockupTemplates (with masks) across reloads
-                // Clear transient data so user starts fresh with new designs
-                state.sourceDesigns = [];
-                state.sourceDesign = null;
-                state.variations = [];
-                state.generatedMockups = [];
-                state.currentStep = 'upload';
+                // Reset transient flags
+                state.isGenerating = false;
+                state.isCompositing = false;
+                state.error = null;
+
+                // Validate persisted image URLs still exist on server
+                if (typeof window !== 'undefined') {
+                    // Pick the first available URL to check
+                    const urlToCheck =
+                        state.sourceDesigns[0]?.url ||
+                        state.variations.find((v) => v.imageUrl)?.imageUrl ||
+                        state.generatedMockups.find((m) => m.imageUrl)?.imageUrl;
+
+                    if (urlToCheck) {
+                        fetch(urlToCheck, { method: 'HEAD' })
+                            .then((res) => {
+                                if (!res.ok) {
+                                    // Files are gone — clear work data, keep templates
+                                    useWorkflowStore.setState({
+                                        currentStep: 'upload',
+                                        sourceDesigns: [],
+                                        sourceDesign: null,
+                                        variations: [],
+                                        generatedMockups: [],
+                                    });
+                                }
+                            })
+                            .catch(() => {
+                                useWorkflowStore.setState({
+                                    currentStep: 'upload',
+                                    sourceDesigns: [],
+                                    sourceDesign: null,
+                                    variations: [],
+                                    generatedMockups: [],
+                                });
+                            });
+                    }
+                }
             },
         }
     )
