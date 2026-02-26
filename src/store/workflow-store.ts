@@ -46,6 +46,15 @@ function migrateFromOldKey(): void {
 // Run migration before store creation
 migrateFromOldKey();
 
+/** Sync current templates to server */
+function syncTemplatesToServer(templates: MockupTemplate[]) {
+    fetch('/api/templates', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(templates),
+    }).catch(() => {});
+}
+
 interface WorkflowState {
     currentStep: WorkflowStep;
     sourceDesigns: DesignFile[];
@@ -148,21 +157,27 @@ export const useWorkflowStore = create<WorkflowState>()(
                 })),
 
             addMockupTemplate: (template) =>
-                set((state) => ({
-                    mockupTemplates: [...state.mockupTemplates, template],
-                })),
+                set((state) => {
+                    const mockupTemplates = [...state.mockupTemplates, template];
+                    syncTemplatesToServer(mockupTemplates);
+                    return { mockupTemplates };
+                }),
 
             removeMockupTemplate: (id) =>
-                set((state) => ({
-                    mockupTemplates: state.mockupTemplates.filter((t) => t.id !== id),
-                })),
+                set((state) => {
+                    const mockupTemplates = state.mockupTemplates.filter((t) => t.id !== id);
+                    syncTemplatesToServer(mockupTemplates);
+                    return { mockupTemplates };
+                }),
 
             updateMockupTemplate: (id, update) =>
-                set((state) => ({
-                    mockupTemplates: state.mockupTemplates.map((t) =>
+                set((state) => {
+                    const mockupTemplates = state.mockupTemplates.map((t) =>
                         t.id === id ? { ...t, ...update } : t
-                    ),
-                })),
+                    );
+                    syncTemplatesToServer(mockupTemplates);
+                    return { mockupTemplates };
+                }),
 
             setGeneratedMockups: (mockups) => set({ generatedMockups: mockups }),
             updateMockupSEO: (mockupId, seoUpdate) => set((state) => ({
@@ -210,6 +225,18 @@ export const useWorkflowStore = create<WorkflowState>()(
                 state.isGenerating = false;
                 state.isCompositing = false;
                 state.error = null;
+
+                // Load templates from server if localStorage has none
+                if (typeof window !== 'undefined' && (!state.mockupTemplates || state.mockupTemplates.length === 0)) {
+                    fetch('/api/templates')
+                        .then((res) => res.ok ? res.json() : [])
+                        .then((templates) => {
+                            if (Array.isArray(templates) && templates.length > 0) {
+                                useWorkflowStore.setState({ mockupTemplates: templates });
+                            }
+                        })
+                        .catch(() => {});
+                }
 
                 // Validate persisted image URLs still exist on server
                 if (typeof window !== 'undefined') {

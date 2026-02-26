@@ -16,5 +16,11 @@ export async function POST(request: NextRequest) {
         maxAge: 60 * 60 * 24 * 30,
         sameSite: 'lax',
     });
+    res.cookies.set('design-tool-user', username, {
+        httpOnly: false,
+        path: '/',
+        maxAge: 60 * 60 * 24 * 30,
+        sameSite: 'lax',
+    });
     return res;
 }
