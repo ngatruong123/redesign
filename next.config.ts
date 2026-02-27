@@ -4,7 +4,7 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ['@napi-rs/canvas'],
   experimental: {
     serverActions: {
-      bodySizeLimit: '50mb',
+      bodySizeLimit: '1mb',
     },
   },
 };

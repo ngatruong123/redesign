@@ -19,12 +19,12 @@ export default function UploadZone() {
     const [cropTarget, setCropTarget] = useState<DesignFile | null>(null);
     const inputRef = useRef<HTMLInputElement>(null);
 
-    const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+    const MAX_FILE_SIZE = 1 * 1024 * 1024; // 1MB
 
     const handleFile = useCallback(async (file: File) => {
         if (!file.type.startsWith('image/')) return;
         if (file.size > MAX_FILE_SIZE) {
-            addToast('error', `${file.name} quá lớn (${(file.size / 1024 / 1024).toFixed(1)}MB). Tối đa 50MB.`);
+            addToast('error', `${file.name} quá lớn (${(file.size / 1024 / 1024).toFixed(1)}MB). Tối đa 1MB.`);
             return;
         }
         setUploading(true);
@@ -153,7 +153,7 @@ export default function UploadZone() {
                             <div className="upload-icon" style={{ fontSize: '3rem' }}>📤</div>
                             <h3>Kéo thả hoặc chọn ảnh thiết kế</h3>
                             <p>Hỗ trợ PNG, JPG, WEBP — có thể chọn nhiều ảnh</p>
-                            <span className="upload-formats">Tối đa 50MB mỗi ảnh</span>
+                            <span className="upload-formats">Tối đa 1MB mỗi ảnh</span>
                         </div>
                     )}
                 </div>
