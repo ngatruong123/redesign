@@ -10,7 +10,7 @@ function getActiveUser(): string {
 function getActiveWorkspaceId(): string {
     if (typeof window === 'undefined') return 'default';
     try {
-        const raw = localStorage.getItem('design-tool-workspaces');
+        const raw = localStorage.getItem(`design-tool-${getActiveUser()}-workspaces`);
         if (raw) {
             const parsed = JSON.parse(raw);
             return parsed?.state?.activeId || 'default';
