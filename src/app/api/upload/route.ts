@@ -11,6 +11,14 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'No file uploaded' }, { status: 400 });
         }
 
+        const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+        if (file.size > MAX_FILE_SIZE) {
+            return NextResponse.json(
+                { error: `File too large (${(file.size / 1024 / 1024).toFixed(1)}MB). Maximum is 50MB.` },
+                { status: 413 }
+            );
+        }
+
         const allowedTypes = ['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml'];
         if (!allowedTypes.includes(file.type)) {
             return NextResponse.json(

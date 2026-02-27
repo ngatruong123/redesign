@@ -8,6 +8,7 @@ import RemoveBgButton from './RemoveBgButton';
 import Lightbox from './Lightbox';
 import ImageCropper from './ImageCropper';
 import type { DesignFile } from '@/types';
+import { uploadFile } from '@/app/actions/upload';
 
 export default function UploadZone() {
     const { sourceDesigns, addSourceDesign, removeSourceDesign, startNewDesign, setStep } = useWorkflowStore();
@@ -18,16 +19,21 @@ export default function UploadZone() {
     const [cropTarget, setCropTarget] = useState<DesignFile | null>(null);
     const inputRef = useRef<HTMLInputElement>(null);
 
+    const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+
     const handleFile = useCallback(async (file: File) => {
         if (!file.type.startsWith('image/')) return;
+        if (file.size > MAX_FILE_SIZE) {
+            addToast('error', `${file.name} quá lớn (${(file.size / 1024 / 1024).toFixed(1)}MB). Tối đa 50MB.`);
+            return;
+        }
         setUploading(true);
 
         try {
             const formData = new FormData();
             formData.append('file', file);
-            const res = await fetch('/api/upload', { method: 'POST', body: formData });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error);
+            const data = await uploadFile(formData);
+            if ('error' in data) throw new Error(data.error);
 
             const img = new Image();
             img.onload = () => {
@@ -100,14 +106,17 @@ export default function UploadZone() {
                         </div>
                     ))}
 
-                    {/* Add more card */}
+                    {/* Add more card — supports click + drag & drop */}
                     <div
-                        className="upload-thumbnail-card upload-add-more"
+                        className={`upload-thumbnail-card upload-add-more ${dragActive ? 'drag-active' : ''}`}
                         onClick={() => inputRef.current?.click()}
+                        onDragOver={(e) => { e.preventDefault(); setDragActive(true); }}
+                        onDragLeave={() => setDragActive(false)}
+                        onDrop={handleDrop}
                     >
                         <div className="upload-add-more-content">
-                            <span style={{ fontSize: '2rem' }}>+</span>
-                            <span>Thêm ảnh</span>
+                            <span style={{ fontSize: '2rem' }}>{dragActive ? '📥' : '+'}</span>
+                            <span>{dragActive ? 'Thả ảnh vào đây' : 'Thêm ảnh'}</span>
                         </div>
                     </div>
                 </div>
@@ -144,7 +153,7 @@ export default function UploadZone() {
                             <div className="upload-icon" style={{ fontSize: '3rem' }}>📤</div>
                             <h3>Kéo thả hoặc chọn ảnh thiết kế</h3>
                             <p>Hỗ trợ PNG, JPG, WEBP — có thể chọn nhiều ảnh</p>
-                            <span className="upload-formats">Tối đa 5GB mỗi ảnh</span>
+                            <span className="upload-formats">Tối đa 50MB mỗi ảnh</span>
                         </div>
                     )}
                 </div>
