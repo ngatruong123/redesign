@@ -30,7 +30,7 @@ class GeminiProvider implements AIProvider {
 
     constructor() {
         this.apiKey = process.env.GEMINI_API_KEY || '';
-        this.model = process.env.GEMINI_MODEL || 'gemini-3-pro-image-preview';
+        this.model = process.env.GEMINI_MODEL || 'gemini-3.1-flash-image-preview';
         this.baseUrl = 'https://generativelanguage.googleapis.com/v1beta';
     }
 
