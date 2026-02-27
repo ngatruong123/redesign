@@ -5,7 +5,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { username, password } = body;
 
-    if (!checkCredentials(username, password)) {
+    if (!(await checkCredentials(username, password))) {
         return NextResponse.json({ error: 'Sai tài khoản hoặc mật khẩu' }, { status: 401 });
     }
 

@@ -1,0 +1,49 @@
+/* =============================================
+   DESIGN VARIATION TOOL — Design System
+   ============================================= */
+
+/* --- Tokens --- */
+:root {
+  --bg-primary: #0f0f10;
+  --bg-secondary: #18181b;
+  --bg-card: #1f1f23;
+  --bg-card-hover: #27272a;
+  --bg-elevated: #2c2c30;
+
+  --text-primary: #f0f0f5;
+  --text-secondary: #a1a1aa;
+  --text-muted: #71717a;
+
+  --accent: #3b82f6;
+  --accent-dim: #2563eb;
+  --accent-glow: rgba(59, 130, 246, 0.12);
+  --accent-glow-strong: rgba(59, 130, 246, 0.22);
+
+  --danger: #ef4444;
+  --warning: #f59e0b;
+  --info: #3b82f6;
+
+  --border: rgba(255, 255, 255, 0.08);
+  --border-active: rgba(59, 130, 246, 0.4);
+
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+
+  --shadow-sm: 0 1px 4px rgba(0, 0, 0, 0.25);
+  --shadow-md: 0 2px 12px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 4px 24px rgba(0, 0, 0, 0.4);
+  --shadow-glow: 0 0 0 3px rgba(59, 130, 246, 0.08);
+
+  --transition: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: 400ms cubic-bezier(0.4, 0, 0.2, 1);
+
+  --font: 'Inter', system-ui, -apple-system, sans-serif;
+
+  /* Z-Index System */
+  --z-overlay: 10;
+  --z-modal-backdrop: 100;
+  --z-modal: 110;
+  --z-toast: 130;
+}

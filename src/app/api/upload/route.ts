@@ -11,13 +11,15 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'No file uploaded' }, { status: 400 });
         }
 
-        const MAX_FILE_SIZE = 1 * 1024 * 1024; // 1MB
+        const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
         if (file.size > MAX_FILE_SIZE) {
             return NextResponse.json(
-                { error: `File too large (${(file.size / 1024 / 1024).toFixed(1)}MB). Maximum is 1MB.` },
+                { error: `File too large (${(file.size / 1024 / 1024).toFixed(1)}MB). Maximum is 5MB.` },
                 { status: 413 }
             );
         }
+
+        const uploadType = formData.get('type') as string | null;
 
         const allowedTypes = ['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml'];
         if (!allowedTypes.includes(file.type)) {
@@ -34,7 +36,6 @@ export async function POST(request: NextRequest) {
         const id = uuidv4();
         const filename = `${id}.${ext}`;
 
-        const uploadType = formData.get('type') as string | null;
         const { url } = uploadType === 'template'
             ? await storeTemplateFile(filename, buffer)
             : await storeFile('uploads', filename, buffer);
