@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
 
+export const runtime = 'nodejs';
+export const maxDuration = 60;
+
 export async function POST(req: NextRequest) {
     try {
         const { imageUrl, productContext } = await req.json();
