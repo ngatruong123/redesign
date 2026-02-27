@@ -28,23 +28,11 @@ export default function SEOPanel({ mockup, onClose }: Props) {
         updateMockupSEO(mockup.id, { status: 'generating' });
 
         try {
-            // If imageUrl is a data URL, upload it first to avoid 413 error
-            let imageUrl = mockup.imageUrl;
-            if (imageUrl.startsWith('data:')) {
-                const blob = await fetch(imageUrl).then(r => r.blob());
-                const formData = new FormData();
-                formData.append('file', blob, 'mockup-seo.png');
-                const uploadRes = await fetch('/api/upload', { method: 'POST', body: formData });
-                const uploadData = await uploadRes.json();
-                if (!uploadRes.ok) throw new Error('Failed to upload image');
-                imageUrl = uploadData.url || uploadData.path;
-            }
-
             const res = await fetch('/api/generate-seo', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    imageUrl,
+                    imageUrl: mockup.imageUrl,
                     productContext: productContext.trim() || undefined,
                 }),
             });

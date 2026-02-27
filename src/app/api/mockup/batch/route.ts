@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createCanvas, loadImage } from '@napi-rs/canvas';
 import { v4 as uuidv4 } from 'uuid';
-import { resolveToBuffer } from '@/lib/blob-storage';
+import { resolveToBuffer, storeFile } from '@/lib/blob-storage';
 import { drawPerspective, rectToQuad, type FitMode } from '@/lib/perspective';
 
 interface Point { x: number; y: number; }
@@ -103,12 +103,13 @@ export async function POST(request: NextRequest) {
                 const resultBuffer = canvas.toBuffer('image/png');
                 const id = uuidv4();
 
-                // Return as data URL instead of storing to blob
-                const dataUrl = `data:image/png;base64,${Buffer.from(resultBuffer).toString('base64')}`;
+                // Store to file and return URL path
+                const filename = `${id}.png`;
+                const { url } = await storeFile('mockups', filename, Buffer.from(resultBuffer));
 
                 results.push({
                     id,
-                    imageUrl: dataUrl,
+                    imageUrl: url,
                     templateName: item.templateName,
                     variationName: item.variationName,
                 });
