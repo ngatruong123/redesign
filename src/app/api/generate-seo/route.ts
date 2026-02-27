@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import fs from 'fs';
-import path from 'path';
+import { resolveToBuffer } from '@/lib/blob-storage';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -13,47 +12,18 @@ export async function POST(req: NextRequest) {
         }
 
         const apiKey = process.env.GEMINI_API_KEY;
-        const model = process.env.GEMINI_MODEL || 'gemini-3-pro-image-preview';
+        const model = process.env.GEMINI_MODEL || 'gemini-3.1-flash-image-preview';
 
         if (!apiKey) {
             return NextResponse.json({ error: 'GEMINI_API_KEY is not configured' }, { status: 500 });
         }
 
         // Load image as base64
-        let imageBase64: string;
+        const buffer = await resolveToBuffer(imageUrl);
+        const imageBase64 = buffer.toString('base64');
         let mimeType = 'image/png';
-
-        if (imageUrl.startsWith('/api/files/') || imageUrl.startsWith('/uploads/')) {
-            // Local file
-            const dataDir = path.join(process.cwd(), '.design-tool-data');
-            const fileName = imageUrl.split('/').pop()!;
-            const filePath = path.join(dataDir, fileName);
-            if (!fs.existsSync(filePath)) {
-                return NextResponse.json({ error: 'Image file not found' }, { status: 404 });
-            }
-            const buffer = fs.readFileSync(filePath);
-            imageBase64 = buffer.toString('base64');
-            if (fileName.endsWith('.jpg') || fileName.endsWith('.jpeg')) mimeType = 'image/jpeg';
-            else if (fileName.endsWith('.webp')) mimeType = 'image/webp';
-        } else if (imageUrl.startsWith('data:')) {
-            // Data URL
-            const match = imageUrl.match(/^data:([^;]+);base64,(.+)$/);
-            if (!match) {
-                return NextResponse.json({ error: 'Invalid data URL' }, { status: 400 });
-            }
-            mimeType = match[1];
-            imageBase64 = match[2];
-        } else {
-            // External URL — fetch it
-            const imgRes = await fetch(imageUrl);
-            if (!imgRes.ok) {
-                return NextResponse.json({ error: 'Failed to fetch image' }, { status: 400 });
-            }
-            const buf = Buffer.from(await imgRes.arrayBuffer());
-            imageBase64 = buf.toString('base64');
-            const ct = imgRes.headers.get('content-type');
-            if (ct) mimeType = ct;
-        }
+        if (imageUrl.endsWith('.jpg') || imageUrl.endsWith('.jpeg')) mimeType = 'image/jpeg';
+        else if (imageUrl.endsWith('.webp')) mimeType = 'image/webp';
 
         // Build Gemini prompt
         const contextLine = productContext
