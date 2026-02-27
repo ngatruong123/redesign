@@ -80,7 +80,7 @@ export default function VideoGenerator() {
         if (!videoGeneration?.videoUrl) return;
         setDownloadingVideo(true);
         try {
-            const res = await fetch(`/api/download/mockup-video.mp4?source=${encodeURIComponent(videoGeneration.videoUrl)}`);
+            const res = await fetch(videoGeneration.videoUrl);
             if (!res.ok) throw new Error('Download failed');
             const blob = await res.blob();
             const url = URL.createObjectURL(blob);
