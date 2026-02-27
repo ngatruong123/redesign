@@ -144,7 +144,7 @@ export default function UploadZone() {
                             <div className="upload-icon" style={{ fontSize: '3rem' }}>📤</div>
                             <h3>Kéo thả hoặc chọn ảnh thiết kế</h3>
                             <p>Hỗ trợ PNG, JPG, WEBP — có thể chọn nhiều ảnh</p>
-                            <span className="upload-formats">Tối đa 10MB mỗi ảnh</span>
+                            <span className="upload-formats">Tối đa 5GB mỗi ảnh</span>
                         </div>
                     )}
                 </div>
