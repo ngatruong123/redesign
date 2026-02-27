@@ -27,7 +27,9 @@ export const useWorkspaceStore = create<WorkspaceState>()(
             activeId: 'default',
 
             createWorkspace: (name) => {
-                const id = crypto.randomUUID();
+                const id = typeof crypto !== 'undefined' && crypto.randomUUID
+                    ? crypto.randomUUID()
+                    : Date.now().toString(36) + Math.random().toString(36).slice(2);
                 set((state) => ({
                     workspaces: [...state.workspaces, { id, name, createdAt: Date.now() }],
                 }));

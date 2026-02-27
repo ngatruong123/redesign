@@ -46,9 +46,10 @@ function migrateFromOldKey(): void {
 // Run migration before store creation
 migrateFromOldKey();
 
-/** Sync current templates to server */
+/** Sync current templates to server (scoped by workspace) */
 function syncTemplatesToServer(templates: MockupTemplate[]) {
-    fetch('/api/templates', {
+    const wsId = getActiveWorkspaceId();
+    fetch(`/api/templates?workspace=${encodeURIComponent(wsId)}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(templates),
@@ -228,7 +229,7 @@ export const useWorkflowStore = create<WorkflowState>()(
 
                 // Load templates from server if localStorage has none
                 if (typeof window !== 'undefined' && (!state.mockupTemplates || state.mockupTemplates.length === 0)) {
-                    fetch('/api/templates')
+                    fetch(`/api/templates?workspace=${encodeURIComponent(getActiveWorkspaceId())}`)
                         .then((res) => res.ok ? res.json() : [])
                         .then((templates) => {
                             if (Array.isArray(templates) && templates.length > 0) {
