@@ -1,7 +1,7 @@
 import '@/styles/landing.css';
 import {
   UploadCloud, Sparkles, Layers, Film, ArrowRight, Zap, Shield, Boxes,
-  Paintbrush, Wand, Image, MousePointerClick, Download, Eye, Grip, Cpu,
+  Paintbrush, Wand, Image, MousePointerClick, Download, Eye, Grip, Cpu, Folder,
 } from '@/components/ui-icons';
 
 export default function LandingPage() {
@@ -228,6 +228,81 @@ export default function LandingPage() {
             <div>
               <h4>Multi-workspace</h4>
               <p>Tạo workspace riêng cho từng dự án — tách biệt template, biến thể và mockup hoàn toàn.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ─── Workspace showcase ─── */}
+      <section className="landing-section">
+        <div className="landing-section-header">
+          <div className="landing-section-label">Workspace</div>
+          <h2 className="landing-section-title">Không gian làm việc riêng cho từng dự án</h2>
+          <p className="landing-section-desc">
+            Tạo nhiều workspace tách biệt — mỗi workspace có bộ template, biến thể và mockup riêng, không lẫn lộn.
+          </p>
+        </div>
+
+        <div className="landing-ws-grid">
+          <div className="landing-ws-card">
+            <div className="landing-ws-card-header">
+              <div className="landing-ws-card-icon blue"><Folder size={18} /></div>
+              <div className="landing-ws-card-title">Tạo & chuyển nhanh</div>
+            </div>
+            <p>Tạo workspace mới chỉ bằng một click. Chuyển đổi giữa các workspace ngay trên toolbar — không cần tải lại trang.</p>
+            <div className="landing-ws-demo">
+              <div className="landing-ws-demo-item active">
+                <Folder size={12} />
+                <span>Áo thun Summer</span>
+              </div>
+              <div className="landing-ws-demo-item">
+                <Folder size={12} />
+                <span>Logo Collection</span>
+              </div>
+              <div className="landing-ws-demo-item">
+                <Folder size={12} />
+                <span>Sticker Pack</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="landing-ws-card">
+            <div className="landing-ws-card-header">
+              <div className="landing-ws-card-icon emerald"><Layers size={18} /></div>
+              <div className="landing-ws-card-title">Template riêng biệt</div>
+            </div>
+            <p>Mỗi workspace có bộ mockup template riêng. Upload template cho dự án áo thun không ảnh hưởng đến dự án sticker.</p>
+            <div className="landing-ws-visual">
+              <div className="landing-ws-visual-row">
+                <div className="landing-ws-visual-box shimmer" />
+                <div className="landing-ws-visual-box shimmer" style={{ animationDelay: '0.3s' }} />
+                <div className="landing-ws-visual-box shimmer" style={{ animationDelay: '0.6s' }} />
+              </div>
+            </div>
+          </div>
+
+          <div className="landing-ws-card">
+            <div className="landing-ws-card-header">
+              <div className="landing-ws-card-icon purple"><Shield size={18} /></div>
+              <div className="landing-ws-card-title">Dữ liệu cách ly</div>
+            </div>
+            <p>Thiết kế gốc, biến thể AI, mockup đã tạo — tất cả được lưu riêng theo workspace. Xoá workspace không ảnh hưởng workspace khác.</p>
+            <div className="landing-ws-tags">
+              <span className="landing-tag">Upload riêng</span>
+              <span className="landing-tag">Biến thể riêng</span>
+              <span className="landing-tag">Mockup riêng</span>
+            </div>
+          </div>
+
+          <div className="landing-ws-card">
+            <div className="landing-ws-card-header">
+              <div className="landing-ws-card-icon orange"><Boxes size={18} /></div>
+              <div className="landing-ws-card-title">Batch export theo workspace</div>
+            </div>
+            <p>Xuất tất cả mockup trong workspace thành file ZIP — tiện lợi khi cần giao deliverable cho từng khách hàng hoặc dự án khác nhau.</p>
+            <div className="landing-ws-tags">
+              <span className="landing-tag">ZIP export</span>
+              <span className="landing-tag">Per-project</span>
             </div>
           </div>
         </div>

@@ -645,6 +645,127 @@
   line-height: 1.6;
 }
 
+/* ─── Workspace cards ─── */
+.landing-ws-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+
+.landing-ws-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  padding: 28px 24px;
+  transition: var(--transition);
+}
+
+.landing-ws-card:hover {
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 30px rgba(0,0,0,0.25);
+}
+
+.landing-ws-card-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.landing-ws-card-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.landing-ws-card-icon.blue {
+  background: rgba(59, 130, 246, 0.1);
+  color: var(--accent-light);
+  border: 1px solid rgba(59, 130, 246, 0.12);
+}
+
+.landing-ws-card-icon.purple {
+  background: rgba(139, 92, 246, 0.1);
+  color: #a78bfa;
+  border: 1px solid rgba(139, 92, 246, 0.12);
+}
+
+.landing-ws-card-icon.emerald {
+  background: rgba(16, 185, 129, 0.1);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.12);
+}
+
+.landing-ws-card-icon.orange {
+  background: rgba(245, 158, 11, 0.1);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.12);
+}
+
+.landing-ws-card-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.landing-ws-card > p {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  line-height: 1.65;
+  margin: 0 0 18px;
+}
+
+/* Workspace demo switcher */
+.landing-ws-demo {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.landing-ws-demo-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: rgba(255,255,255,0.02);
+  border: 1px solid var(--border);
+  transition: var(--transition);
+}
+
+.landing-ws-demo-item.active {
+  background: var(--accent-glow);
+  color: var(--accent-light);
+  border-color: rgba(59, 130, 246, 0.15);
+}
+
+/* Template visual */
+.landing-ws-visual-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.landing-ws-visual-box {
+  aspect-ratio: 4/3;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.landing-ws-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
 /* ─── Tech grid ─── */
 .landing-tech-grid {
   display: grid;
@@ -774,6 +895,10 @@
   }
 
   .landing-features {
+    grid-template-columns: 1fr;
+  }
+
+  .landing-ws-grid {
     grid-template-columns: 1fr;
   }
 
