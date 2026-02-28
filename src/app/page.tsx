@@ -3,12 +3,19 @@
 import { useState, useEffect } from 'react';
 import { useWorkflowStore } from '@/store/workflow-store';
 import { useWorkspaceStore } from '@/store/workspace-store';
-import StepIndicator from '@/components/StepIndicator';
 import UploadZone from '@/components/UploadZone';
 import VariationGrid from '@/components/VariationGrid';
 import MockupEditor from '@/components/MockupEditor';
 import VideoGenerator from '@/components/VideoGenerator';
-import { Sparkles, LogOut, Plus, X, Folder } from '@/components/ui-icons';
+import { Sparkles, LogOut, Plus, X, Folder, UploadCloud, Layers, Film } from '@/components/ui-icons';
+import type { WorkflowStep } from '@/types';
+
+const NAV_ITEMS: { id: WorkflowStep; icon: typeof UploadCloud; label: string }[] = [
+    { id: 'upload', icon: UploadCloud, label: 'Upload' },
+    { id: 'variations', icon: Sparkles, label: 'Biến thể' },
+    { id: 'mockup', icon: Layers, label: 'Mockup' },
+    { id: 'video', icon: Film, label: 'Video' },
+];
 
 function UserMenu() {
     const [username, setUsername] = useState('');
@@ -27,10 +34,10 @@ function UserMenu() {
     if (!username) return null;
 
     return (
-        <div className="user-menu">
-            <div className="user-avatar">{username.charAt(0)}</div>
-            <span className="user-name">{username}</span>
-            <button onClick={handleLogout} className="user-logout" title="Đăng xuất">
+        <div className="app-user">
+            <div className="app-user-avatar">{username.charAt(0)}</div>
+            <span className="app-user-name">{username}</span>
+            <button onClick={handleLogout} className="app-user-logout" title="Đăng xuất">
                 <LogOut size={14} />
             </button>
         </div>
@@ -51,12 +58,12 @@ function WorkspaceSwitcher() {
     };
 
     return (
-        <div className="ws-switcher">
-            <span className="ws-icon"><Folder size={14} /></span>
+        <div className="app-ws">
+            <span className="app-ws-icon"><Folder size={14} /></span>
             <select
                 value={activeId}
                 onChange={(e) => switchWorkspace(e.target.value)}
-                className="ws-select"
+                className="app-ws-select"
             >
                 {workspaces.map((w) => (
                     <option key={w.id} value={w.id} style={{ color: '#000' }}>{w.name}</option>
@@ -70,24 +77,22 @@ function WorkspaceSwitcher() {
                         value={newName}
                         onChange={(e) => setNewName(e.target.value)}
                         placeholder="Tên workspace"
-                        className="ws-input"
+                        className="app-ws-input"
                         onBlur={() => { if (!newName.trim()) setShowNew(false); }}
                     />
-                    <button type="submit" className="ws-btn">OK</button>
+                    <button type="submit" className="app-toolbar-btn">OK</button>
                 </form>
             ) : (
-                <button
-                    onClick={() => setShowNew(true)}
-                    title="Tạo workspace mới"
-                    className="ws-btn"
-                ><Plus size={14} /></button>
+                <button onClick={() => setShowNew(true)} title="Tạo workspace mới" className="app-toolbar-btn">
+                    <Plus size={14} />
+                </button>
             )}
 
             {activeId !== 'default' && (
                 <button
                     onClick={() => { if (confirm('Xoá workspace này?')) deleteWorkspace(activeId); }}
                     title="Xoá workspace"
-                    className="ws-btn ws-btn-danger"
+                    className="app-toolbar-btn app-toolbar-btn-danger"
                 ><X size={14} /></button>
             )}
         </div>
@@ -95,30 +100,67 @@ function WorkspaceSwitcher() {
 }
 
 export default function Home() {
-    const { currentStep } = useWorkflowStore();
+    const { currentStep, setStep, sourceDesigns } = useWorkflowStore();
+
+    const canNavigate = (stepId: WorkflowStep) => {
+        if (stepId === 'upload') return true;
+        if (stepId === 'variations') return sourceDesigns.length > 0;
+        if (stepId === 'mockup') return true;
+        if (stepId === 'video') return true;
+        return false;
+    };
 
     return (
-        <div className="app-container">
-            <header className="app-header">
-                <div className="app-logo">
-                    <div className="logo-icon"><Sparkles size={16} /></div>
-                    Design Tool
+        <div className="app-shell">
+            {/* Sidebar */}
+            <aside className="app-sidebar">
+                <div className="app-sidebar-logo">
+                    <Sparkles size={16} />
                 </div>
-                <div className="app-header-right">
-                    <WorkspaceSwitcher />
-                    <div className="app-header-sep" />
-                    <UserMenu />
-                </div>
-            </header>
+                <nav className="app-sidebar-nav">
+                    {NAV_ITEMS.map((item) => {
+                        const Icon = item.icon;
+                        const active = currentStep === item.id;
+                        const enabled = canNavigate(item.id);
+                        return (
+                            <button
+                                key={item.id}
+                                className={`app-sidebar-item ${active ? 'active' : ''}`}
+                                onClick={() => enabled && setStep(item.id)}
+                                title={item.label}
+                                disabled={!enabled}
+                            >
+                                <Icon size={18} />
+                            </button>
+                        );
+                    })}
+                </nav>
+            </aside>
 
-            <StepIndicator />
+            {/* Main area */}
+            <div className="app-body">
+                {/* Toolbar */}
+                <header className="app-toolbar">
+                    <div className="app-toolbar-left">
+                        <WorkspaceSwitcher />
+                        <div className="app-toolbar-sep" />
+                        <div className="app-toolbar-step">
+                            {NAV_ITEMS.find((n) => n.id === currentStep)?.label}
+                        </div>
+                    </div>
+                    <div className="app-toolbar-right">
+                        <UserMenu />
+                    </div>
+                </header>
 
-            <main className="app-main">
-                {currentStep === 'upload' && <UploadZone />}
-                {currentStep === 'variations' && <VariationGrid />}
-                {currentStep === 'mockup' && <MockupEditor />}
-                {currentStep === 'video' && <VideoGenerator />}
-            </main>
+                {/* Content */}
+                <main className="app-content">
+                    {currentStep === 'upload' && <UploadZone />}
+                    {currentStep === 'variations' && <VariationGrid />}
+                    {currentStep === 'mockup' && <MockupEditor />}
+                    {currentStep === 'video' && <VideoGenerator />}
+                </main>
+            </div>
         </div>
     );
 }
