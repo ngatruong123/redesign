@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const PUBLIC_PATHS = ['/login', '/register', '/api/auth'];
+const PUBLIC_PATHS = ['/login', '/register', '/api/auth', '/landing'];
 
 export function middleware(request: NextRequest) {
     const { pathname } = request.nextUrl;
@@ -11,7 +11,7 @@ export function middleware(request: NextRequest) {
 
     const auth = request.cookies.get('design-tool-auth');
     if (auth?.value !== 'authenticated') {
-        return NextResponse.redirect(new URL('/login', request.url));
+        return NextResponse.redirect(new URL('/landing', request.url));
     }
 
     return NextResponse.next();

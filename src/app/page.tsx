@@ -8,6 +8,7 @@ import UploadZone from '@/components/UploadZone';
 import VariationGrid from '@/components/VariationGrid';
 import MockupEditor from '@/components/MockupEditor';
 import VideoGenerator from '@/components/VideoGenerator';
+import { Sparkles, LogOut, Plus, X, Folder } from '@/components/ui-icons';
 
 function UserMenu() {
     const [username, setUsername] = useState('');
@@ -26,23 +27,11 @@ function UserMenu() {
     if (!username) return null;
 
     return (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ fontSize: 13, color: 'var(--text-muted)', fontWeight: 500 }}>
-                {username}
-            </span>
-            <button
-                onClick={handleLogout}
-                style={{
-                    background: 'rgba(255,255,255,0.08)',
-                    color: 'var(--text-secondary)',
-                    border: '1px solid rgba(255,255,255,0.12)',
-                    borderRadius: 6,
-                    padding: '4px 10px',
-                    fontSize: 13,
-                    cursor: 'pointer',
-                }}
-            >
-                Đăng xuất
+        <div className="user-menu">
+            <div className="user-avatar">{username.charAt(0)}</div>
+            <span className="user-name">{username}</span>
+            <button onClick={handleLogout} className="user-logout" title="Đăng xuất">
+                <LogOut size={14} />
             </button>
         </div>
     );
@@ -62,19 +51,12 @@ function WorkspaceSwitcher() {
     };
 
     return (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div className="ws-switcher">
+            <span className="ws-icon"><Folder size={14} /></span>
             <select
                 value={activeId}
                 onChange={(e) => switchWorkspace(e.target.value)}
-                style={{
-                    background: 'rgba(255,255,255,0.1)',
-                    color: 'inherit',
-                    border: '1px solid rgba(255,255,255,0.2)',
-                    borderRadius: '6px',
-                    padding: '4px 8px',
-                    fontSize: '13px',
-                    cursor: 'pointer',
-                }}
+                className="ws-select"
             >
                 {workspaces.map((w) => (
                     <option key={w.id} value={w.id} style={{ color: '#000' }}>{w.name}</option>
@@ -87,34 +69,26 @@ function WorkspaceSwitcher() {
                         autoFocus
                         value={newName}
                         onChange={(e) => setNewName(e.target.value)}
-                        placeholder="Name"
-                        style={{
-                            background: 'rgba(255,255,255,0.1)',
-                            color: 'inherit',
-                            border: '1px solid rgba(255,255,255,0.2)',
-                            borderRadius: '6px',
-                            padding: '4px 8px',
-                            fontSize: '13px',
-                            width: '120px',
-                        }}
+                        placeholder="Tên workspace"
+                        className="ws-input"
                         onBlur={() => { if (!newName.trim()) setShowNew(false); }}
                     />
-                    <button type="submit" style={{ background: 'rgba(255,255,255,0.15)', color: 'inherit', border: 'none', borderRadius: '6px', padding: '4px 8px', cursor: 'pointer', fontSize: '13px' }}>OK</button>
+                    <button type="submit" className="ws-btn">OK</button>
                 </form>
             ) : (
                 <button
                     onClick={() => setShowNew(true)}
                     title="Tạo workspace mới"
-                    style={{ background: 'rgba(255,255,255,0.15)', color: 'inherit', border: 'none', borderRadius: '6px', padding: '4px 8px', cursor: 'pointer', fontSize: '13px', lineHeight: 1 }}
-                >+</button>
+                    className="ws-btn"
+                ><Plus size={14} /></button>
             )}
 
             {activeId !== 'default' && (
                 <button
                     onClick={() => { if (confirm('Xoá workspace này?')) deleteWorkspace(activeId); }}
                     title="Xoá workspace"
-                    style={{ background: 'rgba(255,100,100,0.25)', color: 'inherit', border: 'none', borderRadius: '6px', padding: '4px 8px', cursor: 'pointer', fontSize: '13px', lineHeight: 1 }}
-                >×</button>
+                    className="ws-btn ws-btn-danger"
+                ><X size={14} /></button>
             )}
         </div>
     );
@@ -123,17 +97,16 @@ function WorkspaceSwitcher() {
 export default function Home() {
     const { currentStep } = useWorkflowStore();
 
-    // Cleanup removed: state now persists across reloads, so we keep uploaded files
-
     return (
         <div className="app-container">
             <header className="app-header">
                 <div className="app-logo">
-                    <div className="logo-icon">🎨</div>
-                    Công cụ thiết kế
+                    <div className="logo-icon"><Sparkles size={16} /></div>
+                    Design Tool
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                <div className="app-header-right">
                     <WorkspaceSwitcher />
+                    <div className="app-header-sep" />
                     <UserMenu />
                 </div>
             </header>
