@@ -8,7 +8,7 @@ import { parallelLimit } from '@/lib/concurrency';
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
-        const { sourceImageUrl, sourceImageUrls, styles, additionalPrompt } = body;
+        const { sourceImageUrl, sourceImageUrls, styles, additionalPrompt, imageSize, aspectRatio } = body;
 
         // Normalize to array: [{id, url}]
         let sources: { id: string; url: string }[];
@@ -59,7 +59,10 @@ export async function POST(request: NextRequest) {
                             const basePrompt = style.id.startsWith('custom-') ? '' : (additionalPrompt || '');
                             const prompt = buildVariationPrompt(basePrompt, style);
                             console.log(`[generate-stream] Source: ${sourceId} | Style: ${style.id} | Prompt: ${prompt.slice(0, 200)}...`);
-                            const resultBase64 = await provider.generateVariation(sourceBase64, prompt);
+                            const resultBase64 = await provider.generateVariation(sourceBase64, prompt, {
+                                imageSize: imageSize || '2K',
+                                aspectRatio: aspectRatio || '1:1',
+                            });
 
                             const isSvg = resultBase64.startsWith('PHN2Zy');
                             const ext = isSvg ? 'svg' : 'png';

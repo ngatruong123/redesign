@@ -17,6 +17,8 @@ import VariationsPanel from './mockup/VariationsPanel';
 import BlendControlsPanel from './mockup/BlendControlsPanel';
 import GeneratedMockupsGrid from './mockup/GeneratedMockupsGrid';
 import BatchPreviewModal from './mockup/BatchPreviewModal';
+import DesignOverlay from './mockup/DesignOverlay';
+import type { DesignOverlayState } from '@/types';
 
 function mid(a: Point, b: Point): Point {
     return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
@@ -42,6 +44,14 @@ export default function MockupEditor() {
     const [removeBgVariationId, setRemoveBgVariationId] = useState<string | null>(null);
     const [seoMockupId, setSeoMockupId] = useState<string | null>(null);
     const [showBatchPreview, setShowBatchPreview] = useState(false);
+    const [canvasDragOver, setCanvasDragOver] = useState(false);
+    const [isAIGenerating, setIsAIGenerating] = useState(false);
+    const [showAIOptions, setShowAIOptions] = useState(false);
+    const [aiPrompt, setAiPrompt] = useState('');
+    const [aiPlacement, setAiPlacement] = useState<'auto' | 'center' | 'full' | 'wrap'>('auto');
+    const [aiStyle, setAiStyle] = useState<'photorealistic' | 'studio' | 'flat-lay' | 'lifestyle' | 'artistic'>('photorealistic');
+    const [aiImageSize, setAiImageSize] = useState<'1K' | '2K' | '4K'>('2K');
+    const [aiAspectRatio, setAiAspectRatio] = useState<'1:1' | '3:4' | '4:3' | '9:16' | '16:9'>('1:1');
 
     // Blend controls
     const [fitMode, setFitMode] = useState<MockupMask['fitMode']>('contain');
@@ -365,26 +375,176 @@ export default function MockupEditor() {
         setTimeout(() => commitMask(), 0);
     };
 
+    // --- Canvas Drop ---
+    const handleCanvasDragOver = useCallback((e: React.DragEvent) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'copy';
+        setCanvasDragOver(true);
+    }, []);
+
+    const handleCanvasDragLeave = useCallback((e: React.DragEvent) => {
+        // Only set false when leaving the container itself, not child elements
+        const rect = e.currentTarget.getBoundingClientRect();
+        const { clientX, clientY } = e;
+        if (clientX < rect.left || clientX > rect.right || clientY < rect.top || clientY > rect.bottom) {
+            setCanvasDragOver(false);
+        }
+    }, []);
+
+    const handleCanvasDrop = useCallback(async (e: React.DragEvent) => {
+        e.preventDefault();
+        setCanvasDragOver(false);
+
+        if (!activeTemplate) {
+            addToast('error', 'Chọn template trước khi kéo thả');
+            return;
+        }
+
+        // Case 1: Drop from VariationsPanel (has variation ID)
+        const variationId = e.dataTransfer.getData('application/x-variation-id');
+        if (variationId) {
+            const variation = variations.find(v => v.id === variationId);
+            if (variation) {
+                // Select variation
+                const updated = variations.map(v => ({ ...v, selected: v.id === variationId }));
+                setVariations(updated);
+                // Create design overlay centered on mask
+                createOverlayFromVariation(variation.id, variation.imageUrl);
+                addToast('success', `Đã đặt "${variation.styleName}" lên template`);
+            }
+            return;
+        }
+
+        // Case 2: Drop from file explorer
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+            const file = files[0];
+            if (!file.type.startsWith('image/')) {
+                addToast('error', 'Chỉ chấp nhận file ảnh');
+                return;
+            }
+            try {
+                const formData = new FormData();
+                formData.append('file', file);
+                const res = await fetch('/api/upload', { method: 'POST', body: formData });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error);
+                const newVariation = {
+                    id: crypto.randomUUID(),
+                    styleId: 'custom',
+                    styleName: file.name.replace(/\.[^.]+$/, ''),
+                    imageUrl: data.url,
+                    selected: true,
+                    loading: false,
+                };
+                setVariations([...variations, newVariation]);
+                createOverlayFromVariation(newVariation.id, data.url);
+                addToast('success', `Đã đặt "${newVariation.styleName}" lên template`);
+            } catch (err) {
+                addToast('error', err instanceof Error ? err.message : 'Upload thất bại');
+            }
+        }
+    }, [activeTemplate, variations, setVariations, addToast]);
+
+    // --- AI Generate Mockups ---
+    const handleAIGenerateMockups = async () => {
+        const templatesWithMask = mockupTemplates.filter(isTemplateReady);
+        if (templatesWithMask.length === 0 || selectedVariations.length === 0) return;
+
+        setIsAIGenerating(true);
+        setError(null);
+
+        try {
+            // Build combined prompt from options
+            const promptParts: string[] = [];
+            if (aiPlacement !== 'auto') {
+                const placementMap = {
+                    center: 'Center the design on the product',
+                    full: 'Make the design cover the entire product surface',
+                    wrap: 'Wrap the design around the product naturally following its 3D shape',
+                };
+                promptParts.push(placementMap[aiPlacement]);
+            }
+            if (aiStyle !== 'photorealistic') {
+                const styleMap = {
+                    studio: 'Professional studio photography with clean background, perfect lighting',
+                    'flat-lay': 'Flat-lay top-down product photography style on a clean surface',
+                    lifestyle: 'Lifestyle scene with the product in a natural, real-world environment',
+                    artistic: 'Creative artistic composition with dramatic lighting and mood',
+                };
+                promptParts.push(styleMap[aiStyle]);
+            }
+            if (aiPrompt.trim()) promptParts.push(aiPrompt.trim());
+            const combinedPrompt = promptParts.length > 0 ? promptParts.join('. ') + '.' : undefined;
+
+            const res = await fetch('/api/mockup/ai-generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    templateIds: templatesWithMask.map(t => t.id),
+                    variationIds: selectedVariations.map(v => v.id),
+                    templates: templatesWithMask.map(t => ({ id: t.id, name: t.name, imageUrl: t.imageUrl })),
+                    variations: selectedVariations.map(v => ({ id: v.id, name: v.styleName, imageUrl: v.imageUrl })),
+                    prompt: combinedPrompt,
+                    imageSize: aiImageSize,
+                    aspectRatio: aiAspectRatio,
+                }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error);
+            setGeneratedMockups(data.results);
+            addToast('success', `AI đã tạo ${data.results.length} mockup!`);
+        } catch (err) {
+            const msg = err instanceof Error ? err.message : 'Tạo AI mockup thất bại';
+            setError(msg);
+            addToast('error', msg);
+        } finally {
+            setIsAIGenerating(false);
+        }
+    };
+
     // --- Generate ---
     const handleGenerateMockups = async (excludedKeys?: Set<string>) => {
-        const templatesWithMask = mockupTemplates.filter((t) => t.mask);
-        if (templatesWithMask.length === 0 || selectedVariations.length === 0) return;
+        const readyTemplates = mockupTemplates.filter(isTemplateReady);
+        if (readyTemplates.length === 0 || selectedVariations.length === 0) return;
 
         setShowBatchPreview(false);
         setIsCompositing(true);
         setError(null);
 
-        const items = templatesWithMask.flatMap((t) =>
-            selectedVariations
+        const items = readyTemplates.flatMap((t) => {
+            // If template has designOverlay, use the overlay's variation and position
+            if (t.designOverlay && !t.mask) {
+                const ov = t.designOverlay;
+                const overlayVariation = variations.find(v => v.id === ov.variationId);
+                if (!overlayVariation) return [];
+                const rectMask = {
+                    x: ov.x, y: ov.y, width: ov.width, height: ov.height,
+                    rotation: ov.rotation,
+                    mode: 'rect' as const,
+                    fitMode: 'fill' as const,
+                    blendMode: 'normal' as const,
+                    opacity: 100,
+                };
+                return [{
+                    mockupImagePath: t.imageUrl,
+                    designImagePath: ov.imageUrl,
+                    mask: rectMask,
+                    templateName: t.name,
+                    variationName: overlayVariation.styleName,
+                }];
+            }
+            // Normal mask-based generation with selected variations
+            return selectedVariations
                 .filter((v) => !excludedKeys || !excludedKeys.has(`${t.id}__${v.id}`))
                 .map((v) => ({
                     mockupImagePath: t.imageUrl,
-                    designImagePath: v.imageUrl,
+                    designImagePath: t.designOverlay?.variationId === v.id ? t.designOverlay.imageUrl : v.imageUrl,
                     mask: t.mask,
                     templateName: t.name,
                     variationName: v.styleName,
-                }))
-        );
+                }));
+        });
 
         if (items.length === 0) return;
 
@@ -399,7 +559,7 @@ export default function MockupEditor() {
             setGeneratedMockups(data.results);
             addToast('success', `Đã tạo ${data.results.length} mockup!`);
         } catch (err) {
-            const msg = err instanceof Error ? err.message : 'Mockup generation failed';
+            const msg = err instanceof Error ? err.message : 'Tạo mockup thất bại';
             setError(msg);
             addToast('error', msg);
         } finally {
@@ -407,7 +567,75 @@ export default function MockupEditor() {
         }
     };
 
-    const readyTemplateCount = mockupTemplates.filter((t) => t.mask).length;
+    // --- Design Overlay ---
+    const createOverlayFromVariation = useCallback((variationId: string, imageUrl: string) => {
+        if (!activeTemplate) return;
+        const mask = activeTemplate.mask;
+        // Load image to get natural dimensions
+        const img = new Image();
+        img.onload = () => {
+            let cx: number, cy: number, w: number, h: number;
+            if (mask) {
+                // Center on mask bounding box
+                cx = mask.x + mask.width / 2;
+                cy = mask.y + mask.height / 2;
+                // Fit within mask bounds
+                const ar = img.naturalWidth / img.naturalHeight;
+                if (ar > mask.width / mask.height) {
+                    w = mask.width;
+                    h = w / ar;
+                } else {
+                    h = mask.height;
+                    w = h * ar;
+                }
+            } else {
+                // Center on canvas
+                const canvas = canvasRef.current;
+                const s = scaleRef.current;
+                const cw = canvas ? canvas.width / s : 500;
+                const ch = canvas ? canvas.height / s : 500;
+                cx = cw / 2;
+                cy = ch / 2;
+                w = Math.min(img.naturalWidth, cw * 0.5);
+                h = w / (img.naturalWidth / img.naturalHeight);
+            }
+            const overlay: DesignOverlayState = {
+                variationId,
+                imageUrl,
+                x: cx - w / 2,
+                y: cy - h / 2,
+                width: w,
+                height: h,
+                rotation: 0,
+                naturalWidth: img.naturalWidth,
+                naturalHeight: img.naturalHeight,
+            };
+            updateMockupTemplate(activeTemplate.id, { designOverlay: overlay });
+        };
+        img.src = imageUrl;
+    }, [activeTemplate, updateMockupTemplate]);
+
+    const handleOverlayChange = useCallback((update: Partial<DesignOverlayState>) => {
+        if (!activeTemplate?.designOverlay) return;
+        const newOverlay = { ...activeTemplate.designOverlay, ...update };
+        updateMockupTemplate(activeTemplate.id, { designOverlay: newOverlay });
+    }, [activeTemplate, updateMockupTemplate]);
+
+    const handleOverlayRemove = useCallback(() => {
+        if (!activeTemplate) return;
+        updateMockupTemplate(activeTemplate.id, { designOverlay: null });
+    }, [activeTemplate, updateMockupTemplate]);
+
+    // Compute canvas display scale for overlay positioning
+    const getCanvasDisplayScale = useCallback((): number => {
+        const canvas = canvasRef.current;
+        if (!canvas) return 1;
+        const rect = canvas.getBoundingClientRect();
+        return rect.width / canvas.width * scaleRef.current;
+    }, []);
+
+    const isTemplateReady = (t: typeof mockupTemplates[0]) => !!(t.mask || t.designOverlay);
+    const readyTemplateCount = mockupTemplates.filter(isTemplateReady).length;
 
     return (
         <div className="mockup-container">
@@ -440,7 +668,13 @@ export default function MockupEditor() {
                     />
                 </div>
 
-                <div className="mockup-canvas-area">
+                <div
+                    className="mockup-canvas-area"
+                    onDragOver={handleCanvasDragOver}
+                    onDragLeave={handleCanvasDragLeave}
+                    onDrop={handleCanvasDrop}
+                    style={canvasDragOver ? { outline: '3px dashed var(--accent, #00e68a)', outlineOffset: -3, background: 'rgba(0,230,138,0.05)' } : undefined}
+                >
                     {activeTemplate ? (
                         <>
                             <p className="canvas-instructions">
@@ -451,17 +685,17 @@ export default function MockupEditor() {
 
                             <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
                                 <div className="undo-redo-bar">
-                                    <button className="btn-icon" title="Undo (Ctrl+Z)" onClick={history.undo} disabled={history.historyIndex <= 0}>{Icons.undo}</button>
-                                    <button className="btn-icon" title="Redo (Ctrl+Shift+Z)" onClick={history.redo} disabled={history.historyIndex >= history.maskHistory.length - 1}>{Icons.redo}</button>
-                                    <button className="btn-ghost-sm" onClick={handleResetMask}>Reset</button>
-                                    {interaction.quadDone && <button className="btn-ghost-sm" onClick={handleResetCurves}>Reset curves</button>}
+                                    <button className="btn-icon" title="Hoàn tác (Ctrl+Z)" onClick={history.undo} disabled={history.historyIndex <= 0}>{Icons.undo}</button>
+                                    <button className="btn-icon" title="Làm lại (Ctrl+Shift+Z)" onClick={history.redo} disabled={history.historyIndex >= history.maskHistory.length - 1}>{Icons.redo}</button>
+                                    <button className="btn-ghost-sm" onClick={handleResetMask}>Đặt lại</button>
+                                    {interaction.quadDone && <button className="btn-ghost-sm" onClick={handleResetCurves}>Đặt lại đường cong</button>}
                                     {interaction.quadDone && selectedTemplateIds.size > 0 && (
                                         <button
                                             className="btn-ghost-sm"
                                             onClick={applyMaskToSelected}
                                             style={{ color: 'var(--accent, #00e68a)', fontWeight: 600 }}
                                         >
-                                            Apply mask → {selectedTemplateIds.size} template
+                                            Áp dụng mask → {selectedTemplateIds.size} mẫu
                                         </button>
                                     )}
                                 </div>
@@ -479,6 +713,16 @@ export default function MockupEditor() {
                                     onTouchEnd={interaction.handleTouchEnd}
                                     style={{ cursor: interaction.quadDone ? 'default' : 'crosshair', touchAction: 'none' }}
                                 />
+                                {activeTemplate?.designOverlay && (
+                                    <DesignOverlay
+                                        overlay={activeTemplate.designOverlay}
+                                        mask={activeTemplate.mask}
+                                        canvasScale={getCanvasDisplayScale()}
+                                        onChange={handleOverlayChange}
+                                        onRemove={handleOverlayRemove}
+                                        disabled={!!interaction.dragging || (!interaction.quadDone && (interaction.corners.length > 0 || !!interaction.dragStart))}
+                                    />
+                                )}
                             </div>
 
                             {interaction.quadDone && (
@@ -495,6 +739,7 @@ export default function MockupEditor() {
                         <div className="canvas-empty">
                             <h3>Chọn hoặc thêm mockup template</h3>
                             <p>Upload ảnh mockup rồi click 4 góc để đặt vùng thiết kế. Kéo handle vàng để uốn cong.</p>
+                            <p style={{ marginTop: 8, fontSize: '0.8rem' }}>Hoặc kéo thả ảnh thiết kế từ sidebar vào đây</p>
                         </div>
                     )}
                 </div>
@@ -509,7 +754,84 @@ export default function MockupEditor() {
                     {isCompositing ? <><span className="spinner-sm" /> Đang tạo mockup...</>
                         : `Tạo ${readyTemplateCount * selectedVariations.length} mockup`}
                 </button>
+                <button
+                    className="btn-primary btn-lg"
+                    disabled={readyTemplateCount === 0 || selectedVariations.length === 0 || isAIGenerating || isCompositing}
+                    onClick={() => setShowAIOptions(!showAIOptions)}
+                    style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}
+                >
+                    {isAIGenerating ? <><span className="spinner-sm" /> AI đang tạo...</>
+                        : `Tạo AI ${readyTemplateCount * selectedVariations.length} mockup`}
+                </button>
             </div>
+
+            {showAIOptions && (
+                <div className="ai-options-panel">
+                    <div className="ai-options-header">
+                        <h4>Tuỳ chỉnh AI Mockup</h4>
+                        <button className="btn-icon-sm" onClick={() => setShowAIOptions(false)}>✕</button>
+                    </div>
+
+                    <div className="ai-options-grid">
+                        <div className="ai-option-group">
+                            <label>Vị trí đặt design</label>
+                            <div className="ai-option-chips">
+                                {([['auto', 'Tự động'], ['center', 'Chính giữa'], ['full', 'Phủ toàn bộ'], ['wrap', 'Bọc quanh']] as const).map(([val, label]) => (
+                                    <button key={val} className={`ai-chip ${aiPlacement === val ? 'active' : ''}`} onClick={() => setAiPlacement(val)}>{label}</button>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="ai-option-group">
+                            <label>Phong cách chụp</label>
+                            <div className="ai-option-chips">
+                                {([['photorealistic', 'Chân thực'], ['studio', 'Studio'], ['flat-lay', 'Flat Lay'], ['lifestyle', 'Đời thường'], ['artistic', 'Nghệ thuật']] as const).map(([val, label]) => (
+                                    <button key={val} className={`ai-chip ${aiStyle === val ? 'active' : ''}`} onClick={() => setAiStyle(val)}>{label}</button>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="ai-option-group">
+                            <label>Độ phân giải</label>
+                            <div className="ai-option-chips">
+                                {([['1K', '1K'], ['2K', '2K'], ['4K', '4K']] as const).map(([val, label]) => (
+                                    <button key={val} className={`ai-chip ${aiImageSize === val ? 'active' : ''}`} onClick={() => setAiImageSize(val)}>{label}</button>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="ai-option-group">
+                            <label>Tỷ lệ khung hình</label>
+                            <div className="ai-option-chips">
+                                {([['1:1', '1:1'], ['3:4', '3:4'], ['4:3', '4:3'], ['9:16', '9:16'], ['16:9', '16:9']] as const).map(([val, label]) => (
+                                    <button key={val} className={`ai-chip ${aiAspectRatio === val ? 'active' : ''}`} onClick={() => setAiAspectRatio(val)}>{label}</button>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="ai-option-group" style={{ marginTop: 8 }}>
+                        <label>Prompt tuỳ chỉnh (không bắt buộc)</label>
+                        <textarea
+                            className="ai-prompt-input"
+                            value={aiPrompt}
+                            onChange={(e) => setAiPrompt(e.target.value)}
+                            placeholder="VD: Đặt design ở mặt trước áo, thêm bóng đổ nhẹ, ánh sáng studio ấm, nền trắng..."
+                            rows={3}
+                        />
+                    </div>
+
+                    <button
+                        className="btn-primary btn-lg"
+                        disabled={readyTemplateCount === 0 || selectedVariations.length === 0 || isAIGenerating}
+                        onClick={handleAIGenerateMockups}
+                        style={{ marginTop: 8, width: '100%', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}
+                    >
+                        {isAIGenerating ? <><span className="spinner-sm" /> AI đang tạo...</>
+                            : `Tạo ${readyTemplateCount * selectedVariations.length} AI Mockup`}
+                    </button>
+                </div>
+            )}
 
             {generatedMockups.length > 0 && (
                 <GeneratedMockupsGrid

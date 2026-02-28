@@ -1,22 +1,27 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import '@/styles/auth.css';
 
-export default function LoginPage() {
+export default function RegisterPage() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError("");
 
-    const res = await fetch("/api/auth/login", {
+    if (password !== confirmPassword) {
+      setError("Mật khẩu xác nhận không khớp");
+      setLoading(false);
+      return;
+    }
+
+    const res = await fetch("/api/auth/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ username, password }),
@@ -28,7 +33,7 @@ export default function LoginPage() {
       return;
     } else {
       const data = await res.json();
-      setError(data.error || "Đăng nhập thất bại");
+      setError(data.error || "Đăng ký thất bại");
     }
     setLoading(false);
   };
@@ -37,33 +42,40 @@ export default function LoginPage() {
     <div className="auth-page">
       <div className="auth-card">
         <div className="auth-logo">🎨</div>
-        <h1 className="auth-title">Công cụ thiết kế</h1>
-        <p className="auth-subtitle">Tạo biến thể & Mockup bằng AI</p>
+        <h1 className="auth-title">Đăng ký</h1>
+        <p className="auth-subtitle">Tạo tài khoản Công cụ thiết kế</p>
 
         <form onSubmit={handleSubmit} className="auth-form">
           <input
             type="text"
-            placeholder="Tên đăng nhập"
+            placeholder="Tên đăng nhập (3-20 ký tự)"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
             className="auth-input"
           />
           <input
             type="password"
-            placeholder="Mật khẩu"
+            placeholder="Mật khẩu (ít nhất 8 ký tự)"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             className="auth-input"
           />
+          <input
+            type="password"
+            placeholder="Xác nhận mật khẩu"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            className="auth-input"
+          />
           {error && <p className="auth-error">{error}</p>}
           <button type="submit" disabled={loading} className="auth-submit">
-            {loading ? 'Đang đăng nhập...' : 'Đăng nhập'}
+            {loading ? 'Đang đăng ký...' : 'Đăng ký'}
           </button>
         </form>
 
         <p className="auth-link">
-          Chưa có tài khoản?{' '}
-          <a href="/register">Đăng ký</a>
+          Đã có tài khoản?{' '}
+          <a href="/login">Đăng nhập</a>
         </p>
       </div>
     </div>

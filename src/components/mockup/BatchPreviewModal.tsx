@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import BatchPreviewCanvas from '../BatchPreviewCanvas';
-import type { MockupTemplate, GeneratedVariation } from '@/types';
+import type { MockupTemplate, GeneratedVariation, MockupMask } from '@/types';
 
 interface BatchPreviewModalProps {
     mockupTemplates: MockupTemplate[];
@@ -20,14 +20,32 @@ export default function BatchPreviewModal({
     const [batchExcluded, setBatchExcluded] = useState<Set<string>>(new Set());
 
     const combos = mockupTemplates
-        .filter((t) => t.mask)
-        .flatMap((t) =>
-            selectedVariations.map((v) => ({
+        .filter((t) => t.mask || t.designOverlay)
+        .flatMap((t): { key: string; template: MockupTemplate; variation: GeneratedVariation; overlayMask: MockupMask | undefined }[] => {
+            // If only overlay (no mask), show only the overlay's variation
+            if (!t.mask && t.designOverlay) {
+                const ov = t.designOverlay;
+                const v = selectedVariations.find(sv => sv.id === ov.variationId);
+                if (!v) return [];
+                return [{
+                    key: `${t.id}__${v.id}`,
+                    template: t,
+                    variation: v,
+                    overlayMask: {
+                        x: ov.x, y: ov.y, width: ov.width, height: ov.height,
+                        rotation: ov.rotation, mode: 'rect' as const,
+                        fitMode: 'fill' as const, blendMode: 'normal' as const,
+                        opacity: 100,
+                    } as MockupMask,
+                }];
+            }
+            return selectedVariations.map((v) => ({
                 key: `${t.id}__${v.id}`,
                 template: t,
                 variation: v,
-            }))
-        );
+                overlayMask: undefined,
+            }));
+        });
 
     const activeCount = combos.filter(c => !batchExcluded.has(c.key)).length;
 
@@ -50,7 +68,7 @@ export default function BatchPreviewModal({
                     Bỏ chọn combo bạn không muốn tạo. Click vào ảnh để toggle.
                 </p>
                 <div className="batch-preview-grid">
-                    {combos.map(({ key, template, variation }) => {
+                    {combos.map(({ key, template, variation, overlayMask }) => {
                         const isChecked = !batchExcluded.has(key);
                         return (
                             <div
@@ -61,8 +79,8 @@ export default function BatchPreviewModal({
                                 {isChecked && <div className="batch-preview-check">✓</div>}
                                 <BatchPreviewCanvas
                                     templateImageUrl={template.imageUrl}
-                                    designImageUrl={variation.imageUrl}
-                                    mask={template.mask!}
+                                    designImageUrl={overlayMask ? (template.designOverlay?.imageUrl ?? variation.imageUrl) : variation.imageUrl}
+                                    mask={overlayMask ?? template.mask!}
                                 />
                                 <div className="batch-preview-item-label">
                                     {template.name} × {variation.styleName}

@@ -4,8 +4,8 @@ import { useWorkflowStore } from '@/store/workflow-store';
 import type { WorkflowStep } from '@/types';
 
 const steps: { id: WorkflowStep; label: string }[] = [
-    { id: 'upload', label: 'Upload Design' },
-    { id: 'variations', label: 'AI Variations' },
+    { id: 'upload', label: 'Tải ảnh lên' },
+    { id: 'variations', label: 'Tạo biến thể' },
     { id: 'mockup', label: 'Mockup' },
     { id: 'video', label: 'Video' },
 ];

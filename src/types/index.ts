@@ -24,11 +24,29 @@ export interface GeneratedVariation {
     sourceDesignId?: string;
 }
 
+export interface DesignOverlayState {
+    variationId: string;
+    imageUrl: string;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    rotation: number;
+    naturalWidth: number;
+    naturalHeight: number;
+    // Crop insets as percentage (0-100) from each edge
+    cropTop?: number;
+    cropRight?: number;
+    cropBottom?: number;
+    cropLeft?: number;
+}
+
 export interface MockupTemplate {
     id: string;
     name: string;
     imageUrl: string;
     mask: MockupMask | null;
+    designOverlay?: DesignOverlayState | null;
 }
 
 export interface Point { x: number; y: number; }

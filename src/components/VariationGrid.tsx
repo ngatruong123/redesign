@@ -25,6 +25,9 @@ export default function VariationGrid() {
     const [bgProcessing, setBgProcessing] = useState<Set<string>>(new Set());
     const addToast = useToastStore((s) => s.addToast);
     const [streamProgress, setStreamProgress] = useState<{ done: number; total: number } | null>(null);
+    const [showAdvanced, setShowAdvanced] = useState(false);
+    const [imageSize, setImageSize] = useState<'1K' | '2K' | '4K'>('2K');
+    const [aspectRatio, setAspectRatio] = useState<'1:1' | '3:4' | '4:3' | '9:16' | '16:9'>('1:1');
 
     const toggleStyle = (id: string) => {
         setSelectedStyles((prev) => {
@@ -77,6 +80,8 @@ export default function VariationGrid() {
                     sourceImageUrls,
                     styles,
                     additionalPrompt,
+                    imageSize,
+                    aspectRatio,
                 }),
             });
 
@@ -307,6 +312,49 @@ export default function VariationGrid() {
                                     : 'Tạo từ prompt'}
                     </button>
                 </div>
+
+                {isGenerating && streamProgress && streamProgress.total > 0 && (
+                    <div className="generation-progress">
+                        <div className="generation-progress-bar">
+                            <div
+                                className="generation-progress-fill"
+                                style={{ width: `${(streamProgress.done / streamProgress.total) * 100}%` }}
+                            />
+                        </div>
+                        <span className="generation-progress-text">
+                            {streamProgress.done}/{streamProgress.total} hoàn thành
+                        </span>
+                    </div>
+                )}
+
+                <button
+                    className="btn-ghost-sm"
+                    onClick={() => setShowAdvanced(!showAdvanced)}
+                    style={{ marginTop: 6, fontSize: '0.78rem' }}
+                >
+                    {showAdvanced ? '▾ Ẩn tuỳ chỉnh nâng cao' : '▸ Tuỳ chỉnh nâng cao (độ phân giải, tỷ lệ)'}
+                </button>
+
+                {showAdvanced && (
+                    <div className="ai-options-grid" style={{ marginTop: 8 }}>
+                        <div className="ai-option-group">
+                            <label>Độ phân giải</label>
+                            <div className="ai-option-chips">
+                                {([['1K', '1K'], ['2K', '2K'], ['4K', '4K']] as const).map(([val, label]) => (
+                                    <button key={val} className={`ai-chip ${imageSize === val ? 'active' : ''}`} onClick={() => setImageSize(val)}>{label}</button>
+                                ))}
+                            </div>
+                        </div>
+                        <div className="ai-option-group">
+                            <label>Tỷ lệ khung hình</label>
+                            <div className="ai-option-chips">
+                                {([['1:1', '1:1'], ['3:4', '3:4'], ['4:3', '4:3'], ['9:16', '9:16'], ['16:9', '16:9']] as const).map(([val, label]) => (
+                                    <button key={val} className={`ai-chip ${aspectRatio === val ? 'active' : ''}`} onClick={() => setAspectRatio(val)}>{label}</button>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* Variation grid */}

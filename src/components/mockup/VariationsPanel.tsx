@@ -21,6 +21,7 @@ export default function VariationsPanel({
     const addToast = useToastStore((s) => s.addToast);
     const [uploadingDesigns, setUploadingDesigns] = useState(false);
     const [designDragActive, setDesignDragActive] = useState(false);
+    const [draggingId, setDraggingId] = useState<string | null>(null);
     const designInputRef = useRef<HTMLInputElement>(null);
 
     const selectedVariations = variations.filter((v) => v.selected && v.imageUrl);
@@ -60,6 +61,17 @@ export default function VariationsPanel({
         setUploadingDesigns(false);
     }, [variations, setVariations, addToast]);
 
+    const handleDragStart = useCallback((e: React.DragEvent, variation: GeneratedVariation) => {
+        setDraggingId(variation.id);
+        e.dataTransfer.setData('application/x-variation-id', variation.id);
+        e.dataTransfer.setData('text/uri-list', variation.imageUrl);
+        e.dataTransfer.effectAllowed = 'copy';
+    }, []);
+
+    const handleDragEnd = useCallback(() => {
+        setDraggingId(null);
+    }, []);
+
     return (
         <>
             <h3>Ảnh thiết kế ({selectedVariations.length}/{variations.length})</h3>
@@ -85,9 +97,12 @@ export default function VariationsPanel({
                     <div
                         key={v.id}
                         className="mini-variation"
+                        draggable
+                        onDragStart={(e) => handleDragStart(e, v)}
+                        onDragEnd={handleDragEnd}
                         style={{
-                            opacity: v.selected ? 1 : 0.4,
-                            cursor: 'pointer',
+                            opacity: draggingId === v.id ? 0.4 : v.selected ? 1 : 0.4,
+                            cursor: 'grab',
                             outline: v.selected ? '2px solid var(--accent, #00e68a)' : '2px solid transparent',
                             borderRadius: 6,
                             transition: 'opacity 0.15s, outline-color 0.15s',
@@ -98,7 +113,7 @@ export default function VariationsPanel({
                             src={v.imageUrl}
                             alt={v.styleName}
                             onClick={() => toggleVariationSelection(v.id)}
-                            title={v.selected ? 'Click để bỏ chọn' : 'Click để chọn'}
+                            title="Kéo thả vào canvas hoặc click để chọn/bỏ chọn"
                         />
                         <span onClick={() => toggleVariationSelection(v.id)}>{v.styleName}</span>
                         <button

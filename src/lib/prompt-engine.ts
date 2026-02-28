@@ -156,6 +156,42 @@ export const DEFAULT_STYLE_PRESETS: StylePreset[] = [
     },
 ];
 
+export function buildMockupPrompt(
+    templateName?: string,
+    designDescription?: string,
+    customInstructions?: string
+): string {
+    const parts: string[] = [];
+
+    parts.push(
+        'You are given two images: the first is a mockup template (e.g., a t-shirt, mug, poster frame, phone case), ' +
+        'and the second is a design to be placed on it.'
+    );
+
+    parts.push(
+        'Place the design naturally onto the mockup template product. ' +
+        'Match the perspective, lighting, and shadows of the template. ' +
+        'The design should look like it is actually printed, displayed, or applied on the product. ' +
+        'Maintain photorealistic quality.'
+    );
+
+    if (templateName) {
+        parts.push(`The template is: ${templateName}.`);
+    }
+
+    if (designDescription) {
+        parts.push(`The design is: ${designDescription}.`);
+    }
+
+    if (customInstructions) {
+        parts.push(`[ADDITIONAL INSTRUCTIONS] ${customInstructions}`);
+    }
+
+    parts.push('Output a single high-quality image showing the design on the product. Do NOT return the original images unchanged.');
+
+    return parts.join('\n\n');
+}
+
 export function buildVariationPrompt(
     basePrompt: string,
     stylePreset: StylePreset,

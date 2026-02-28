@@ -72,7 +72,7 @@ export default function TemplatePanel({
             setBrokenTemplateIds(prev => { const n = new Set(prev); n.delete(templateId); return n; });
             addToast('success', 'Đã cập nhật ảnh template');
         } catch (err) {
-            addToast('error', `Upload failed: ${err instanceof Error ? err.message : 'Unknown'}`);
+            addToast('error', `Tải lên thất bại: ${err instanceof Error ? err.message : 'Lỗi'}`);
         }
     }, [updateMockupTemplate, addToast]);
 
@@ -95,7 +95,7 @@ export default function TemplatePanel({
             addMockupTemplate(newTemplate);
             setActiveTemplateId(newTemplate.id);
         } catch (err) {
-            addToast('error', `Upload failed: ${err instanceof Error ? err.message : 'Unknown'}`);
+            addToast('error', `Tải lên thất bại: ${err instanceof Error ? err.message : 'Lỗi'}`);
         } finally {
             setUploadingTemplates(false);
         }
@@ -157,7 +157,7 @@ export default function TemplatePanel({
 
     return (
         <>
-            <h3>Mockup Templates</h3>
+            <h3>Mẫu Mockup</h3>
             <div
                 className={`mockup-upload-mini ${dragActive ? 'drag-active' : ''}`}
                 onDragOver={(e) => { e.preventDefault(); setDragActive(true); }}
@@ -183,7 +183,7 @@ export default function TemplatePanel({
                     }
                     e.target.value = '';
                 }} hidden />
-                {uploadingTemplates ? <><span className="spinner-sm" /> Đang upload...</> : '+ Thêm mockup template (chọn nhiều)'}
+                {uploadingTemplates ? <><span className="spinner-sm" /> Đang tải lên...</> : '+ Thêm mẫu mockup (chọn nhiều)'}
             </div>
             <input ref={replaceImageInputRef} type="file" accept="image/*" onChange={(e) => {
                 const file = e.target.files?.[0];
@@ -208,9 +208,9 @@ export default function TemplatePanel({
                             className="btn-ghost-sm"
                             onClick={applyMaskToSelected}
                             style={{ fontSize: 11, color: 'var(--accent, #00e68a)' }}
-                            title="Copy mask từ template đang active sang các template đã chọn"
+                            title="Sao chép mask sang các mẫu đã chọn"
                         >
-                            Apply mask → {selectedTemplateIds.size} selected
+                            Áp dụng mask → {selectedTemplateIds.size} mẫu
                         </button>
                     )}
                 </div>
@@ -253,7 +253,7 @@ export default function TemplatePanel({
                                 </button>
                             ) : (
                                 <span className={`template-status ${t.mask ? 'has-mask' : ''}`}>
-                                    {t.mask ? 'Mask defined' : 'No mask'}
+                                    {t.mask ? 'Đã có mask' : 'Chưa vẽ mask'}
                                 </span>
                             )}
                         </div>

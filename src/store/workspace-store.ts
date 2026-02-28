@@ -15,9 +15,11 @@ export interface Workspace {
 interface WorkspaceState {
     workspaces: Workspace[];
     activeId: string;
-    createWorkspace: (name: string) => void;
+    synced: boolean;
+    createWorkspace: (name: string) => Promise<void>;
     deleteWorkspace: (id: string) => void;
     switchWorkspace: (id: string) => void;
+    syncFromServer: () => Promise<void>;
 }
 
 export const useWorkspaceStore = create<WorkspaceState>()(
@@ -25,15 +27,31 @@ export const useWorkspaceStore = create<WorkspaceState>()(
         (set, get) => ({
             workspaces: [{ id: 'default', name: 'Default', createdAt: 0 }],
             activeId: 'default',
+            synced: false,
 
-            createWorkspace: (name) => {
-                const id = typeof crypto !== 'undefined' && crypto.randomUUID
-                    ? crypto.randomUUID()
-                    : Date.now().toString(36) + Math.random().toString(36).slice(2);
+            createWorkspace: async (name) => {
+                let id: string;
+                try {
+                    const res = await fetch('/api/workspaces', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ name }),
+                    });
+                    if (res.ok) {
+                        const data = await res.json();
+                        id = data.id;
+                    } else {
+                        throw new Error('Server error');
+                    }
+                } catch {
+                    // Fallback to local ID if server unavailable
+                    id = typeof crypto !== 'undefined' && crypto.randomUUID
+                        ? crypto.randomUUID()
+                        : Date.now().toString(36) + Math.random().toString(36).slice(2);
+                }
                 set((state) => ({
                     workspaces: [...state.workspaces, { id, name, createdAt: Date.now() }],
                 }));
-                // Switch to the new workspace
                 get().switchWorkspace(id);
             },
 
@@ -41,6 +59,8 @@ export const useWorkspaceStore = create<WorkspaceState>()(
                 if (id === 'default') return;
                 // Remove workspace data from localStorage
                 try { localStorage.removeItem(`design-tool-${getActiveUser()}-ws-${id}`); } catch { /* ignore */ }
+                // Delete from server
+                fetch(`/api/workspaces/${id}`, { method: 'DELETE' }).catch(() => {});
                 const active = get().activeId;
                 set((state) => ({
                     workspaces: state.workspaces.filter((w) => w.id !== id),
@@ -56,7 +76,58 @@ export const useWorkspaceStore = create<WorkspaceState>()(
                 set({ activeId: id });
                 window.location.reload();
             },
+
+            syncFromServer: async () => {
+                if (get().synced) return;
+                try {
+                    const res = await fetch('/api/workspaces');
+                    if (!res.ok) return;
+                    const serverWorkspaces = await res.json();
+                    if (Array.isArray(serverWorkspaces) && serverWorkspaces.length > 0) {
+                        const merged = [{ id: 'default', name: 'Default', createdAt: 0 }];
+                        const seenIds = new Set(['default']);
+                        // Add server workspaces
+                        for (const sw of serverWorkspaces) {
+                            if (!seenIds.has(sw.id)) {
+                                seenIds.add(sw.id);
+                                merged.push({
+                                    id: sw.id,
+                                    name: sw.name,
+                                    createdAt: new Date(sw.createdAt).getTime(),
+                                });
+                            }
+                        }
+                        // Also keep local workspaces that aren't on server yet
+                        for (const lw of get().workspaces) {
+                            if (!seenIds.has(lw.id)) {
+                                seenIds.add(lw.id);
+                                merged.push(lw);
+                            }
+                        }
+                        set({ workspaces: merged, synced: true });
+                    } else {
+                        set({ synced: true });
+                    }
+                } catch {
+                    // Server not available, use local only
+                    set({ synced: true });
+                }
+            },
         }),
-        { name: `design-tool-${getActiveUser()}-workspaces` }
+        {
+            name: `design-tool-${getActiveUser()}-workspaces`,
+            partialize: (state) => ({
+                workspaces: state.workspaces,
+                activeId: state.activeId,
+            }),
+        }
     )
 );
+
+// Auto-sync on client load
+if (typeof window !== 'undefined') {
+    // Small delay to ensure cookies are available
+    setTimeout(() => {
+        useWorkspaceStore.getState().syncFromServer();
+    }, 500);
+}

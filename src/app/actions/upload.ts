@@ -3,7 +3,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { storeFile, storeTemplateFile } from '@/lib/blob-storage';
 
-const MAX_FILE_SIZE = 1 * 1024 * 1024; // 1MB
+const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 
 export async function uploadFile(formData: FormData): Promise<{
     id: string;
@@ -18,7 +18,7 @@ export async function uploadFile(formData: FormData): Promise<{
     }
 
     if (file.size > MAX_FILE_SIZE) {
-        return { error: `File quá lớn (${(file.size / 1024 / 1024).toFixed(1)}MB). Tối đa 1MB.` };
+        return { error: `File quá lớn (${(file.size / 1024 / 1024).toFixed(1)}MB). Tối đa 5MB.` };
     }
 
     const allowedTypes = ['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml'];

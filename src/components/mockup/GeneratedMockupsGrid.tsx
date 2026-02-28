@@ -151,7 +151,7 @@ export default function GeneratedMockupsGrid({
                                         }} style={mockup.seo?.status === 'done' ? { color: 'var(--accent, #00e68a)' } : undefined}>
                                             {'📝'}
                                         </button>
-                                        <button className="btn-icon-sm" title="Download" onClick={(e) => {
+                                        <button className="btn-icon-sm" title="Tải xuống" onClick={(e) => {
                                             e.stopPropagation();
                                             triggerDownload(mockup.imageUrl, makeSafeFilename(mockup.templateName, mockup.variationName));
                                         }}>{Icons.download}</button>

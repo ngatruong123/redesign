@@ -1,7 +1,20 @@
+export interface AIImageOptions {
+    imageSize?: '512px' | '1K' | '2K' | '4K';
+    aspectRatio?: '1:1' | '1:4' | '2:3' | '3:2' | '3:4' | '4:3' | '4:5' | '5:4' | '9:16' | '16:9' | '21:9';
+}
+
 export interface AIProvider {
     generateVariation(
         sourceImageBase64: string,
         prompt: string,
+        options?: AIImageOptions,
+    ): Promise<string>; // returns base64 image (PNG)
+
+    generateMockup(
+        templateImageBase64: string,
+        designImageBase64: string,
+        prompt: string,
+        options?: AIImageOptions,
     ): Promise<string>; // returns base64 image (PNG)
 }
 
@@ -34,7 +47,7 @@ class GeminiProvider implements AIProvider {
         this.baseUrl = 'https://generativelanguage.googleapis.com/v1beta';
     }
 
-    async generateVariation(sourceImageBase64: string, prompt: string): Promise<string> {
+    async generateVariation(sourceImageBase64: string, prompt: string, options?: AIImageOptions): Promise<string> {
         if (!this.apiKey) {
             throw new Error('GEMINI_API_KEY is not set. Add it to .env.local');
         }
@@ -63,7 +76,10 @@ class GeminiProvider implements AIProvider {
             generationConfig: {
                 responseModalities: ['TEXT', 'IMAGE'],
                 temperature: 2.0,
-                imageConfig: { imageSize: '2K' },
+                imageConfig: {
+                    imageSize: options?.imageSize || '2K',
+                    ...(options?.aspectRatio ? { aspectRatio: options.aspectRatio } : {}),
+                },
             },
         };
 
@@ -82,9 +98,71 @@ class GeminiProvider implements AIProvider {
         }
 
         const data = await response.json();
+        return this.extractImageFromResponse(data);
+    }
 
-        // Extract image from response
-        const candidates = data?.candidates;
+    async generateMockup(templateImageBase64: string, designImageBase64: string, prompt: string, options?: AIImageOptions): Promise<string> {
+        if (!this.apiKey) {
+            throw new Error('GEMINI_API_KEY is not set. Add it to .env.local');
+        }
+
+        const url = `${this.baseUrl}/models/${this.model}:generateContent`;
+
+        console.log(`[GeminiProvider] Mockup prompt (first 200 chars): ${prompt.slice(0, 200)}`);
+
+        const requestBody = {
+            contents: [
+                {
+                    role: 'user',
+                    parts: [
+                        {
+                            text: prompt,
+                        },
+                        {
+                            inlineData: {
+                                mimeType: 'image/png',
+                                data: templateImageBase64,
+                            },
+                        },
+                        {
+                            inlineData: {
+                                mimeType: 'image/png',
+                                data: designImageBase64,
+                            },
+                        },
+                    ],
+                },
+            ],
+            generationConfig: {
+                responseModalities: ['TEXT', 'IMAGE'],
+                temperature: 1.0,
+                imageConfig: {
+                    imageSize: options?.imageSize || '2K',
+                    ...(options?.aspectRatio ? { aspectRatio: options.aspectRatio } : {}),
+                },
+            },
+        };
+
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'x-goog-api-key': this.apiKey,
+            },
+            body: JSON.stringify(requestBody),
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Gemini API error (${response.status}): ${errorText}`);
+        }
+
+        const data = await response.json();
+        return this.extractImageFromResponse(data);
+    }
+
+    private extractImageFromResponse(data: Record<string, unknown>): string {
+        const candidates = (data as { candidates?: { content?: { parts?: { inlineData?: { data?: string } }[] } }[] }).candidates;
         if (!candidates || candidates.length === 0) {
             throw new Error('No candidates returned from Gemini API');
         }
@@ -94,10 +172,9 @@ class GeminiProvider implements AIProvider {
             throw new Error('No parts in Gemini response');
         }
 
-        // Find the image part
         for (const part of parts) {
             if (part.inlineData?.data) {
-                return part.inlineData.data; // base64 image data
+                return part.inlineData.data;
             }
         }
 
@@ -119,6 +196,23 @@ class MockProvider implements AIProvider {
       <rect width="512" height="512" fill="url(#g)" rx="16"/>
       <text x="256" y="240" text-anchor="middle" fill="white" font-size="18" font-family="system-ui" opacity="0.9">AI Variation</text>
       <text x="256" y="280" text-anchor="middle" fill="white" font-size="14" font-family="system-ui" opacity="0.6">Mock Preview</text>
+    </svg>`;
+        return Buffer.from(svg).toString('base64');
+    }
+
+    async generateMockup(_templateImageBase64: string, _designImageBase64: string, _prompt: string): Promise<string> {
+        await new Promise((r) => setTimeout(r, 500 + Math.random() * 1000));
+        const hue = Math.floor(Math.random() * 360);
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+      <defs>
+        <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" style="stop-color:hsl(${hue},60%,50%)"/>
+          <stop offset="100%" style="stop-color:hsl(${(hue + 90) % 360},60%,30%)"/>
+        </linearGradient>
+      </defs>
+      <rect width="1024" height="1024" fill="url(#g)" rx="16"/>
+      <text x="512" y="480" text-anchor="middle" fill="white" font-size="24" font-family="system-ui" opacity="0.9">AI Mockup</text>
+      <text x="512" y="540" text-anchor="middle" fill="white" font-size="16" font-family="system-ui" opacity="0.6">Mock Preview</text>
     </svg>`;
         return Buffer.from(svg).toString('base64');
     }
