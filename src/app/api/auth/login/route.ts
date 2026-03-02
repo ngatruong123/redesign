@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkCredentials, createAuthToken, AUTH_COOKIE, authCookieOptions } from '@/auth';
 import { checkRateLimit } from '@/lib/rate-limiter';
+import { prisma } from '@/lib/db';
 
 export async function POST(request: NextRequest) {
     const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
@@ -18,6 +19,18 @@ export async function POST(request: NextRequest) {
 
     if (!(await checkCredentials(username, password))) {
         return NextResponse.json({ error: 'Sai tài khoản hoặc mật khẩu' }, { status: 401 });
+    }
+
+    // Ensure user exists in DB for workspace/data persistence
+    try {
+        const existing = await prisma.user.findUnique({ where: { username } });
+        if (!existing) {
+            await prisma.user.create({
+                data: { username, password: '___env_auth___' },
+            });
+        }
+    } catch {
+        // DB not available — workspaces will fallback to localStorage
     }
 
     const token = await createAuthToken(username);

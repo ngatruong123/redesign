@@ -5,7 +5,7 @@ const globalForPrisma = globalThis as unknown as { prisma: InstanceType<typeof P
 
 function createPrisma() {
     const adapter = new PrismaLibSql({
-        url: process.env.DATABASE_URL || 'file:./prisma/dev.db',
+        url: process.env.DATABASE_URL || 'file:./dev.db',
     });
     return new PrismaClient({ adapter });
 }
