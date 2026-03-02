@@ -3,9 +3,9 @@ import { jwtVerify } from 'jose';
 
 const PUBLIC_PATHS = ['/login', '/register', '/api/auth', '/landing'];
 
-function getSecret(): Uint8Array {
+function getSecret(): Uint8Array | null {
     const secret = process.env.AUTH_SECRET || process.env.AUTH_PASSWORD;
-    if (!secret) return new TextEncoder().encode('');
+    if (!secret) return null;
     return new TextEncoder().encode(secret);
 }
 
@@ -16,13 +16,18 @@ export async function middleware(request: NextRequest) {
         return NextResponse.next();
     }
 
+    const secret = getSecret();
+    if (!secret) {
+        return NextResponse.redirect(new URL('/landing', request.url));
+    }
+
     const token = request.cookies.get('design-tool-auth')?.value;
     if (!token) {
         return NextResponse.redirect(new URL('/landing', request.url));
     }
 
     try {
-        await jwtVerify(token, getSecret());
+        await jwtVerify(token, secret);
         return NextResponse.next();
     } catch {
         return NextResponse.redirect(new URL('/landing', request.url));

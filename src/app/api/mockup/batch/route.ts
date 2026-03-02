@@ -41,6 +41,10 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'No items to process' }, { status: 400 });
         }
 
+        if (items.length > 50) {
+            return NextResponse.json({ error: 'Too many items (max 50)' }, { status: 400 });
+        }
+
         const results = [];
 
         for (const item of items) {

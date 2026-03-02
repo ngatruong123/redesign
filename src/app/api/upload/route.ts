@@ -8,8 +8,13 @@ function getCorsHeaders(request: NextRequest): Record<string, string> {
     const allowedOrigins = process.env.CORS_ALLOWED_ORIGINS?.split(',').map(s => s.trim()) || [];
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || '';
 
+    const allowedExtIds = (process.env.ALLOWED_EXTENSION_IDS || '').split(',').map(s => s.trim()).filter(Boolean);
+    const isAllowedExtension = origin.startsWith('chrome-extension://') &&
+        allowedExtIds.length > 0 &&
+        allowedExtIds.some(id => origin === `chrome-extension://${id}`);
+
     const isAllowed =
-        origin.startsWith('chrome-extension://') ||
+        isAllowedExtension ||
         origin === appUrl ||
         allowedOrigins.includes(origin);
 
@@ -28,8 +33,12 @@ export async function POST(request: NextRequest) {
     const corsHeaders = getCorsHeaders(request);
     const origin = request.headers.get('origin') || '';
 
-    // Skip auth for Chrome extension uploads
-    if (!origin.startsWith('chrome-extension://')) {
+    // Skip auth for allowed Chrome extension uploads
+    const allowedExtIds = (process.env.ALLOWED_EXTENSION_IDS || '').split(',').map(s => s.trim()).filter(Boolean);
+    const isAllowedExt = origin.startsWith('chrome-extension://') &&
+        allowedExtIds.length > 0 &&
+        allowedExtIds.some(id => origin === `chrome-extension://${id}`);
+    if (!isAllowedExt) {
         const authError = await requireAuth();
         if (authError) return authError;
     }

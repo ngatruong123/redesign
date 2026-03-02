@@ -24,6 +24,10 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'No source image provided' }, { status: 400 });
         }
 
+        if (sources.length > 10) {
+            return NextResponse.json({ error: 'Too many source images (max 10)' }, { status: 400 });
+        }
+
         const provider = createAIProvider(process.env.AI_PROVIDER || 'mock');
 
         // Pre-fetch all source images
@@ -42,6 +46,10 @@ export async function POST(request: NextRequest) {
             });
         } else {
             stylePresets = DEFAULT_STYLE_PRESETS.slice(0, 10);
+        }
+
+        if (stylePresets.length > 20) {
+            return NextResponse.json({ error: 'Too many style presets (max 20)' }, { status: 400 });
         }
 
         // Build tasks: source × style

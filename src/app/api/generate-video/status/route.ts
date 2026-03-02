@@ -17,6 +17,11 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ error: 'op parameter required' }, { status: 400 });
         }
 
+        // Validate op to prevent SSRF — must be operations/<alphanumeric+dash>
+        if (!/^operations\/[a-zA-Z0-9\-]+$/.test(op)) {
+            return NextResponse.json({ error: 'Invalid op parameter' }, { status: 400 });
+        }
+
         // Poll operation status via REST
         const res = await fetch(`${BASE_URL}/${op}`, {
             headers: { 'x-goog-api-key': API_KEY! },
@@ -49,7 +54,7 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({
                 error: 'No video generated',
                 status: 'error',
-                debug: JSON.stringify(data.response || data).slice(0, 1000),
+                ...(process.env.NODE_ENV === 'development' && { debug: JSON.stringify(data.response || data).slice(0, 1000) }),
             }, { status: 500 });
         }
 
@@ -72,7 +77,7 @@ export async function GET(req: NextRequest) {
                 return NextResponse.json({
                     error: `Failed to download video (${videoRes.status})`,
                     status: 'error',
-                    debug: errBody.slice(0, 500),
+                    ...(process.env.NODE_ENV === 'development' && { debug: errBody.slice(0, 500) }),
                 }, { status: 500 });
             }
             const videoBuffer = Buffer.from(await videoRes.arrayBuffer());
@@ -83,7 +88,7 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({
                 error: 'No video data in response',
                 status: 'error',
-                debug: JSON.stringify(videoEntry).slice(0, 500),
+                ...(process.env.NODE_ENV === 'development' && { debug: JSON.stringify(videoEntry).slice(0, 500) }),
             }, { status: 500 });
         }
 
