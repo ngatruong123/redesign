@@ -76,6 +76,7 @@ Respond ONLY with valid JSON, no markdown fences:
                 }],
                 generationConfig: {
                     responseModalities: ['TEXT'],
+                    responseMimeType: 'application/json',
                     temperature: 0.7,
                 },
             }),
@@ -100,7 +101,46 @@ Respond ONLY with valid JSON, no markdown fences:
         const fenceMatch = jsonText.match(/```(?:json)?\s*([\s\S]*?)```/);
         if (fenceMatch) jsonText = fenceMatch[1].trim();
 
-        const parsed = JSON.parse(jsonText);
+        let parsed: { title?: string; description?: string; tags?: unknown[] };
+        try {
+            parsed = JSON.parse(jsonText);
+        } catch {
+            // Gemini sometimes produces invalid JSON (unescaped newlines, special chars).
+            // Extract fields with regex as fallback.
+            const titleMatch = jsonText.match(/"title"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+            const tagsMatch = jsonText.match(/"tags"\s*:\s*\[([\s\S]*?)\]/);
+            // For description, find the start and scan for the closing quote
+            const descStart = jsonText.indexOf('"description"');
+            let descValue = '';
+            if (descStart !== -1) {
+                const quoteStart = jsonText.indexOf('"', jsonText.indexOf(':', descStart) + 1);
+                if (quoteStart !== -1) {
+                    // Walk forward to find unescaped closing quote followed by , or }
+                    let i = quoteStart + 1;
+                    let acc = '';
+                    while (i < jsonText.length) {
+                        if (jsonText[i] === '\\' && i + 1 < jsonText.length) {
+                            acc += jsonText[i] + jsonText[i + 1];
+                            i += 2;
+                        } else if (jsonText[i] === '"') {
+                            break;
+                        } else {
+                            acc += jsonText[i];
+                            i++;
+                        }
+                    }
+                    descValue = acc.replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\\\/g, '\\');
+                }
+            }
+
+            parsed = {
+                title: titleMatch?.[1]?.replace(/\\n/g, '\n').replace(/\\"/g, '"') || '',
+                description: descValue,
+                tags: tagsMatch?.[1]
+                    ? (tagsMatch[1].match(/"((?:[^"\\]|\\.)*)"/g) || []).map((s: string) => s.slice(1, -1))
+                    : [],
+            };
+        }
 
         // Validate & enforce Etsy limits
         const title = String(parsed.title || '').slice(0, 140);
