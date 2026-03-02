@@ -1,31 +1,52 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
 import { storeFile, storeTemplateFile } from '@/lib/blob-storage';
+import { requireAuth } from '@/lib/api-auth';
 
-const CORS_HEADERS = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type',
-};
+function getCorsHeaders(request: NextRequest): Record<string, string> {
+    const origin = request.headers.get('origin') || '';
+    const allowedOrigins = process.env.CORS_ALLOWED_ORIGINS?.split(',').map(s => s.trim()) || [];
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || '';
 
-export async function OPTIONS() {
-    return new NextResponse(null, { status: 204, headers: CORS_HEADERS });
+    const isAllowed =
+        origin.startsWith('chrome-extension://') ||
+        origin === appUrl ||
+        allowedOrigins.includes(origin);
+
+    return {
+        'Access-Control-Allow-Origin': isAllowed ? origin : '',
+        'Access-Control-Allow-Methods': 'POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type',
+    };
+}
+
+export async function OPTIONS(request: NextRequest) {
+    return new NextResponse(null, { status: 204, headers: getCorsHeaders(request) });
 }
 
 export async function POST(request: NextRequest) {
+    const corsHeaders = getCorsHeaders(request);
+    const origin = request.headers.get('origin') || '';
+
+    // Skip auth for Chrome extension uploads
+    if (!origin.startsWith('chrome-extension://')) {
+        const authError = await requireAuth();
+        if (authError) return authError;
+    }
+
     try {
         const formData = await request.formData();
         const file = formData.get('file') as File | null;
 
         if (!file) {
-            return NextResponse.json({ error: 'No file uploaded' }, { status: 400, headers: CORS_HEADERS });
+            return NextResponse.json({ error: 'No file uploaded' }, { status: 400, headers: corsHeaders });
         }
 
         const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
         if (file.size > MAX_FILE_SIZE) {
             return NextResponse.json(
                 { error: `File too large (${(file.size / 1024 / 1024).toFixed(1)}MB). Maximum is 5MB.` },
-                { status: 413, headers: CORS_HEADERS }
+                { status: 413, headers: corsHeaders }
             );
         }
 
@@ -35,7 +56,7 @@ export async function POST(request: NextRequest) {
         if (!allowedTypes.includes(file.type)) {
             return NextResponse.json(
                 { error: 'Invalid file type. Allowed: PNG, JPG, WebP, SVG' },
-                { status: 400, headers: CORS_HEADERS }
+                { status: 400, headers: corsHeaders }
             );
         }
 
@@ -55,13 +76,12 @@ export async function POST(request: NextRequest) {
             name: file.name,
             url,
             size: file.size,
-        }, { headers: CORS_HEADERS });
+        }, { headers: corsHeaders });
     } catch (error) {
         console.error('Upload error:', error);
-        console.error('STORAGE_PROVIDER:', JSON.stringify(process.env.STORAGE_PROVIDER));
         return NextResponse.json(
-            { error: 'Upload failed', detail: error instanceof Error ? error.message : String(error) },
-            { status: 500, headers: CORS_HEADERS }
+            { error: 'Upload failed' },
+            { status: 500, headers: corsHeaders }
         );
     }
 }

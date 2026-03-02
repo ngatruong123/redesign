@@ -3,6 +3,7 @@ import { readFile } from 'fs/promises';
 import { existsSync } from 'fs';
 import path from 'path';
 import { getStorageDir } from '@/lib/storage';
+import { requireAuth } from '@/lib/api-auth';
 
 const ALLOWED_DIRS = ['uploads', 'variations', 'mockups', 'videos', 'templates'] as const;
 
@@ -10,6 +11,8 @@ export async function GET(
     request: NextRequest,
     { params }: { params: Promise<{ path: string[] }> }
 ) {
+    const authError = await requireAuth();
+    if (authError) return authError;
     try {
         const segments = (await params).path;
         if (!segments || segments.length < 2) {

@@ -3,8 +3,11 @@ import { createAIProvider } from '@/lib/ai-provider';
 import { buildMockupPrompt } from '@/lib/prompt-engine';
 import { resolveToBuffer, storeFile } from '@/lib/blob-storage';
 import { v4 as uuidv4 } from 'uuid';
+import { requireAuth } from '@/lib/api-auth';
 
 export async function POST(request: NextRequest) {
+    const authError = await requireAuth();
+    if (authError) return authError;
     const body = await request.json();
     const { templates, variations, prompt: customPrompt, imageSize, aspectRatio } = body;
 

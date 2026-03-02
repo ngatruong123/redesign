@@ -1,7 +1,10 @@
 import { NextRequest } from 'next/server';
 import { resolveToBuffer } from '@/lib/blob-storage';
+import { requireAuth } from '@/lib/api-auth';
 
 export async function GET(request: NextRequest) {
+    const authError = await requireAuth();
+    if (authError) return authError;
     const { searchParams } = new URL(request.url);
     const source = searchParams.get('source') || '';
     const name = searchParams.get('name') || 'mockup.png';

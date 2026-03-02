@@ -1,12 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import path from 'path';
 import { promises as fs } from 'fs';
+import { requireAuth } from '@/lib/api-auth';
+import { getAuthUsername } from '@/auth';
 
 const TEMPLATES_DIR = path.join(process.cwd(), '.design-tool-data', 'user-templates');
-
-function getUsername(request: NextRequest): string | null {
-    return request.cookies.get('design-tool-user')?.value || null;
-}
 
 function userFilePath(username: string, workspaceId: string): string {
     // Sanitize to prevent path traversal
@@ -16,7 +14,10 @@ function userFilePath(username: string, workspaceId: string): string {
 }
 
 export async function GET(request: NextRequest) {
-    const username = getUsername(request);
+    const authError = await requireAuth();
+    if (authError) return authError;
+
+    const username = await getAuthUsername();
     if (!username) {
         return NextResponse.json([], { status: 200 });
     }
@@ -33,7 +34,10 @@ export async function GET(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
-    const username = getUsername(request);
+    const authError = await requireAuth();
+    if (authError) return authError;
+
+    const username = await getAuthUsername();
     if (!username) {
         return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
@@ -46,6 +50,7 @@ export async function PUT(request: NextRequest) {
         await fs.writeFile(userFilePath(username, workspaceId), JSON.stringify(templates, null, 2));
         return NextResponse.json({ ok: true });
     } catch (e) {
-        return NextResponse.json({ error: String(e) }, { status: 500 });
+        console.error('Templates save error:', e);
+        return NextResponse.json({ error: 'Failed to save templates' }, { status: 500 });
     }
 }

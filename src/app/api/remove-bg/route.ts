@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
 import sharp from 'sharp';
 import { storeFile, resolveToBuffer } from '@/lib/blob-storage';
+import { requireAuth } from '@/lib/api-auth';
 
 // ---- Gradient presets (must match client-side) ----
 const GRADIENT_MAP: Record<string, { colors: string[]; angle: number }> = {
@@ -80,6 +81,8 @@ async function createGradientBuffer(width: number, height: number, gradientId: s
 }
 
 export async function POST(request: NextRequest) {
+    const authError = await requireAuth();
+    if (authError) return authError;
     try {
         const body = await request.json();
         const {
@@ -293,7 +296,7 @@ export async function POST(request: NextRequest) {
     } catch (error) {
         console.error('Remove BG error:', error);
         return NextResponse.json(
-            { error: error instanceof Error ? error.message : 'Remove BG failed' },
+            { error: 'Remove BG failed' },
             { status: 500 }
         );
     }

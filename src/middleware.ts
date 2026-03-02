@@ -1,20 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { jwtVerify } from 'jose';
 
 const PUBLIC_PATHS = ['/login', '/register', '/api/auth', '/landing'];
 
-export function middleware(request: NextRequest) {
+function getSecret(): Uint8Array {
+    const secret = process.env.AUTH_SECRET || process.env.AUTH_PASSWORD;
+    if (!secret) return new TextEncoder().encode('');
+    return new TextEncoder().encode(secret);
+}
+
+export async function middleware(request: NextRequest) {
     const { pathname } = request.nextUrl;
 
     if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {
         return NextResponse.next();
     }
 
-    const auth = request.cookies.get('design-tool-auth');
-    if (auth?.value !== 'authenticated') {
+    const token = request.cookies.get('design-tool-auth')?.value;
+    if (!token) {
         return NextResponse.redirect(new URL('/landing', request.url));
     }
 
-    return NextResponse.next();
+    try {
+        await jwtVerify(token, getSecret());
+        return NextResponse.next();
+    } catch {
+        return NextResponse.redirect(new URL('/landing', request.url));
+    }
 }
 
 export const config = {

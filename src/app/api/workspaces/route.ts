@@ -1,14 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import { prisma } from '@/lib/db';
-
-async function getUsername(): Promise<string | null> {
-    const cookieStore = await cookies();
-    return cookieStore.get('design-tool-user')?.value || null;
-}
+import { getAuthUsername } from '@/auth';
 
 export async function GET() {
-    const username = await getUsername();
+    const username = await getAuthUsername();
     if (!username) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const user = await prisma.user.findUnique({ where: { username } });
@@ -23,7 +18,7 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-    const username = await getUsername();
+    const username = await getAuthUsername();
     if (!username) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const user = await prisma.user.findUnique({ where: { username } });

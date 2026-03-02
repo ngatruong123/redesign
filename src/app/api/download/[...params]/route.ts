@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { resolveToBuffer } from '@/lib/blob-storage';
 import path from 'path';
+import { requireAuth } from '@/lib/api-auth';
 
 // URL format: /api/download/{desired-filename}?source={imageUrl}
 // The source can be a blob URL or a local /api/files/ URL
@@ -8,6 +9,8 @@ export async function GET(
     request: NextRequest,
     { params }: { params: Promise<{ params: string[] }> }
 ) {
+    const authError = await requireAuth();
+    if (authError) return authError;
     const segments = (await params).params;
     if (!segments || segments.length < 1) {
         return new Response('Not found', { status: 404 });

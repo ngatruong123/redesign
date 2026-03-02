@@ -1,14 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import { prisma } from '@/lib/db';
-
-async function getUsername(): Promise<string | null> {
-    const cookieStore = await cookies();
-    return cookieStore.get('design-tool-user')?.value || null;
-}
+import { getAuthUsername } from '@/auth';
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-    const username = await getUsername();
+    const username = await getAuthUsername();
     if (!username) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const { id } = await params;
@@ -24,7 +19,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 }
 
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-    const username = await getUsername();
+    const username = await getAuthUsername();
     if (!username) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const { id } = await params;
@@ -48,7 +43,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 }
 
 export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-    const username = await getUsername();
+    const username = await getAuthUsername();
     if (!username) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const { id } = await params;

@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { resolveToBuffer } from '@/lib/blob-storage';
+import { requireAuth } from '@/lib/api-auth';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
 
 export async function POST(req: NextRequest) {
+    const authError = await requireAuth();
+    if (authError) return authError;
     try {
         const { imageUrl, productContext } = await req.json();
         if (!imageUrl) {

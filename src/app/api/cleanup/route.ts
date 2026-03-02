@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import path from 'path';
 import { readdir, rm } from 'fs/promises';
 import { deleteR2Prefix } from '@/lib/blob-storage';
+import { requireAuth } from '@/lib/api-auth';
 
 /** Prefixes to clean — only uploads and variations (mockups/videos are data URLs) */
 const CLEANUP_PREFIXES = ['uploads/', 'variations/'];
@@ -25,6 +26,8 @@ async function cleanupLocal() {
 }
 
 export async function POST() {
+    const authError = await requireAuth();
+    if (authError) return authError;
     try {
         // Clean R2
         const r2Deleted = await deleteR2Prefix(CLEANUP_PREFIXES);
@@ -35,7 +38,6 @@ export async function POST() {
         return NextResponse.json({ deleted: r2Deleted + localDeleted });
     } catch (error) {
         console.error('Cleanup error:', error);
-        const message = error instanceof Error ? error.message : 'Unknown error';
-        return NextResponse.json({ error: message }, { status: 500 });
+        return NextResponse.json({ error: 'Cleanup failed' }, { status: 500 });
     }
 }

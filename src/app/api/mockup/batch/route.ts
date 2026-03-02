@@ -3,6 +3,7 @@ import { createCanvas, loadImage } from '@napi-rs/canvas';
 import { v4 as uuidv4 } from 'uuid';
 import { resolveToBuffer, storeFile } from '@/lib/blob-storage';
 import { drawPerspective, rectToQuad, type FitMode } from '@/lib/perspective';
+import { requireAuth } from '@/lib/api-auth';
 
 interface Point { x: number; y: number; }
 
@@ -29,6 +30,8 @@ interface BatchItem {
 const VALID_BLEND_MODES = ['normal', 'multiply', 'overlay', 'screen', 'soft-light'] as const;
 
 export async function POST(request: NextRequest) {
+    const authError = await requireAuth();
+    if (authError) return authError;
     try {
         const body = await request.json();
         const { items } = body as { items: BatchItem[] };
@@ -159,8 +162,6 @@ export async function POST(request: NextRequest) {
         });
     } catch (error) {
         console.error('Batch error:', error);
-        const message = error instanceof Error ? error.message : 'Unknown error';
-        const stack = error instanceof Error ? error.stack : '';
-        return NextResponse.json({ error: 'Batch processing failed', message, stack }, { status: 500 });
+        return NextResponse.json({ error: 'Batch processing failed' }, { status: 500 });
     }
 }

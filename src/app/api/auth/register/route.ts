@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { prisma } from '@/lib/db';
-import { AUTH_COOKIE } from '@/auth';
+import { createAuthToken, AUTH_COOKIE, authCookieOptions } from '@/auth';
 
 export async function POST(request: NextRequest) {
     const body = await request.json();
@@ -49,19 +49,9 @@ export async function POST(request: NextRequest) {
         },
     });
 
-    // Auto-login
-    const res = NextResponse.json({ ok: true });
-    res.cookies.set(AUTH_COOKIE, 'authenticated', {
-        httpOnly: true,
-        path: '/',
-        maxAge: 60 * 60 * 24 * 30,
-        sameSite: 'lax',
-    });
-    res.cookies.set('design-tool-user', username, {
-        httpOnly: false,
-        path: '/',
-        maxAge: 60 * 60 * 24 * 30,
-        sameSite: 'lax',
-    });
+    // Auto-login with JWT
+    const token = await createAuthToken(username);
+    const res = NextResponse.json({ ok: true, username });
+    res.cookies.set(AUTH_COOKIE, token, authCookieOptions());
     return res;
 }

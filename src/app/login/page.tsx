@@ -24,7 +24,8 @@ export default function LoginPage() {
     });
 
     if (res.ok) {
-      localStorage.setItem("design-tool-user", username);
+      const data = await res.json();
+      localStorage.setItem("design-tool-user", data.username || username);
       window.location.href = "/";
       return;
     } else {

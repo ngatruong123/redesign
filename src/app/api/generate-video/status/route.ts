@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAuth } from '@/lib/api-auth';
 
 const API_KEY = process.env.GOOGLE_AI_API_KEY || process.env.GEMINI_API_KEY;
 const BASE_URL = 'https://generativelanguage.googleapis.com/v1beta';
 
 export async function GET(req: NextRequest) {
+    const authError = await requireAuth();
+    if (authError) return authError;
     try {
         if (!API_KEY) {
             return NextResponse.json({ error: 'GOOGLE_AI_API_KEY not configured' }, { status: 500 });

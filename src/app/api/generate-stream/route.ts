@@ -4,8 +4,11 @@ import { DEFAULT_STYLE_PRESETS, buildVariationPrompt } from '@/lib/prompt-engine
 import { v4 as uuidv4 } from 'uuid';
 import { storeFile, resolveToBuffer } from '@/lib/blob-storage';
 import { parallelLimit } from '@/lib/concurrency';
+import { requireAuth } from '@/lib/api-auth';
 
 export async function POST(request: NextRequest) {
+    const authError = await requireAuth();
+    if (authError) return authError;
     try {
         const body = await request.json();
         const { sourceImageUrl, sourceImageUrls, styles, additionalPrompt, imageSize, aspectRatio } = body;

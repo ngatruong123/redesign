@@ -2,8 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import sharp from 'sharp';
 import { v4 as uuidv4 } from 'uuid';
 import { resolveToBuffer, storeFile } from '@/lib/blob-storage';
+import { requireAuth } from '@/lib/api-auth';
 
 export async function POST(request: NextRequest) {
+    const authError = await requireAuth();
+    if (authError) return authError;
     try {
         const body = await request.json();
         const { mockupImagePath, designImagePath, mask } = body;
