@@ -61,12 +61,13 @@ export async function checkCredentials(username: string, password: string): Prom
 }
 
 export function authCookieOptions(secure?: boolean) {
+    const isHttps = process.env.NEXT_PUBLIC_APP_URL?.startsWith('https://') ?? false;
     return {
         httpOnly: true,
         path: '/',
         maxAge: 60 * 60 * 24 * 30,
         sameSite: 'lax' as const,
-        secure: secure ?? process.env.NODE_ENV === 'production',
+        secure: secure ?? isHttps,
     };
 }
 
