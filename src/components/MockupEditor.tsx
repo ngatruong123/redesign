@@ -39,7 +39,6 @@ export default function MockupEditor() {
     const addToast = useToastStore((s) => s.addToast);
 
     const [activeTemplateId, setActiveTemplateId] = useState<string | null>(null);
-    const [selectedTemplateIds, setSelectedTemplateIds] = useState<Set<string>>(new Set());
     const [lightboxImage, setLightboxImage] = useState<{ url: string; alt: string } | null>(null);
     const [removeBgVariationId, setRemoveBgVariationId] = useState<string | null>(null);
     const [seoMockupId, setSeoMockupId] = useState<string | null>(null);
@@ -350,15 +349,15 @@ export default function MockupEditor() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [fitMode, blendMode, opacity, shadowEnabled, shadowBlur]);
 
-    // Copy active template's mask to all selected templates
-    const applyMaskToSelected = () => {
+    // Copy active template's mask to all other templates
+    const applyMaskToAll = () => {
         if (!activeTemplate?.mask) {
             addToast('error', 'Template hiện tại chưa có mask');
             return;
         }
-        const targets = mockupTemplates.filter(t => selectedTemplateIds.has(t.id) && t.id !== activeTemplateId);
+        const targets = mockupTemplates.filter(t => t.id !== activeTemplateId);
         if (targets.length === 0) {
-            addToast('error', 'Chưa chọn template nào để áp dụng');
+            addToast('error', 'Không có template nào khác để áp dụng');
             return;
         }
         for (const t of targets) {
@@ -675,13 +674,10 @@ export default function MockupEditor() {
                     <TemplatePanel
                         mockupTemplates={mockupTemplates}
                         activeTemplateId={activeTemplateId}
-                        selectedTemplateIds={selectedTemplateIds}
                         addMockupTemplate={addMockupTemplate}
                         removeMockupTemplate={removeMockupTemplate}
                         updateMockupTemplate={updateMockupTemplate}
                         setActiveTemplateId={setActiveTemplateId}
-                        setSelectedTemplateIds={setSelectedTemplateIds}
-                        applyMaskToSelected={applyMaskToSelected}
                     />
 
                     <VariationsPanel
@@ -713,13 +709,13 @@ export default function MockupEditor() {
                                     <button className="btn-icon" title="Làm lại (Ctrl+Shift+Z)" onClick={history.redo} disabled={history.historyIndex >= history.maskHistory.length - 1}>{Icons.redo}</button>
                                     <button className="btn-ghost-sm" onClick={handleResetMask}>Đặt lại</button>
                                     {interaction.quadDone && <button className="btn-ghost-sm" onClick={handleResetCurves}>Đặt lại đường cong</button>}
-                                    {interaction.quadDone && selectedTemplateIds.size > 0 && (
+                                    {interaction.quadDone && activeTemplate?.mask && mockupTemplates.length > 1 && (
                                         <button
                                             className="btn-ghost-sm"
-                                            onClick={applyMaskToSelected}
+                                            onClick={applyMaskToAll}
                                             style={{ color: 'var(--accent, #00e68a)', fontWeight: 600 }}
                                         >
-                                            Áp dụng mask → {selectedTemplateIds.size} mẫu
+                                            Áp dụng mask → {mockupTemplates.length - 1} mẫu khác
                                         </button>
                                     )}
                                 </div>

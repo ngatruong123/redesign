@@ -8,25 +8,19 @@ import type { MockupTemplate } from '@/types';
 interface TemplatePanelProps {
     mockupTemplates: MockupTemplate[];
     activeTemplateId: string | null;
-    selectedTemplateIds: Set<string>;
     addMockupTemplate: (t: MockupTemplate) => void;
     removeMockupTemplate: (id: string) => void;
     updateMockupTemplate: (id: string, updates: Partial<MockupTemplate>) => void;
     setActiveTemplateId: (id: string | null) => void;
-    setSelectedTemplateIds: React.Dispatch<React.SetStateAction<Set<string>>>;
-    applyMaskToSelected: () => void;
 }
 
 export default function TemplatePanel({
     mockupTemplates,
     activeTemplateId,
-    selectedTemplateIds,
     addMockupTemplate,
     removeMockupTemplate,
     updateMockupTemplate,
     setActiveTemplateId,
-    setSelectedTemplateIds,
-    applyMaskToSelected,
 }: TemplatePanelProps) {
     const addToast = useToastStore((s) => s.addToast);
     const [dragActive, setDragActive] = useState(false);
@@ -35,8 +29,6 @@ export default function TemplatePanel({
     const [replacingTemplateId, setReplacingTemplateId] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const replaceImageInputRef = useRef<HTMLInputElement>(null);
-
-    const activeTemplate = mockupTemplates.find((t) => t.id === activeTemplateId);
 
     // Detect broken template images
     useEffect(() => {
@@ -138,23 +130,6 @@ export default function TemplatePanel({
         setUploadingTemplates(false);
     }, [addMockupTemplate, addToast, setActiveTemplateId]);
 
-    const toggleTemplateSelection = (id: string, e: React.MouseEvent) => {
-        e.stopPropagation();
-        setSelectedTemplateIds(prev => {
-            const next = new Set(prev);
-            if (next.has(id)) next.delete(id); else next.add(id);
-            return next;
-        });
-    };
-
-    const selectAllTemplates = () => {
-        setSelectedTemplateIds(new Set(mockupTemplates.map(t => t.id)));
-    };
-
-    const deselectAllTemplates = () => {
-        setSelectedTemplateIds(new Set());
-    };
-
     return (
         <>
             <h3>Mẫu Mockup</h3>
@@ -192,30 +167,6 @@ export default function TemplatePanel({
                 setReplacingTemplateId(null);
             }} hidden />
 
-            {mockupTemplates.length > 1 && (
-                <div style={{
-                    display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8,
-                    padding: '6px 0', borderBottom: '1px solid var(--border, #333)',
-                }}>
-                    <button className="btn-ghost-sm" onClick={selectAllTemplates} style={{ fontSize: 11 }}>
-                        Chọn tất cả
-                    </button>
-                    <button className="btn-ghost-sm" onClick={deselectAllTemplates} style={{ fontSize: 11 }}>
-                        Bỏ chọn
-                    </button>
-                    {selectedTemplateIds.size > 0 && activeTemplate?.mask && (
-                        <button
-                            className="btn-ghost-sm"
-                            onClick={applyMaskToSelected}
-                            style={{ fontSize: 11, color: 'var(--accent, #00e68a)' }}
-                            title="Sao chép mask sang các mẫu đã chọn"
-                        >
-                            Áp dụng mask → {selectedTemplateIds.size} mẫu
-                        </button>
-                    )}
-                </div>
-            )}
-
             <div className="template-list">
                 {mockupTemplates.map((t) => (
                     <div
@@ -223,13 +174,6 @@ export default function TemplatePanel({
                         className={`template-item ${activeTemplateId === t.id ? 'active' : ''}`}
                         onClick={() => setActiveTemplateId(t.id)}
                     >
-                        <div
-                            className={`checkbox ${selectedTemplateIds.has(t.id) ? 'checked' : ''}`}
-                            onClick={(e) => toggleTemplateSelection(t.id, e)}
-                            style={{ flexShrink: 0, width: 20, height: 20, fontSize: 12 }}
-                        >
-                            {selectedTemplateIds.has(t.id) && '✓'}
-                        </div>
                         {brokenTemplateIds.has(t.id) ? (
                             <div style={{ width: 48, height: 48, background: 'var(--bg-tertiary, #333)', borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>
                                 ?
@@ -261,7 +205,6 @@ export default function TemplatePanel({
                             e.stopPropagation();
                             removeMockupTemplate(t.id);
                             if (activeTemplateId === t.id) setActiveTemplateId(null);
-                            setSelectedTemplateIds(prev => { const n = new Set(prev); n.delete(t.id); return n; });
                         }}>✕</button>
                     </div>
                 ))}
