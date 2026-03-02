@@ -346,7 +346,9 @@ export default function MockupEditor() {
             const mask = buildMaskFromState(interaction.corners, interaction.edgeCPs);
             updateMockupTemplate(activeTemplate.id, { mask });
         }
-    }, [fitMode, blendMode, opacity, shadowEnabled, shadowBlur, interaction.quadDone, activeTemplate, buildMaskFromState, interaction.corners, interaction.edgeCPs, updateMockupTemplate]);
+        // Only trigger on blend control changes, not on template/interaction changes
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [fitMode, blendMode, opacity, shadowEnabled, shadowBlur]);
 
     // Copy active template's mask to all selected templates
     const applyMaskToSelected = () => {
