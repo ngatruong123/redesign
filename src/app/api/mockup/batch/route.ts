@@ -19,6 +19,9 @@ interface BatchItem {
         opacity?: number;
         shadow?: { blur: number; color: string; };
     };
+    overlay?: {
+        x: number; y: number; width: number; height: number; rotation?: number;
+    };
     templateName: string;
     variationName: string;
 }
@@ -73,7 +76,33 @@ export async function POST(request: NextRequest) {
                 const tmpCanvas = createCanvas(mockupImg.width, mockupImg.height);
                 const tmpCtx = tmpCanvas.getContext('2d');
                 const fitMode: FitMode = mask.fitMode === 'fill' ? 'fill' : 'contain';
-                drawPerspective(tmpCtx, designImg, quad, mask.edgeCurves, 16, fitMode);
+
+                if (item.overlay) {
+                    // Overlay mode: draw design at overlay position, then warp the composed result into mask
+                    const ov = item.overlay;
+                    const overlayCanvas = createCanvas(mockupImg.width, mockupImg.height);
+                    const ovCtx = overlayCanvas.getContext('2d');
+
+                    // Draw design at overlay position/size
+                    ovCtx.save();
+                    if (ov.rotation) {
+                        const cx = ov.x + ov.width / 2;
+                        const cy = ov.y + ov.height / 2;
+                        ovCtx.translate(cx, cy);
+                        ovCtx.rotate((ov.rotation * Math.PI) / 180);
+                        ovCtx.drawImage(designImg, -ov.width / 2, -ov.height / 2, ov.width, ov.height);
+                    } else {
+                        ovCtx.drawImage(designImg, ov.x, ov.y, ov.width, ov.height);
+                    }
+                    ovCtx.restore();
+
+                    // Load the overlay canvas as an image for perspective warp
+                    const overlayBuffer = overlayCanvas.toBuffer('image/png');
+                    const overlayImg = await loadImage(overlayBuffer);
+                    drawPerspective(tmpCtx, overlayImg, quad, mask.edgeCurves, 16, 'fill');
+                } else {
+                    drawPerspective(tmpCtx, designImg, quad, mask.edgeCurves, 16, fitMode);
+                }
 
                 // 4. Set blend mode and opacity
                 const compositeMap: Record<string, GlobalCompositeOperation> = {

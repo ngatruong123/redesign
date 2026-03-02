@@ -513,33 +513,47 @@ export default function MockupEditor() {
         setError(null);
 
         const items = readyTemplates.flatMap((t) => {
-            // If template has designOverlay, use the overlay's variation and position
-            if (t.designOverlay && !t.mask) {
+            // If template has designOverlay, use the overlay's image and position
+            if (t.designOverlay) {
                 const ov = t.designOverlay;
                 const overlayVariation = variations.find(v => v.id === ov.variationId);
                 if (!overlayVariation) return [];
-                const rectMask = {
-                    x: ov.x, y: ov.y, width: ov.width, height: ov.height,
-                    rotation: ov.rotation,
-                    mode: 'rect' as const,
-                    fitMode: 'fill' as const,
-                    blendMode: 'normal' as const,
-                    opacity: 100,
-                };
-                return [{
-                    mockupImagePath: t.imageUrl,
-                    designImagePath: ov.imageUrl,
-                    mask: rectMask,
-                    templateName: t.name,
-                    variationName: overlayVariation.styleName,
-                }];
+
+                if (t.mask) {
+                    // Has both mask (quad) and overlay — send overlay info for cropping
+                    return [{
+                        mockupImagePath: t.imageUrl,
+                        designImagePath: ov.imageUrl,
+                        mask: t.mask,
+                        overlay: { x: ov.x, y: ov.y, width: ov.width, height: ov.height, rotation: ov.rotation },
+                        templateName: t.name,
+                        variationName: overlayVariation.styleName,
+                    }];
+                } else {
+                    // Overlay only — use overlay rect as mask
+                    const rectMask = {
+                        x: ov.x, y: ov.y, width: ov.width, height: ov.height,
+                        rotation: ov.rotation,
+                        mode: 'rect' as const,
+                        fitMode: 'fill' as const,
+                        blendMode: 'normal' as const,
+                        opacity: 100,
+                    };
+                    return [{
+                        mockupImagePath: t.imageUrl,
+                        designImagePath: ov.imageUrl,
+                        mask: rectMask,
+                        templateName: t.name,
+                        variationName: overlayVariation.styleName,
+                    }];
+                }
             }
             // Normal mask-based generation with selected variations
             return selectedVariations
                 .filter((v) => !excludedKeys || !excludedKeys.has(`${t.id}__${v.id}`))
                 .map((v) => ({
                     mockupImagePath: t.imageUrl,
-                    designImagePath: t.designOverlay?.variationId === v.id ? t.designOverlay.imageUrl : v.imageUrl,
+                    designImagePath: v.imageUrl,
                     mask: t.mask,
                     templateName: t.name,
                     variationName: v.styleName,

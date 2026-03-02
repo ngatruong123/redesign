@@ -21,23 +21,35 @@ export default function BatchPreviewModal({
 
     const combos = mockupTemplates
         .filter((t) => t.mask || t.designOverlay)
-        .flatMap((t): { key: string; template: MockupTemplate; variation: GeneratedVariation; overlayMask: MockupMask | undefined }[] => {
-            // If only overlay (no mask), show only the overlay's variation
-            if (!t.mask && t.designOverlay) {
+        .flatMap((t): { key: string; template: MockupTemplate; variation: GeneratedVariation; overlayMask: MockupMask | undefined; overlay?: { x: number; y: number; width: number; height: number; rotation: number } }[] => {
+            if (t.designOverlay) {
                 const ov = t.designOverlay;
                 const v = selectedVariations.find(sv => sv.id === ov.variationId);
                 if (!v) return [];
-                return [{
-                    key: `${t.id}__${v.id}`,
-                    template: t,
-                    variation: v,
-                    overlayMask: {
-                        x: ov.x, y: ov.y, width: ov.width, height: ov.height,
-                        rotation: ov.rotation, mode: 'rect' as const,
-                        fitMode: 'fill' as const, blendMode: 'normal' as const,
-                        opacity: 100,
-                    } as MockupMask,
-                }];
+
+                if (t.mask) {
+                    // Has both mask and overlay
+                    return [{
+                        key: `${t.id}__${v.id}`,
+                        template: t,
+                        variation: v,
+                        overlayMask: undefined,
+                        overlay: { x: ov.x, y: ov.y, width: ov.width, height: ov.height, rotation: ov.rotation },
+                    }];
+                } else {
+                    // Overlay only — use overlay rect as mask
+                    return [{
+                        key: `${t.id}__${v.id}`,
+                        template: t,
+                        variation: v,
+                        overlayMask: {
+                            x: ov.x, y: ov.y, width: ov.width, height: ov.height,
+                            rotation: ov.rotation, mode: 'rect' as const,
+                            fitMode: 'fill' as const, blendMode: 'normal' as const,
+                            opacity: 100,
+                        } as MockupMask,
+                    }];
+                }
             }
             return selectedVariations.map((v) => ({
                 key: `${t.id}__${v.id}`,
@@ -68,7 +80,7 @@ export default function BatchPreviewModal({
                     Bỏ chọn combo bạn không muốn tạo. Click vào ảnh để toggle.
                 </p>
                 <div className="batch-preview-grid">
-                    {combos.map(({ key, template, variation, overlayMask }) => {
+                    {combos.map(({ key, template, variation, overlayMask, overlay }) => {
                         const isChecked = !batchExcluded.has(key);
                         return (
                             <div
@@ -79,8 +91,9 @@ export default function BatchPreviewModal({
                                 {isChecked && <div className="batch-preview-check">✓</div>}
                                 <BatchPreviewCanvas
                                     templateImageUrl={template.imageUrl}
-                                    designImageUrl={overlayMask ? (template.designOverlay?.imageUrl ?? variation.imageUrl) : variation.imageUrl}
+                                    designImageUrl={overlay ? (template.designOverlay?.imageUrl ?? variation.imageUrl) : overlayMask ? (template.designOverlay?.imageUrl ?? variation.imageUrl) : variation.imageUrl}
                                     mask={overlayMask ?? template.mask!}
+                                    overlay={overlay}
                                 />
                                 <div className="batch-preview-item-label">
                                     {template.name} × {variation.styleName}

@@ -8,6 +8,7 @@ interface Props {
     templateImageUrl: string;
     designImageUrl: string;
     mask: MockupMask;
+    overlay?: { x: number; y: number; width: number; height: number; rotation?: number };
     width?: number;
 }
 
@@ -36,7 +37,7 @@ function loadImage(src: string): Promise<HTMLImageElement> {
     });
 }
 
-export default function BatchPreviewCanvas({ templateImageUrl, designImageUrl, mask, width = 200 }: Props) {
+export default function BatchPreviewCanvas({ templateImageUrl, designImageUrl, mask, overlay, width = 200 }: Props) {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const [error, setError] = useState(false);
 
@@ -94,14 +95,34 @@ export default function BatchPreviewCanvas({ templateImageUrl, designImageUrl, m
                 : mask.blendMode === 'soft-light' ? 'soft-light'
                 : mask.blendMode as GlobalCompositeOperation;
 
-            drawPerspectiveClient(ctx, designImg, quad, edgeCurves, 5, mask.fitMode || 'contain');
+            if (overlay) {
+                // Draw design at overlay position on a temp canvas, then warp into mask
+                const tmpCanvas = document.createElement('canvas');
+                tmpCanvas.width = cw;
+                tmpCanvas.height = ch;
+                const tmpCtx = tmpCanvas.getContext('2d')!;
+                tmpCtx.save();
+                if (overlay.rotation) {
+                    const ocx = (overlay.x + overlay.width / 2) * scale;
+                    const ocy = (overlay.y + overlay.height / 2) * scale;
+                    tmpCtx.translate(ocx, ocy);
+                    tmpCtx.rotate((overlay.rotation * Math.PI) / 180);
+                    tmpCtx.drawImage(designImg, -overlay.width * scale / 2, -overlay.height * scale / 2, overlay.width * scale, overlay.height * scale);
+                } else {
+                    tmpCtx.drawImage(designImg, overlay.x * scale, overlay.y * scale, overlay.width * scale, overlay.height * scale);
+                }
+                tmpCtx.restore();
+                drawPerspectiveClient(ctx, tmpCanvas, quad, edgeCurves, 5, 'fill');
+            } else {
+                drawPerspectiveClient(ctx, designImg, quad, edgeCurves, 5, mask.fitMode || 'contain');
+            }
 
             ctx.globalAlpha = 1;
             ctx.globalCompositeOperation = 'source-over';
         })();
 
         return () => { cancelled = true; };
-    }, [templateImageUrl, designImageUrl, mask, width]);
+    }, [templateImageUrl, designImageUrl, mask, overlay, width]);
 
     if (error) {
         // Fallback: show template image only

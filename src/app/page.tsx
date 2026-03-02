@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useWorkflowStore } from '@/store/workflow-store';
 import { useWorkspaceStore } from '@/store/workspace-store';
 import UploadZone from '@/components/UploadZone';
@@ -99,7 +99,39 @@ function WorkspaceSwitcher() {
     );
 }
 
+function useExtensionUpload() {
+    const handled = useRef(false);
+    const { addSourceDesign, setStep } = useWorkflowStore();
+
+    useEffect(() => {
+        if (handled.current) return;
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('ext-upload') !== '1') return;
+        handled.current = true;
+
+        const id = params.get('file-id');
+        const name = params.get('file-name');
+        const url = params.get('file-url');
+
+        if (id && url) {
+            const img = new Image();
+            img.onload = () => {
+                addSourceDesign({ id, name: name || 'extension-upload.png', url, width: img.naturalWidth, height: img.naturalHeight });
+                setStep('variations');
+            };
+            img.onerror = () => {
+                addSourceDesign({ id, name: name || 'extension-upload.png', url, width: 0, height: 0 });
+                setStep('variations');
+            };
+            img.src = url;
+        }
+
+        window.history.replaceState({}, '', '/');
+    }, [addSourceDesign, setStep]);
+}
+
 export default function Home() {
+    useExtensionUpload();
     const { currentStep, setStep, sourceDesigns } = useWorkflowStore();
 
     const canNavigate = (stepId: WorkflowStep) => {
