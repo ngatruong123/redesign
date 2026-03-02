@@ -144,28 +144,28 @@ export const useWorkflowStore = create<WorkflowState>()(
                     ),
                 })),
 
-            addMockupTemplate: (template) =>
-                set((state) => {
-                    const mockupTemplates = [...state.mockupTemplates, template];
-                    syncTemplatesToServer(mockupTemplates);
-                    return { mockupTemplates };
-                }),
+            addMockupTemplate: (template) => {
+                set((state) => ({
+                    mockupTemplates: [...state.mockupTemplates, template],
+                }));
+                syncTemplatesToServer(useWorkflowStore.getState().mockupTemplates);
+            },
 
-            removeMockupTemplate: (id) =>
-                set((state) => {
-                    const mockupTemplates = state.mockupTemplates.filter((t) => t.id !== id);
-                    syncTemplatesToServer(mockupTemplates);
-                    return { mockupTemplates };
-                }),
+            removeMockupTemplate: (id) => {
+                set((state) => ({
+                    mockupTemplates: state.mockupTemplates.filter((t) => t.id !== id),
+                }));
+                syncTemplatesToServer(useWorkflowStore.getState().mockupTemplates);
+            },
 
-            updateMockupTemplate: (id, update) =>
-                set((state) => {
-                    const mockupTemplates = state.mockupTemplates.map((t) =>
+            updateMockupTemplate: (id, update) => {
+                set((state) => ({
+                    mockupTemplates: state.mockupTemplates.map((t) =>
                         t.id === id ? { ...t, ...update } : t
-                    );
-                    syncTemplatesToServer(mockupTemplates);
-                    return { mockupTemplates };
-                }),
+                    ),
+                }));
+                syncTemplatesToServer(useWorkflowStore.getState().mockupTemplates);
+            },
 
             setGeneratedMockups: (mockups) => set({ generatedMockups: mockups }),
             updateMockupSEO: (mockupId, seoUpdate) => set((state) => ({
