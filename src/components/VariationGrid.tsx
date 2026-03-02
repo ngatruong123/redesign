@@ -14,6 +14,7 @@ export default function VariationGrid() {
     const {
         sourceDesigns, variations, setVariations, setStep,
         isGenerating, setIsGenerating, setError, updateVariation,
+        toggleVariationSelection, selectAllVariations, deselectAllVariations,
     } = useWorkflowStore();
 
     const [selectedStyles, setSelectedStyles] = useState<Set<string>>(new Set());
@@ -241,11 +242,9 @@ export default function VariationGrid() {
 
     const selectedCount = variations.filter((v) => v.selected).length;
 
-    const toggleVariation = (id: string) => {
-        setVariations(variations.map((v) => v.id === id ? { ...v, selected: !v.selected } : v));
-    };
-    const selectAll = () => setVariations(variations.map((v) => v.imageUrl ? { ...v, selected: true } : v));
-    const deselectAll = () => setVariations(variations.map((v) => ({ ...v, selected: false })));
+    const toggleVariation = (id: string) => toggleVariationSelection(id);
+    const selectAll = () => selectAllVariations();
+    const deselectAll = () => deselectAllVariations();
 
     return (
         <div className="variation-container">

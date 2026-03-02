@@ -59,8 +59,6 @@ function syncTemplatesToServer(templates: MockupTemplate[]) {
 interface WorkflowState {
     currentStep: WorkflowStep;
     sourceDesigns: DesignFile[];
-    /** @deprecated Use sourceDesigns instead */
-    sourceDesign: DesignFile | null;
     variations: GeneratedVariation[];
     mockupTemplates: MockupTemplate[];
     generatedMockups: GeneratedMockup[];
@@ -73,8 +71,6 @@ interface WorkflowState {
     addSourceDesign: (design: DesignFile) => void;
     removeSourceDesign: (id: string) => void;
     clearSourceDesigns: () => void;
-    /** @deprecated Use addSourceDesign instead */
-    setSourceDesign: (design: DesignFile | null) => void;
     setVariations: (variations: GeneratedVariation[]) => void;
     toggleVariationSelection: (id: string) => void;
     selectAllVariations: () => void;
@@ -98,7 +94,7 @@ interface WorkflowState {
 const initialState = {
     currentStep: 'upload' as WorkflowStep,
     sourceDesigns: [] as DesignFile[],
-    sourceDesign: null as DesignFile | null,
+
     variations: [] as GeneratedVariation[],
     mockupTemplates: [] as MockupTemplate[],
     generatedMockups: [] as GeneratedMockup[],
@@ -116,21 +112,12 @@ export const useWorkflowStore = create<WorkflowState>()(
             setStep: (step) => set({ currentStep: step }),
             addSourceDesign: (design) => set((state) => ({
                 sourceDesigns: [...state.sourceDesigns, design],
-                sourceDesign: design, // keep compat: last added
             })),
             removeSourceDesign: (id) => set((state) => {
                 const sourceDesigns = state.sourceDesigns.filter((d) => d.id !== id);
-                return { sourceDesigns, sourceDesign: sourceDesigns[sourceDesigns.length - 1] || null };
+                return { sourceDesigns };
             }),
-            clearSourceDesigns: () => set({ sourceDesigns: [], sourceDesign: null }),
-            setSourceDesign: (design) => set(design
-                ? (state) => ({
-                    sourceDesign: design,
-                    sourceDesigns: state.sourceDesigns.some((d) => d.id === design.id)
-                        ? state.sourceDesigns.map((d) => d.id === design.id ? design : d)
-                        : [...state.sourceDesigns, design],
-                })
-                : { sourceDesign: null, sourceDesigns: [] }),
+            clearSourceDesigns: () => set({ sourceDesigns: [] }),
             setVariations: (variations) => set({ variations }),
 
             toggleVariationSelection: (id) =>
@@ -142,7 +129,7 @@ export const useWorkflowStore = create<WorkflowState>()(
 
             selectAllVariations: () =>
                 set((state) => ({
-                    variations: state.variations.map((v) => ({ ...v, selected: true })),
+                    variations: state.variations.map((v) => ({ ...v, selected: v.imageUrl ? true : false })),
                 })),
 
             deselectAllVariations: () =>
@@ -195,7 +182,6 @@ export const useWorkflowStore = create<WorkflowState>()(
                 set({
                     currentStep: 'upload',
                     sourceDesigns: [],
-                    sourceDesign: null,
                     variations: [],
                     generatedMockups: [],
                     isGenerating: false,
@@ -215,7 +201,7 @@ export const useWorkflowStore = create<WorkflowState>()(
                 currentStep: state.currentStep,
                 // Strip non-serializable File objects
                 sourceDesigns: state.sourceDesigns.map(({ file, ...rest }) => rest),
-                sourceDesign: state.sourceDesign ? (({ file, ...rest }) => rest)(state.sourceDesign) : null,
+
                 variations: state.variations,
                 mockupTemplates: state.mockupTemplates,
                 // Don't persist generated mockups (data URLs are too large for localStorage)
@@ -255,7 +241,7 @@ export const useWorkflowStore = create<WorkflowState>()(
                                     useWorkflowStore.setState({
                                         currentStep: 'upload',
                                         sourceDesigns: [],
-                                        sourceDesign: null,
+    
                                         variations: [],
                                         generatedMockups: [],
                                     });
@@ -265,7 +251,7 @@ export const useWorkflowStore = create<WorkflowState>()(
                                 useWorkflowStore.setState({
                                     currentStep: 'upload',
                                     sourceDesigns: [],
-                                    sourceDesign: null,
+
                                     variations: [],
                                     generatedMockups: [],
                                 });

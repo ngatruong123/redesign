@@ -1,4 +1,4 @@
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { createAIProvider } from '@/lib/ai-provider';
 import { DEFAULT_STYLE_PRESETS, buildVariationPrompt } from '@/lib/prompt-engine';
 import { v4 as uuidv4 } from 'uuid';
@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
             // Backward compat: single URL
             sources = [{ id: 'single', url: sourceImageUrl }];
         } else {
-            return Response.json({ error: 'No source image provided' }, { status: 400 });
+            return NextResponse.json({ error: 'No source image provided' }, { status: 400 });
         }
 
         const provider = createAIProvider(process.env.AI_PROVIDER || 'mock');
@@ -118,6 +118,6 @@ export async function POST(request: NextRequest) {
         });
     } catch (error) {
         console.error('Generate stream error:', error);
-        return Response.json({ error: 'Generation failed' }, { status: 500 });
+        return NextResponse.json({ error: 'Generation failed' }, { status: 500 });
     }
 }

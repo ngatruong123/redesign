@@ -338,7 +338,7 @@ export default function MockupEditor() {
         }
         history.resetHistory(mask ?? null);
         canvasSizedRef.current = false;
-    }, [activeTemplateId]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [activeTemplateId, interaction.restoreFromMask, history.resetHistory, setFitMode, setBlendMode, setOpacity, setShadowEnabled, setShadowBlur]);
 
     // Update mask when blend/opacity/shadow change
     useEffect(() => {
@@ -346,7 +346,7 @@ export default function MockupEditor() {
             const mask = buildMaskFromState(interaction.corners, interaction.edgeCPs);
             updateMockupTemplate(activeTemplate.id, { mask });
         }
-    }, [fitMode, blendMode, opacity, shadowEnabled, shadowBlur]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [fitMode, blendMode, opacity, shadowEnabled, shadowBlur, interaction.quadDone, activeTemplate, buildMaskFromState, interaction.corners, interaction.edgeCPs, updateMockupTemplate]);
 
     // Copy active template's mask to all selected templates
     const applyMaskToSelected = () => {
@@ -374,6 +374,54 @@ export default function MockupEditor() {
         interaction.handleResetCurves();
         setTimeout(() => commitMask(), 0);
     };
+
+    // --- Design Overlay ---
+    const createOverlayFromVariation = useCallback((variationId: string, imageUrl: string) => {
+        if (!activeTemplate) return;
+        const mask = activeTemplate.mask;
+        // Load image to get natural dimensions
+        const img = new Image();
+        img.onload = () => {
+            let cx: number, cy: number, w: number, h: number;
+            if (mask) {
+                // Center on mask bounding box
+                cx = mask.x + mask.width / 2;
+                cy = mask.y + mask.height / 2;
+                // Fit within mask bounds
+                const ar = img.naturalWidth / img.naturalHeight;
+                if (ar > mask.width / mask.height) {
+                    w = mask.width;
+                    h = w / ar;
+                } else {
+                    h = mask.height;
+                    w = h * ar;
+                }
+            } else {
+                // Center on canvas
+                const canvas = canvasRef.current;
+                const s = scaleRef.current;
+                const cw = canvas ? canvas.width / s : 500;
+                const ch = canvas ? canvas.height / s : 500;
+                cx = cw / 2;
+                cy = ch / 2;
+                w = Math.min(img.naturalWidth, cw * 0.5);
+                h = w / (img.naturalWidth / img.naturalHeight);
+            }
+            const overlay: DesignOverlayState = {
+                variationId,
+                imageUrl,
+                x: cx - w / 2,
+                y: cy - h / 2,
+                width: w,
+                height: h,
+                rotation: 0,
+                naturalWidth: img.naturalWidth,
+                naturalHeight: img.naturalHeight,
+            };
+            updateMockupTemplate(activeTemplate.id, { designOverlay: overlay });
+        };
+        img.src = imageUrl;
+    }, [activeTemplate, updateMockupTemplate]);
 
     // --- Canvas Drop ---
     const handleCanvasDragOver = useCallback((e: React.DragEvent) => {
@@ -444,7 +492,7 @@ export default function MockupEditor() {
                 addToast('error', err instanceof Error ? err.message : 'Upload thất bại');
             }
         }
-    }, [activeTemplate, variations, setVariations, addToast]);
+    }, [activeTemplate, variations, setVariations, addToast, createOverlayFromVariation]);
 
     // --- AI Generate Mockups ---
     const handleAIGenerateMockups = async () => {
@@ -580,54 +628,6 @@ export default function MockupEditor() {
             setIsCompositing(false);
         }
     };
-
-    // --- Design Overlay ---
-    const createOverlayFromVariation = useCallback((variationId: string, imageUrl: string) => {
-        if (!activeTemplate) return;
-        const mask = activeTemplate.mask;
-        // Load image to get natural dimensions
-        const img = new Image();
-        img.onload = () => {
-            let cx: number, cy: number, w: number, h: number;
-            if (mask) {
-                // Center on mask bounding box
-                cx = mask.x + mask.width / 2;
-                cy = mask.y + mask.height / 2;
-                // Fit within mask bounds
-                const ar = img.naturalWidth / img.naturalHeight;
-                if (ar > mask.width / mask.height) {
-                    w = mask.width;
-                    h = w / ar;
-                } else {
-                    h = mask.height;
-                    w = h * ar;
-                }
-            } else {
-                // Center on canvas
-                const canvas = canvasRef.current;
-                const s = scaleRef.current;
-                const cw = canvas ? canvas.width / s : 500;
-                const ch = canvas ? canvas.height / s : 500;
-                cx = cw / 2;
-                cy = ch / 2;
-                w = Math.min(img.naturalWidth, cw * 0.5);
-                h = w / (img.naturalWidth / img.naturalHeight);
-            }
-            const overlay: DesignOverlayState = {
-                variationId,
-                imageUrl,
-                x: cx - w / 2,
-                y: cy - h / 2,
-                width: w,
-                height: h,
-                rotation: 0,
-                naturalWidth: img.naturalWidth,
-                naturalHeight: img.naturalHeight,
-            };
-            updateMockupTemplate(activeTemplate.id, { designOverlay: overlay });
-        };
-        img.src = imageUrl;
-    }, [activeTemplate, updateMockupTemplate]);
 
     const handleOverlayChange = useCallback((update: Partial<DesignOverlayState>) => {
         if (!activeTemplate?.designOverlay) return;
