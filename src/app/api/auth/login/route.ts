@@ -4,8 +4,8 @@ import { checkRateLimit } from '@/lib/rate-limiter';
 
 export async function POST(request: NextRequest) {
     const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
-    const rateLimited = checkRateLimit(`login:${ip}`, 5, 60_000);
-    if (rateLimited) {
+    const { allowed } = checkRateLimit(`login:${ip}`, 5, 60_000);
+    if (!allowed) {
         return NextResponse.json({ error: 'Quá nhiều lần thử. Vui lòng đợi 1 phút.' }, { status: 429 });
     }
 
