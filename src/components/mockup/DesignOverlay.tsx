@@ -29,8 +29,7 @@ export default function DesignOverlay({ overlay, mask, canvasScale, onChange, on
     const cb = overlay.cropBottom ?? 0;
     const cl = overlay.cropLeft ?? 0;
 
-    // Build clip-path from mask quad
-    const clipPath = mask?.quad ? buildClipPath(mask.quad, overlay, canvasScale) : undefined;
+    // No longer clip to mask — allow design to be placed freely anywhere on the mockup
 
     const handlePointerDown = useCallback((e: React.PointerEvent, dragMode: DragMode, corner?: Corner, edge?: Edge) => {
         e.preventDefault();
@@ -131,12 +130,8 @@ export default function DesignOverlay({ overlay, mask, canvasScale, onChange, on
     const sc = canvasScale;
     const hasCrop = ct > 0 || cr > 0 || cb > 0 || cl > 0;
 
-    // Crop clip on image only — never on the outer container (would hide handles)
-    const cropClip = hasCrop ? `inset(${ct}% ${cr}% ${cb}% ${cl}%)` : undefined;
-    // Combine mask clip + crop clip into one for the image wrapper
-    const imageClip = clipPath && cropClip
-        ? cropClip // crop takes visual priority when both exist
-        : (cropClip || clipPath || undefined);
+    // Crop clip on image only
+    const imageClip = hasCrop ? `inset(${ct}% ${cr}% ${cb}% ${cl}%)` : undefined;
 
     return (
         <div
@@ -267,17 +262,4 @@ export default function DesignOverlay({ overlay, mask, canvasScale, onChange, on
             </button>
         </div>
     );
-}
-
-function buildClipPath(
-    quad: [Point, Point, Point, Point],
-    overlay: DesignOverlayState,
-    _scale: number,
-): string {
-    const points = quad.map((p) => {
-        const rx = ((p.x - overlay.x) / overlay.width) * 100;
-        const ry = ((p.y - overlay.y) / overlay.height) * 100;
-        return `${rx}% ${ry}%`;
-    });
-    return `polygon(${points.join(', ')})`;
 }

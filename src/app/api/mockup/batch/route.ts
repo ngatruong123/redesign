@@ -22,6 +22,7 @@ interface BatchItem {
     };
     overlay?: {
         x: number; y: number; width: number; height: number; rotation?: number;
+        cropTop?: number; cropRight?: number; cropBottom?: number; cropLeft?: number;
     };
     templateName: string;
     variationName: string;
@@ -81,28 +82,39 @@ export async function POST(request: NextRequest) {
                 const fitMode: FitMode = mask.fitMode === 'fill' ? 'fill' : 'contain';
 
                 if (item.overlay) {
-                    // Overlay mode: draw design at overlay position, then warp the composed result into mask
+                    // Overlay mode: draw design directly at overlay position/size (no perspective warp)
                     const ov = item.overlay;
-                    const overlayCanvas = createCanvas(mockupImg.width, mockupImg.height);
-                    const ovCtx = overlayCanvas.getContext('2d');
 
-                    // Draw design at overlay position/size
-                    ovCtx.save();
+                    // Calculate crop insets
+                    const cropT = (ov.cropTop ?? 0) / 100;
+                    const cropR = (ov.cropRight ?? 0) / 100;
+                    const cropB = (ov.cropBottom ?? 0) / 100;
+                    const cropL = (ov.cropLeft ?? 0) / 100;
+
+                    // Source rect in the design image (crop applied)
+                    const sx = cropL * designImg.width;
+                    const sy = cropT * designImg.height;
+                    const sw = designImg.width * (1 - cropL - cropR);
+                    const sh = designImg.height * (1 - cropT - cropB);
+
+                    // Destination rect on the mockup (crop adjusts visible area)
+                    const dx = ov.x + ov.width * cropL;
+                    const dy = ov.y + ov.height * cropT;
+                    const dw = ov.width * (1 - cropL - cropR);
+                    const dh = ov.height * (1 - cropT - cropB);
+
+                    // Draw design directly onto tmp canvas at overlay position
+                    tmpCtx.save();
                     if (ov.rotation) {
                         const cx = ov.x + ov.width / 2;
                         const cy = ov.y + ov.height / 2;
-                        ovCtx.translate(cx, cy);
-                        ovCtx.rotate((ov.rotation * Math.PI) / 180);
-                        ovCtx.drawImage(designImg, -ov.width / 2, -ov.height / 2, ov.width, ov.height);
+                        tmpCtx.translate(cx, cy);
+                        tmpCtx.rotate((ov.rotation * Math.PI) / 180);
+                        tmpCtx.drawImage(designImg, sx, sy, sw, sh, dx - cx, dy - cy, dw, dh);
                     } else {
-                        ovCtx.drawImage(designImg, ov.x, ov.y, ov.width, ov.height);
+                        tmpCtx.drawImage(designImg, sx, sy, sw, sh, dx, dy, dw, dh);
                     }
-                    ovCtx.restore();
-
-                    // Load the overlay canvas as an image for perspective warp
-                    const overlayBuffer = overlayCanvas.toBuffer('image/png');
-                    const overlayImg = await loadImage(overlayBuffer);
-                    drawPerspective(tmpCtx, overlayImg, quad, mask.edgeCurves, 16, 'fill');
+                    tmpCtx.restore();
                 } else {
                     drawPerspective(tmpCtx, designImg, quad, mask.edgeCurves, 16, fitMode);
                 }

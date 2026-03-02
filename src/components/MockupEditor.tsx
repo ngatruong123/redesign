@@ -382,31 +382,25 @@ export default function MockupEditor() {
         // Load image to get natural dimensions
         const img = new Image();
         img.onload = () => {
-            let cx: number, cy: number, w: number, h: number;
+            const canvas = canvasRef.current;
+            const s = scaleRef.current;
+            const cw = canvas ? canvas.width / s : 500;
+            const ch = canvas ? canvas.height / s : 500;
+            const ar = img.naturalWidth / img.naturalHeight;
+
+            // Center on mask if available, otherwise center on canvas
+            let cx: number, cy: number;
             if (mask) {
-                // Center on mask bounding box
                 cx = mask.x + mask.width / 2;
                 cy = mask.y + mask.height / 2;
-                // Fit within mask bounds
-                const ar = img.naturalWidth / img.naturalHeight;
-                if (ar > mask.width / mask.height) {
-                    w = mask.width;
-                    h = w / ar;
-                } else {
-                    h = mask.height;
-                    w = h * ar;
-                }
             } else {
-                // Center on canvas
-                const canvas = canvasRef.current;
-                const s = scaleRef.current;
-                const cw = canvas ? canvas.width / s : 500;
-                const ch = canvas ? canvas.height / s : 500;
                 cx = cw / 2;
                 cy = ch / 2;
-                w = Math.min(img.naturalWidth, cw * 0.5);
-                h = w / (img.naturalWidth / img.naturalHeight);
             }
+
+            // Size relative to canvas (50%), not constrained by mask
+            let w = Math.min(img.naturalWidth, cw * 0.5);
+            let h = w / ar;
             const overlay: DesignOverlayState = {
                 variationId,
                 imageUrl,
@@ -573,14 +567,24 @@ export default function MockupEditor() {
                         mockupImagePath: t.imageUrl,
                         designImagePath: ov.imageUrl,
                         mask: t.mask,
-                        overlay: { x: ov.x, y: ov.y, width: ov.width, height: ov.height, rotation: ov.rotation },
+                        overlay: {
+                            x: ov.x, y: ov.y, width: ov.width, height: ov.height, rotation: ov.rotation,
+                            cropTop: ov.cropTop, cropRight: ov.cropRight, cropBottom: ov.cropBottom, cropLeft: ov.cropLeft,
+                        },
                         templateName: t.name,
                         variationName: overlayVariation.styleName,
                     }];
                 } else {
-                    // Overlay only — use overlay rect as mask
+                    // Overlay only — adjust rect for crop and use as mask
+                    const cT = (ov.cropTop ?? 0) / 100;
+                    const cR = (ov.cropRight ?? 0) / 100;
+                    const cB = (ov.cropBottom ?? 0) / 100;
+                    const cL = (ov.cropLeft ?? 0) / 100;
                     const rectMask = {
-                        x: ov.x, y: ov.y, width: ov.width, height: ov.height,
+                        x: ov.x + ov.width * cL,
+                        y: ov.y + ov.height * cT,
+                        width: ov.width * (1 - cL - cR),
+                        height: ov.height * (1 - cT - cB),
                         rotation: ov.rotation,
                         mode: 'rect' as const,
                         fitMode: 'fill' as const,
@@ -591,6 +595,10 @@ export default function MockupEditor() {
                         mockupImagePath: t.imageUrl,
                         designImagePath: ov.imageUrl,
                         mask: rectMask,
+                        overlay: {
+                            x: ov.x, y: ov.y, width: ov.width, height: ov.height, rotation: ov.rotation,
+                            cropTop: ov.cropTop, cropRight: ov.cropRight, cropBottom: ov.cropBottom, cropLeft: ov.cropLeft,
+                        },
                         templateName: t.name,
                         variationName: overlayVariation.styleName,
                     }];

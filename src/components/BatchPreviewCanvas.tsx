@@ -96,23 +96,18 @@ export default function BatchPreviewCanvas({ templateImageUrl, designImageUrl, m
                 : mask.blendMode as GlobalCompositeOperation;
 
             if (overlay) {
-                // Draw design at overlay position on a temp canvas, then warp into mask
-                const tmpCanvas = document.createElement('canvas');
-                tmpCanvas.width = cw;
-                tmpCanvas.height = ch;
-                const tmpCtx = tmpCanvas.getContext('2d')!;
-                tmpCtx.save();
+                // Overlay mode: draw design directly at overlay position (no perspective warp)
+                ctx.save();
                 if (overlay.rotation) {
                     const ocx = (overlay.x + overlay.width / 2) * scale;
                     const ocy = (overlay.y + overlay.height / 2) * scale;
-                    tmpCtx.translate(ocx, ocy);
-                    tmpCtx.rotate((overlay.rotation * Math.PI) / 180);
-                    tmpCtx.drawImage(designImg, -overlay.width * scale / 2, -overlay.height * scale / 2, overlay.width * scale, overlay.height * scale);
+                    ctx.translate(ocx, ocy);
+                    ctx.rotate((overlay.rotation * Math.PI) / 180);
+                    ctx.drawImage(designImg, -overlay.width * scale / 2, -overlay.height * scale / 2, overlay.width * scale, overlay.height * scale);
                 } else {
-                    tmpCtx.drawImage(designImg, overlay.x * scale, overlay.y * scale, overlay.width * scale, overlay.height * scale);
+                    ctx.drawImage(designImg, overlay.x * scale, overlay.y * scale, overlay.width * scale, overlay.height * scale);
                 }
-                tmpCtx.restore();
-                drawPerspectiveClient(ctx, tmpCanvas, quad, edgeCurves, 5, 'fill');
+                ctx.restore();
             } else {
                 drawPerspectiveClient(ctx, designImg, quad, edgeCurves, 5, mask.fitMode || 'contain');
             }
