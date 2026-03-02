@@ -27,7 +27,9 @@ export function useMaskHistory({
     const [maskHistory, setMaskHistory] = useState<(MockupMask | null)[]>([]);
     const [historyIndex, setHistoryIndex] = useState(-1);
     const historyRef = useRef<{ history: (MockupMask | null)[]; index: number }>({ history: [], index: -1 });
-    historyRef.current = { history: maskHistory, index: historyIndex };
+    useEffect(() => {
+        historyRef.current = { history: maskHistory, index: historyIndex };
+    }, [maskHistory, historyIndex]);
 
     const pushHistory = useCallback((mask: MockupMask | null) => {
         const { history, index } = historyRef.current;

@@ -42,7 +42,6 @@ export default function BatchPreviewCanvas({ templateImageUrl, designImageUrl, m
 
     useEffect(() => {
         let cancelled = false;
-        setError(false);
 
         (async () => {
             let templateImg: HTMLImageElement;
@@ -58,6 +57,7 @@ export default function BatchPreviewCanvas({ templateImageUrl, designImageUrl, m
             }
 
             if (cancelled) return;
+            setError(false);
 
             const canvas = canvasRef.current;
             if (!canvas) return;

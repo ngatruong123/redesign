@@ -18,12 +18,12 @@ const NAV_ITEMS: { id: WorkflowStep; icon: typeof UploadCloud; label: string }[]
 ];
 
 function UserMenu() {
-    const [username, setUsername] = useState('');
-
-    useEffect(() => {
-        const user = localStorage.getItem('design-tool-user') || '';
-        setUsername(user);
-    }, []);
+    const [username, setUsername] = useState(() => {
+        if (typeof window !== 'undefined') {
+            return localStorage.getItem('design-tool-user') || '';
+        }
+        return '';
+    });
 
     const handleLogout = async () => {
         await fetch('/api/auth/logout', { method: 'POST' });
