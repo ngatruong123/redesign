@@ -809,6 +809,8 @@ export default function MockupEditor() {
                                         overlay={activeTemplate.designOverlay}
                                         mask={activeTemplate.mask}
                                         canvasScale={getCanvasDisplayScale()}
+                                        canvasWidth={canvasRef.current ? canvasRef.current.width / scaleRef.current : 0}
+                                        canvasHeight={canvasRef.current ? canvasRef.current.height / scaleRef.current : 0}
                                         onChange={handleOverlayChange}
                                         onRemove={handleOverlayRemove}
                                         disabled={!!interaction.dragging || (!interaction.quadDone && (interaction.corners.length > 0 || !!interaction.dragStart))}

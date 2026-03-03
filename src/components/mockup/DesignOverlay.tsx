@@ -7,19 +7,25 @@ interface DesignOverlayProps {
     overlay: DesignOverlayState;
     mask: MockupMask | null;
     canvasScale: number;
+    canvasWidth: number;
+    canvasHeight: number;
     onChange: (update: Partial<DesignOverlayState>) => void;
     onRemove: () => void;
     disabled?: boolean;
 }
 
+const SNAP_THRESHOLD = 5; // px in canvas space
+
 type DragMode = 'move' | 'resize' | 'rotate' | 'crop' | null;
 type Corner = 'tl' | 'tr' | 'br' | 'bl';
 type Edge = 'top' | 'right' | 'bottom' | 'left';
 
-export default function DesignOverlay({ overlay, mask, canvasScale, onChange, onRemove, disabled }: DesignOverlayProps) {
+export default function DesignOverlay({ overlay, mask, canvasScale, canvasWidth, canvasHeight, onChange, onRemove, disabled }: DesignOverlayProps) {
     const [mode, setMode] = useState<DragMode>(null);
     const [activeCorner, setActiveCorner] = useState<Corner | null>(null);
     const [activeEdge, setActiveEdge] = useState<Edge | null>(null);
+    const [snapH, setSnapH] = useState(false);
+    const [snapV, setSnapV] = useState(false);
     const startRef = useRef({ mx: 0, my: 0, ox: 0, oy: 0, ow: 0, oh: 0, or: 0, ct: 0, cr: 0, cb: 0, cl: 0 });
     const containerRef = useRef<HTMLDivElement>(null);
 
@@ -61,7 +67,19 @@ export default function DesignOverlay({ overlay, mask, canvasScale, onChange, on
         const s = startRef.current;
 
         if (mode === 'move') {
-            onChange({ x: s.ox + dx, y: s.oy + dy });
+            let newX = s.ox + dx;
+            let newY = s.oy + dy;
+            const centerX = newX + s.ow / 2;
+            const centerY = newY + s.oh / 2;
+            const midX = canvasWidth / 2;
+            const midY = canvasHeight / 2;
+            const isSnapH = Math.abs(centerX - midX) < SNAP_THRESHOLD;
+            const isSnapV = Math.abs(centerY - midY) < SNAP_THRESHOLD;
+            if (isSnapH) newX = midX - s.ow / 2;
+            if (isSnapV) newY = midY - s.oh / 2;
+            setSnapH(isSnapH);
+            setSnapV(isSnapV);
+            onChange({ x: newX, y: newY });
         } else if (mode === 'resize') {
             let newW = s.ow;
             let newH = s.oh;
@@ -112,6 +130,8 @@ export default function DesignOverlay({ overlay, mask, canvasScale, onChange, on
         setMode(null);
         setActiveCorner(null);
         setActiveEdge(null);
+        setSnapH(false);
+        setSnapV(false);
     }, []);
 
     // Keyboard: Delete to remove
@@ -245,6 +265,36 @@ export default function DesignOverlay({ overlay, mask, canvasScale, onChange, on
                 >
                     ⟲
                 </button>
+            )}
+
+            {/* Center snap guides */}
+            {snapV && (
+                <div style={{
+                    position: 'absolute',
+                    left: 0,
+                    right: 0,
+                    top: '50%',
+                    width: canvasWidth * sc,
+                    marginLeft: -(overlay.x * sc),
+                    height: 0,
+                    borderTop: '1px dashed rgba(255,100,100,0.8)',
+                    pointerEvents: 'none',
+                    zIndex: 20,
+                }} />
+            )}
+            {snapH && (
+                <div style={{
+                    position: 'absolute',
+                    top: 0,
+                    bottom: 0,
+                    left: '50%',
+                    height: canvasHeight * sc,
+                    marginTop: -(overlay.y * sc),
+                    width: 0,
+                    borderLeft: '1px dashed rgba(255,100,100,0.8)',
+                    pointerEvents: 'none',
+                    zIndex: 20,
+                }} />
             )}
 
             {/* Remove button */}
