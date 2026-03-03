@@ -685,6 +685,19 @@ export default function MockupEditor() {
     const isTemplateReady = (t: typeof mockupTemplates[0]) => !!(t.mask || t.designOverlay);
     const readyTemplateCount = mockupTemplates.filter(isTemplateReady).length;
 
+    // Compute total mockup count matching generation logic
+    const totalMockupCount = mockupTemplates.filter(isTemplateReady).reduce((count, t) => {
+        let n = 0;
+        if (t.designOverlay) {
+            const hasOverlayVar = selectedVariations.some(v => v.id === t.designOverlay!.variationId);
+            if (hasOverlayVar) n += 1;
+        }
+        if (t.mask) {
+            n += selectedVariations.filter(v => !(t.designOverlay && v.id === t.designOverlay.variationId)).length;
+        }
+        return count + n;
+    }, 0);
+
     return (
         <div className="mockup-container">
             <div className="mockup-header">
@@ -795,20 +808,20 @@ export default function MockupEditor() {
             <div className="mockup-generate-bar">
                 <button
                     className="btn-primary btn-lg"
-                    disabled={readyTemplateCount === 0 || selectedVariations.length === 0 || isCompositing}
+                    disabled={totalMockupCount === 0 || isCompositing}
                     onClick={() => { setShowBatchPreview(true); }}
                 >
                     {isCompositing ? <><span className="spinner-sm" /> Đang tạo mockup...</>
-                        : `Tạo ${readyTemplateCount * selectedVariations.length} mockup`}
+                        : `Tạo ${totalMockupCount} mockup`}
                 </button>
                 <button
                     className="btn-primary btn-lg"
-                    disabled={readyTemplateCount === 0 || selectedVariations.length === 0 || isAIGenerating || isCompositing}
+                    disabled={totalMockupCount === 0 || isAIGenerating || isCompositing}
                     onClick={() => setShowAIOptions(!showAIOptions)}
                     style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}
                 >
                     {isAIGenerating ? <><span className="spinner-sm" /> AI đang tạo...</>
-                        : `Tạo AI ${readyTemplateCount * selectedVariations.length} mockup`}
+                        : `Tạo AI ${totalMockupCount} mockup`}
                 </button>
             </div>
 

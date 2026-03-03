@@ -19,44 +19,58 @@ export default function BatchPreviewModal({
 }: BatchPreviewModalProps) {
     const [batchExcluded, setBatchExcluded] = useState<Set<string>>(new Set());
 
+    type Combo = { key: string; template: MockupTemplate; variation: GeneratedVariation; overlayMask: MockupMask | undefined; overlay?: { x: number; y: number; width: number; height: number; rotation: number } };
+
     const combos = mockupTemplates
         .filter((t) => t.mask || t.designOverlay)
-        .flatMap((t): { key: string; template: MockupTemplate; variation: GeneratedVariation; overlayMask: MockupMask | undefined; overlay?: { x: number; y: number; width: number; height: number; rotation: number } }[] => {
+        .flatMap((t): Combo[] => {
+            const result: Combo[] = [];
+
+            // 1. Overlay design — render at user-positioned location
             if (t.designOverlay) {
                 const ov = t.designOverlay;
                 const v = selectedVariations.find(sv => sv.id === ov.variationId);
-                if (!v) return [];
+                if (v) {
+                    const overlayData = { x: ov.x, y: ov.y, width: ov.width, height: ov.height, rotation: ov.rotation };
+                    if (t.mask) {
+                        result.push({
+                            key: `${t.id}__${v.id}__overlay`,
+                            template: t,
+                            variation: v,
+                            overlayMask: undefined,
+                            overlay: overlayData,
+                        });
+                    } else {
+                        result.push({
+                            key: `${t.id}__${v.id}__overlay`,
+                            template: t,
+                            variation: v,
+                            overlayMask: {
+                                x: ov.x, y: ov.y, width: ov.width, height: ov.height,
+                                rotation: ov.rotation, mode: 'rect' as const,
+                                fitMode: 'fill' as const, blendMode: 'normal' as const,
+                                opacity: 100,
+                            } as MockupMask,
+                            overlay: overlayData,
+                        });
+                    }
+                }
+            }
 
-                if (t.mask) {
-                    // Has both mask and overlay
-                    return [{
+            // 2. Mask-based — selected variations via perspective warp (skip overlay design)
+            if (t.mask) {
+                for (const v of selectedVariations) {
+                    if (t.designOverlay && v.id === t.designOverlay.variationId) continue;
+                    result.push({
                         key: `${t.id}__${v.id}`,
                         template: t,
                         variation: v,
                         overlayMask: undefined,
-                        overlay: { x: ov.x, y: ov.y, width: ov.width, height: ov.height, rotation: ov.rotation },
-                    }];
-                } else {
-                    // Overlay only — use overlay rect as mask
-                    return [{
-                        key: `${t.id}__${v.id}`,
-                        template: t,
-                        variation: v,
-                        overlayMask: {
-                            x: ov.x, y: ov.y, width: ov.width, height: ov.height,
-                            rotation: ov.rotation, mode: 'rect' as const,
-                            fitMode: 'fill' as const, blendMode: 'normal' as const,
-                            opacity: 100,
-                        } as MockupMask,
-                    }];
+                    });
                 }
             }
-            return selectedVariations.map((v) => ({
-                key: `${t.id}__${v.id}`,
-                template: t,
-                variation: v,
-                overlayMask: undefined,
-            }));
+
+            return result;
         });
 
     const activeCount = combos.filter(c => !batchExcluded.has(c.key)).length;
