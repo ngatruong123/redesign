@@ -563,72 +563,83 @@ export default function MockupEditor() {
     // --- Generate ---
     const handleGenerateMockups = async (excludedKeys?: Set<string>) => {
         const readyTemplates = mockupTemplates.filter(isTemplateReady);
-        if (readyTemplates.length === 0 || selectedVariations.length === 0) return;
+        const hasOverlay = readyTemplates.some(t => t.designOverlay);
+        if (readyTemplates.length === 0 || (selectedVariations.length === 0 && !hasOverlay)) return;
 
         setShowBatchPreview(false);
         setIsCompositing(true);
         setError(null);
 
         const items = readyTemplates.flatMap((t) => {
-            // If template has designOverlay, use the overlay's image and position
+            const result: Array<Record<string, unknown>> = [];
+
+            // 1. Overlay design — render at user-positioned location
             if (t.designOverlay) {
                 const ov = t.designOverlay;
                 const overlayVariation = variations.find(v => v.id === ov.variationId);
-                if (!overlayVariation) return [];
-
-                if (t.mask) {
-                    // Has both mask (quad) and overlay — send overlay info for cropping
-                    return [{
-                        mockupImagePath: t.imageUrl,
-                        designImagePath: ov.imageUrl,
-                        mask: t.mask,
-                        overlay: {
-                            x: ov.x, y: ov.y, width: ov.width, height: ov.height, rotation: ov.rotation,
-                            cropTop: ov.cropTop, cropRight: ov.cropRight, cropBottom: ov.cropBottom, cropLeft: ov.cropLeft,
-                        },
-                        templateName: t.name,
-                        variationName: overlayVariation.styleName,
-                    }];
-                } else {
-                    // Overlay only — adjust rect for crop and use as mask
-                    const cT = (ov.cropTop ?? 0) / 100;
-                    const cR = (ov.cropRight ?? 0) / 100;
-                    const cB = (ov.cropBottom ?? 0) / 100;
-                    const cL = (ov.cropLeft ?? 0) / 100;
-                    const rectMask = {
-                        x: ov.x + ov.width * cL,
-                        y: ov.y + ov.height * cT,
-                        width: ov.width * (1 - cL - cR),
-                        height: ov.height * (1 - cT - cB),
-                        rotation: ov.rotation,
-                        mode: 'rect' as const,
-                        fitMode: 'fill' as const,
-                        blendMode: 'normal' as const,
-                        opacity: 100,
+                if (overlayVariation) {
+                    const overlayData = {
+                        x: ov.x, y: ov.y, width: ov.width, height: ov.height, rotation: ov.rotation,
+                        cropTop: ov.cropTop, cropRight: ov.cropRight, cropBottom: ov.cropBottom, cropLeft: ov.cropLeft,
                     };
-                    return [{
-                        mockupImagePath: t.imageUrl,
-                        designImagePath: ov.imageUrl,
-                        mask: rectMask,
-                        overlay: {
-                            x: ov.x, y: ov.y, width: ov.width, height: ov.height, rotation: ov.rotation,
-                            cropTop: ov.cropTop, cropRight: ov.cropRight, cropBottom: ov.cropBottom, cropLeft: ov.cropLeft,
-                        },
-                        templateName: t.name,
-                        variationName: overlayVariation.styleName,
-                    }];
+                    if (t.mask) {
+                        result.push({
+                            mockupImagePath: t.imageUrl,
+                            designImagePath: ov.imageUrl,
+                            mask: t.mask,
+                            overlay: overlayData,
+                            templateName: t.name,
+                            variationName: overlayVariation.styleName,
+                        });
+                    } else {
+                        const cT = (ov.cropTop ?? 0) / 100;
+                        const cR = (ov.cropRight ?? 0) / 100;
+                        const cB = (ov.cropBottom ?? 0) / 100;
+                        const cL = (ov.cropLeft ?? 0) / 100;
+                        const rectMask = {
+                            x: ov.x + ov.width * cL,
+                            y: ov.y + ov.height * cT,
+                            width: ov.width * (1 - cL - cR),
+                            height: ov.height * (1 - cT - cB),
+                            rotation: ov.rotation,
+                            mode: 'rect' as const,
+                            fitMode: 'fill' as const,
+                            blendMode: 'normal' as const,
+                            opacity: 100,
+                        };
+                        result.push({
+                            mockupImagePath: t.imageUrl,
+                            designImagePath: ov.imageUrl,
+                            mask: rectMask,
+                            overlay: overlayData,
+                            templateName: t.name,
+                            variationName: overlayVariation.styleName,
+                        });
+                    }
                 }
             }
-            // Normal mask-based generation with selected variations
-            return selectedVariations
-                .filter((v) => !excludedKeys || !excludedKeys.has(`${t.id}__${v.id}`))
-                .map((v) => ({
-                    mockupImagePath: t.imageUrl,
-                    designImagePath: v.imageUrl,
-                    mask: t.mask,
-                    templateName: t.name,
-                    variationName: v.styleName,
-                }));
+
+            // 2. Mask-based generation — render selected variations via perspective warp
+            if (t.mask) {
+                const maskVariations = selectedVariations
+                    .filter((v) => {
+                        // Skip the overlay design (already handled above)
+                        if (t.designOverlay && v.id === t.designOverlay.variationId) return false;
+                        if (excludedKeys && excludedKeys.has(`${t.id}__${v.id}`)) return false;
+                        return true;
+                    });
+                for (const v of maskVariations) {
+                    result.push({
+                        mockupImagePath: t.imageUrl,
+                        designImagePath: v.imageUrl,
+                        mask: t.mask,
+                        templateName: t.name,
+                        variationName: v.styleName,
+                    });
+                }
+            }
+
+            return result;
         });
 
         if (items.length === 0) return;
