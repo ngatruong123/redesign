@@ -60,16 +60,31 @@ export default function SEOPanel({ mockup, onClose }: Props) {
         }
     }, [mockup.id, mockup.imageUrl, productContext, updateMockupSEO, addToast]);
 
+    const copyToClipboard = useCallback(async (text: string) => {
+        if (navigator.clipboard?.writeText) {
+            await navigator.clipboard.writeText(text);
+        } else {
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            textarea.style.position = 'fixed';
+            textarea.style.opacity = '0';
+            document.body.appendChild(textarea);
+            textarea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textarea);
+        }
+    }, []);
+
     const handleCopyAll = useCallback(() => {
         const text = `${title}\n\n${description}\n\nTags: ${tags.join(', ')}`;
-        navigator.clipboard.writeText(text);
+        copyToClipboard(text);
         addToast('success', 'Đã copy tất cả!');
-    }, [title, description, tags, addToast]);
+    }, [title, description, tags, addToast, copyToClipboard]);
 
     const handleCopy = useCallback((text: string, label: string) => {
-        navigator.clipboard.writeText(text);
+        copyToClipboard(text);
         addToast('success', `Đã copy ${label}!`);
-    }, [addToast]);
+    }, [addToast, copyToClipboard]);
 
     const handleRemoveTag = (index: number) => {
         const next = tags.filter((_, i) => i !== index);
