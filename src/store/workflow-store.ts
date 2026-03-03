@@ -190,11 +190,23 @@ export const useWorkflowStore = create<WorkflowState>()(
             setVariations: (variations) => set({ variations }),
 
             toggleVariationSelection: (id) =>
-                set((state) => ({
-                    variations: state.variations.map((v) =>
-                        v.id === id ? { ...v, selected: !v.selected } : v
-                    ),
-                })),
+                set((state) => {
+                    const variation = state.variations.find(v => v.id === id);
+                    const willDeselect = variation?.selected;
+                    return {
+                        variations: state.variations.map((v) =>
+                            v.id === id ? { ...v, selected: !v.selected } : v
+                        ),
+                        // Clear overlay from templates that use this variation when deselected
+                        ...(willDeselect ? {
+                            mockupTemplates: state.mockupTemplates.map((t) =>
+                                t.designOverlay?.variationId === id
+                                    ? { ...t, designOverlay: null }
+                                    : t
+                            ),
+                        } : {}),
+                    };
+                }),
 
             selectAllVariations: () =>
                 set((state) => ({
@@ -204,6 +216,9 @@ export const useWorkflowStore = create<WorkflowState>()(
             deselectAllVariations: () =>
                 set((state) => ({
                     variations: state.variations.map((v) => ({ ...v, selected: false })),
+                    mockupTemplates: state.mockupTemplates.map((t) =>
+                        t.designOverlay ? { ...t, designOverlay: null } : t
+                    ),
                 })),
 
             updateVariation: (id, update) =>
