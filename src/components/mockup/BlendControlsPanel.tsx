@@ -15,6 +15,10 @@ interface BlendControlsPanelProps {
     setShadowEnabled: (v: boolean) => void;
     shadowBlur: number;
     setShadowBlur: (v: number) => void;
+    bgBlurEnabled: boolean;
+    setBgBlurEnabled: (v: boolean) => void;
+    bgBlur: number;
+    setBgBlur: (v: number) => void;
 }
 
 export default function BlendControlsPanel({
@@ -23,6 +27,8 @@ export default function BlendControlsPanel({
     opacity, setOpacity,
     shadowEnabled, setShadowEnabled,
     shadowBlur, setShadowBlur,
+    bgBlurEnabled, setBgBlurEnabled,
+    bgBlur, setBgBlur,
 }: BlendControlsPanelProps) {
     return (
         <div className="blend-controls">
@@ -62,6 +68,20 @@ export default function BlendControlsPanel({
                         <input type="range" min="0" max="50" value={shadowBlur}
                             onChange={(e) => setShadowBlur(Number(e.target.value))} />
                         <span className="blend-value">{shadowBlur}px</span>
+                    </>
+                )}
+            </div>
+            <div className="blend-control-group">
+                <label>
+                    <input type="checkbox" checked={bgBlurEnabled}
+                        onChange={(e) => setBgBlurEnabled(e.target.checked)} />
+                    Làm mờ nền
+                </label>
+                {bgBlurEnabled && (
+                    <>
+                        <input type="range" min="1" max="20" value={bgBlur}
+                            onChange={(e) => setBgBlur(Number(e.target.value))} />
+                        <span className="blend-value">{bgBlur}px</span>
                     </>
                 )}
             </div>

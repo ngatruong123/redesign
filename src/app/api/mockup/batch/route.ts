@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createCanvas, loadImage } from '@napi-rs/canvas';
 import { v4 as uuidv4 } from 'uuid';
+import sharp from 'sharp';
 import { resolveToBuffer, storeFile } from '@/lib/blob-storage';
 import { drawPerspective, rectToQuad, type FitMode } from '@/lib/perspective';
 import { requireAuth } from '@/lib/api-auth';
@@ -19,6 +20,7 @@ interface BatchItem {
         blendMode?: string;
         opacity?: number;
         shadow?: { blur: number; color: string; };
+        backgroundBlur?: number;
     };
     overlay?: {
         x: number; y: number; width: number; height: number; rotation?: number;
@@ -49,8 +51,15 @@ export async function POST(request: NextRequest) {
 
         for (const item of items) {
             try {
-                const mockupBuffer = await resolveToBuffer(item.mockupImagePath);
+                let mockupBuffer = await resolveToBuffer(item.mockupImagePath);
                 const designBuffer = await resolveToBuffer(item.designImagePath);
+
+                // Apply background blur if specified
+                const bgBlur = item.mask.backgroundBlur;
+                if (bgBlur && bgBlur > 0) {
+                    // sharp.blur sigma must be >= 0.3; use value directly as sigma
+                    mockupBuffer = await sharp(mockupBuffer).blur(Math.max(0.3, bgBlur)).toBuffer();
+                }
 
                 const mockupImg = await loadImage(mockupBuffer);
                 const designImg = await loadImage(designBuffer);

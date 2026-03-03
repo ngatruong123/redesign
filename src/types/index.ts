@@ -71,6 +71,7 @@ export interface MockupMask {
     blendMode: 'normal' | 'multiply' | 'overlay' | 'screen' | 'soft-light';
     opacity: number; // 0-100
     shadow?: { blur: number; color: string; };
+    backgroundBlur?: number; // 0 = off, 1-20 = blur px
 }
 
 export interface EtsySEO {

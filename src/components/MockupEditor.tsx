@@ -58,6 +58,8 @@ export default function MockupEditor() {
     const [opacity, setOpacity] = useState(100);
     const [shadowEnabled, setShadowEnabled] = useState(false);
     const [shadowBlur, setShadowBlur] = useState(10);
+    const [bgBlurEnabled, setBgBlurEnabled] = useState(false);
+    const [bgBlur, setBgBlur] = useState(5);
 
     const activeTemplate = mockupTemplates.find((t) => t.id === activeTemplateId);
     const selectedVariations = variations.filter((v) => v.selected && v.imageUrl);
@@ -107,8 +109,9 @@ export default function MockupEditor() {
             blendMode,
             opacity,
             shadow: shadowEnabled ? { blur: shadowBlur, color: 'rgba(0,0,0,0.5)' } : undefined,
+            backgroundBlur: bgBlurEnabled ? bgBlur : undefined,
         };
-    }, [fitMode, blendMode, opacity, shadowEnabled, shadowBlur]);
+    }, [fitMode, blendMode, opacity, shadowEnabled, shadowBlur, bgBlurEnabled, bgBlur]);
 
     // Forward-declared via ref so interaction can call them without circular deps
     const pushHistoryRef = useRef<(mask: MockupMask | null) => void>(() => {});
@@ -176,7 +179,14 @@ export default function MockupEditor() {
             }
             const s = scaleRef.current;
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            if (bgBlurEnabled && bgBlur > 0) {
+                ctx.save();
+                ctx.filter = `blur(${bgBlur}px)`;
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                ctx.restore();
+            } else {
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            }
 
             ctx.save();
             ctx.scale(s, s);
@@ -302,7 +312,7 @@ export default function MockupEditor() {
             img.onload = () => { imgCacheMap.current.set(activeTemplate.imageUrl, img); draw(img); };
             img.src = activeTemplate.imageUrl;
         }
-    }, [activeTemplate, interaction.corners, interaction.edgeCPs, interaction.dragging, interaction.quadDone, interaction.dragStart, interaction.dragCurrent]);
+    }, [activeTemplate, interaction.corners, interaction.edgeCPs, interaction.dragging, interaction.quadDone, interaction.dragStart, interaction.dragCurrent, bgBlurEnabled, bgBlur]);
 
     useEffect(() => { drawCanvas(); }, [drawCanvas]);
 
@@ -328,12 +338,16 @@ export default function MockupEditor() {
             setOpacity(mask.opacity ?? 100);
             setShadowEnabled(!!mask.shadow);
             setShadowBlur(mask.shadow?.blur ?? 10);
+            setBgBlurEnabled(!!mask.backgroundBlur && mask.backgroundBlur > 0);
+            setBgBlur(mask.backgroundBlur || 5);
         } else {
             setFitMode('contain');
             setBlendMode('normal');
             setOpacity(100);
             setShadowEnabled(false);
             setShadowBlur(10);
+            setBgBlurEnabled(false);
+            setBgBlur(5);
         }
         history.resetHistory(mask ?? null);
         canvasSizedRef.current = false;
@@ -347,7 +361,7 @@ export default function MockupEditor() {
         }
         // Only trigger on blend control changes, not on template/interaction changes
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [fitMode, blendMode, opacity, shadowEnabled, shadowBlur]);
+    }, [fitMode, blendMode, opacity, shadowEnabled, shadowBlur, bgBlurEnabled, bgBlur]);
 
     // Copy active template's mask to all other templates
     const applyMaskToAll = () => {
@@ -752,6 +766,8 @@ export default function MockupEditor() {
                                     opacity={opacity} setOpacity={setOpacity}
                                     shadowEnabled={shadowEnabled} setShadowEnabled={setShadowEnabled}
                                     shadowBlur={shadowBlur} setShadowBlur={setShadowBlur}
+                                    bgBlurEnabled={bgBlurEnabled} setBgBlurEnabled={setBgBlurEnabled}
+                                    bgBlur={bgBlur} setBgBlur={setBgBlur}
                                 />
                             )}
                         </>
