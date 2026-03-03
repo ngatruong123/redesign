@@ -53,7 +53,7 @@
   --z-overlay: 10;
   --z-modal-backdrop: 100;
   --z-modal: 110;
-  --z-toast: 130;
+  --z-toast: 10000;
 
   --accent-gradient: linear-gradient(135deg, var(--accent), var(--accent-light));
   --accent-gradient-vivid: linear-gradient(135deg, #2563eb, #7c3aed, #3b82f6);
