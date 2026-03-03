@@ -390,6 +390,35 @@ export default function MockupEditor() {
         setTimeout(() => commitMask(), 0);
     };
 
+    // Build a quad mask from overlay position/size (syncs mask to overlay)
+    const buildMaskFromOverlay = useCallback((ov: DesignOverlayState, existingMask?: MockupMask | null): MockupMask => {
+        const cT = (ov.cropTop ?? 0) / 100;
+        const cR = (ov.cropRight ?? 0) / 100;
+        const cB = (ov.cropBottom ?? 0) / 100;
+        const cL = (ov.cropLeft ?? 0) / 100;
+        const x = ov.x + ov.width * cL;
+        const y = ov.y + ov.height * cT;
+        const w = ov.width * (1 - cL - cR);
+        const h = ov.height * (1 - cT - cB);
+        const quad: [Point, Point, Point, Point] = [
+            { x, y },
+            { x: x + w, y },
+            { x: x + w, y: y + h },
+            { x, y: y + h },
+        ];
+        return {
+            x, y, width: w, height: h,
+            rotation: 0,
+            mode: 'quad' as const,
+            quad,
+            fitMode: existingMask?.fitMode ?? 'contain',
+            blendMode: existingMask?.blendMode ?? 'normal',
+            opacity: existingMask?.opacity ?? 100,
+            shadow: existingMask?.shadow,
+            backgroundBlur: existingMask?.backgroundBlur,
+        };
+    }, []);
+
     // --- Design Overlay ---
     const createOverlayFromVariation = useCallback((variationId: string, imageUrl: string) => {
         if (!activeTemplate) return;
@@ -427,10 +456,12 @@ export default function MockupEditor() {
                 naturalWidth: img.naturalWidth,
                 naturalHeight: img.naturalHeight,
             };
-            updateMockupTemplate(activeTemplate.id, { designOverlay: overlay });
+            const newMask = buildMaskFromOverlay(overlay, activeTemplate.mask);
+            updateMockupTemplate(activeTemplate.id, { designOverlay: overlay, mask: newMask });
+            interaction.restoreFromMask(newMask);
         };
         img.src = imageUrl;
-    }, [activeTemplate, updateMockupTemplate]);
+    }, [activeTemplate, updateMockupTemplate, buildMaskFromOverlay, interaction]);
 
     // --- Canvas Drop ---
     const handleCanvasDragOver = useCallback((e: React.DragEvent) => {
@@ -666,8 +697,10 @@ export default function MockupEditor() {
     const handleOverlayChange = useCallback((update: Partial<DesignOverlayState>) => {
         if (!activeTemplate?.designOverlay) return;
         const newOverlay = { ...activeTemplate.designOverlay, ...update };
-        updateMockupTemplate(activeTemplate.id, { designOverlay: newOverlay });
-    }, [activeTemplate, updateMockupTemplate]);
+        const newMask = buildMaskFromOverlay(newOverlay, activeTemplate.mask);
+        updateMockupTemplate(activeTemplate.id, { designOverlay: newOverlay, mask: newMask });
+        interaction.restoreFromMask(newMask);
+    }, [activeTemplate, updateMockupTemplate, buildMaskFromOverlay, interaction]);
 
     const handleOverlayRemove = useCallback(() => {
         if (!activeTemplate) return;
