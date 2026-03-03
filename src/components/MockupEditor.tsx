@@ -541,6 +541,7 @@ export default function MockupEditor() {
 
         setIsAIGenerating(true);
         setError(null);
+        setGeneratedMockups([]);
 
         try {
             // Build combined prompt from options
@@ -600,6 +601,7 @@ export default function MockupEditor() {
         setShowBatchPreview(false);
         setIsCompositing(true);
         setError(null);
+        setGeneratedMockups([]);
 
         const items = readyTemplates.flatMap((t) => {
             const result: Array<Record<string, unknown>> = [];
