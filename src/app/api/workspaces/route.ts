@@ -24,13 +24,28 @@ export async function POST(request: NextRequest) {
     const user = await prisma.user.findUnique({ where: { username } });
     if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 });
 
-    const { name } = await request.json();
+    const { name, id: clientId } = await request.json();
     if (!name || typeof name !== 'string') {
         return NextResponse.json({ error: 'Name is required' }, { status: 400 });
     }
 
-    const workspace = await prisma.workspace.create({
-        data: { name, userId: user.id },
-    });
-    return NextResponse.json(workspace, { status: 201 });
+    try {
+        // Allow client to specify an id (e.g. "default") — upsert to avoid duplicates
+        if (clientId && typeof clientId === 'string') {
+            const workspace = await prisma.workspace.upsert({
+                where: { id: clientId },
+                create: { id: clientId, name, userId: user.id },
+                update: {},
+            });
+            return NextResponse.json(workspace, { status: 201 });
+        }
+
+        const workspace = await prisma.workspace.create({
+            data: { name, userId: user.id },
+        });
+        return NextResponse.json(workspace, { status: 201 });
+    } catch (err) {
+        console.error('[POST /api/workspaces] Error:', err);
+        return NextResponse.json({ error: 'Failed to create workspace' }, { status: 500 });
+    }
 }

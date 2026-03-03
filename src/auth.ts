@@ -42,9 +42,10 @@ export async function checkCredentials(username: string, password: string): Prom
     // Try DB first
     try {
         const user = await prisma.user.findUnique({ where: { username } });
-        if (user) {
+        if (user && user.password !== '___env_auth___') {
             return bcrypt.compare(password, user.password);
         }
+        // If user has dummy password (auto-created from env login), fall through to env-based auth
     } catch {
         // DB not available, fall through to env-based auth
     }

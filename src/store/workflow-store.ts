@@ -56,6 +56,75 @@ function syncTemplatesToServer(templates: MockupTemplate[]) {
     }).catch(() => {});
 }
 
+/** Debounced sync of workflow data to server via workspace `data` field */
+let syncTimer: ReturnType<typeof setTimeout> | null = null;
+function syncWorkflowToServer() {
+    if (typeof window === 'undefined') return;
+    if (syncTimer) clearTimeout(syncTimer);
+    syncTimer = setTimeout(() => {
+        const wsId = getActiveWorkspaceId();
+        // Don't sync if no active workspace in DB
+        if (!wsId) return;
+        const state = useWorkflowStore.getState();
+        const data = {
+            currentStep: state.currentStep,
+            sourceDesigns: state.sourceDesigns.map(({ file, ...rest }) => rest),
+            variations: state.variations,
+            mockupTemplates: state.mockupTemplates,
+        };
+        // Ensure workspace exists in DB (handles "default" workspace)
+        ensureWorkspaceExists(wsId).then(() => {
+            fetch(`/api/workspaces/${encodeURIComponent(wsId)}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ data }),
+            }).catch(() => {});
+        });
+    }, 2000);
+}
+
+/** Ensure a workspace exists in DB (creates it if missing, e.g. "default") */
+const ensuredWorkspaces = new Set<string>();
+async function ensureWorkspaceExists(wsId: string) {
+    if (ensuredWorkspaces.has(wsId)) return;
+    try {
+        const res = await fetch(`/api/workspaces/${encodeURIComponent(wsId)}`);
+        if (res.ok) {
+            ensuredWorkspaces.add(wsId);
+            return;
+        }
+        // Create it
+        const createRes = await fetch('/api/workspaces', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: wsId, name: wsId === 'default' ? 'Default' : wsId }),
+        });
+        if (createRes.ok) ensuredWorkspaces.add(wsId);
+    } catch { /* ignore */ }
+}
+
+/** Load workflow data from server when localStorage is empty */
+async function loadWorkflowFromServer() {
+    if (typeof window === 'undefined') return;
+    const wsId = getActiveWorkspaceId();
+    if (!wsId) return;
+    try {
+        const res = await fetch(`/api/workspaces/${encodeURIComponent(wsId)}`);
+        if (!res.ok) return;
+        const workspace = await res.json();
+        if (!workspace.data) return;
+        const data = typeof workspace.data === 'string' ? JSON.parse(workspace.data) : workspace.data;
+        if (data && (data.sourceDesigns?.length || data.variations?.length || data.mockupTemplates?.length)) {
+            useWorkflowStore.setState({
+                currentStep: data.currentStep || 'upload',
+                sourceDesigns: data.sourceDesigns || [],
+                variations: data.variations || [],
+                mockupTemplates: data.mockupTemplates || [],
+            });
+        }
+    } catch { /* ignore */ }
+}
+
 interface WorkflowState {
     currentStep: WorkflowStep;
     sourceDesigns: DesignFile[];
@@ -213,6 +282,13 @@ export const useWorkflowStore = create<WorkflowState>()(
                 state.isCompositing = false;
                 state.error = null;
 
+                const isEmpty = !state.sourceDesigns?.length && !state.variations?.length && !state.mockupTemplates?.length;
+
+                // If localStorage has no workflow data, try loading from server
+                if (typeof window !== 'undefined' && isEmpty) {
+                    loadWorkflowFromServer();
+                }
+
                 // Load templates from server if localStorage has none
                 if (typeof window !== 'undefined' && (!state.mockupTemplates || state.mockupTemplates.length === 0)) {
                     fetch(`/api/templates?workspace=${encodeURIComponent(getActiveWorkspaceId())}`)
@@ -262,3 +338,20 @@ export const useWorkflowStore = create<WorkflowState>()(
         }
     )
 );
+
+// Subscribe to state changes and sync workflow data to server (debounced)
+if (typeof window !== 'undefined') {
+    useWorkflowStore.subscribe(
+        (state, prevState) => {
+            // Only sync when relevant data changes
+            if (
+                state.sourceDesigns !== prevState.sourceDesigns ||
+                state.variations !== prevState.variations ||
+                state.mockupTemplates !== prevState.mockupTemplates ||
+                state.currentStep !== prevState.currentStep
+            ) {
+                syncWorkflowToServer();
+            }
+        }
+    );
+}
