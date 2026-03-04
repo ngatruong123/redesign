@@ -11,6 +11,7 @@ import type { MockupMask, Point } from '@/types';
 
 import { useQuadInteraction } from '@/hooks/useQuadInteraction';
 import { useMaskHistory } from '@/hooks/useMaskHistory';
+import { useCanvasDrawing } from '@/hooks/useCanvasDrawing';
 
 import TemplatePanel from './mockup/TemplatePanel';
 import VariationsPanel from './mockup/VariationsPanel';
@@ -18,6 +19,7 @@ import BlendControlsPanel from './mockup/BlendControlsPanel';
 import GeneratedMockupsGrid from './mockup/GeneratedMockupsGrid';
 import BatchPreviewModal from './mockup/BatchPreviewModal';
 import DesignOverlay from './mockup/DesignOverlay';
+import MockupAIPanel from './mockup/MockupAIPanel';
 import type { DesignOverlayState } from '@/types';
 
 function mid(a: Point, b: Point): Point {
@@ -44,13 +46,8 @@ export default function MockupEditor() {
     const [seoMockupId, setSeoMockupId] = useState<string | null>(null);
     const [showBatchPreview, setShowBatchPreview] = useState(false);
     const [canvasDragOver, setCanvasDragOver] = useState(false);
-    const [isAIGenerating, setIsAIGenerating] = useState(false);
     const [showAIOptions, setShowAIOptions] = useState(false);
-    const [aiPrompt, setAiPrompt] = useState('');
-    const [aiPlacement, setAiPlacement] = useState<'auto' | 'center' | 'full' | 'wrap'>('auto');
-    const [aiStyle, setAiStyle] = useState<'photorealistic' | 'studio' | 'flat-lay' | 'lifestyle' | 'artistic'>('photorealistic');
-    const [aiImageSize, setAiImageSize] = useState<'1K' | '2K' | '4K'>('2K');
-    const [aiAspectRatio, setAiAspectRatio] = useState<'1:1' | '3:4' | '4:3' | '9:16' | '16:9'>('1:1');
+    const [isAIGenerating, setIsAIGenerating] = useState(false);
 
     // Blend controls
     const [fitMode, setFitMode] = useState<MockupMask['fitMode']>('contain');
@@ -64,12 +61,9 @@ export default function MockupEditor() {
     const activeTemplate = mockupTemplates.find((t) => t.id === activeTemplateId);
     const selectedVariations = variations.filter((v) => v.selected && v.imageUrl);
 
-    // Canvas ref + coord helpers (shared between canvas drawing and interaction)
+    // Canvas ref + coord helpers
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const scaleRef = useRef(1);
-    const imgCacheMap = useRef<Map<string, HTMLImageElement>>(new Map());
-    const canvasSizedRef = useRef(false);
-    const MAX_CANVAS_DIM = 2000;
 
     const getCoords = useCallback((clientX: number, clientY: number): Point => {
         const canvas = canvasRef.current;
@@ -82,8 +76,7 @@ export default function MockupEditor() {
         };
     }, []);
 
-    // We need commitMask/commitMaskDirect to be defined before interaction,
-    // but they depend on interaction.corners/edgeCPs. Use refs to break the cycle.
+    // Forward-declared refs to break circular deps between interaction and mask building
     const cornersRef = useRef<Point[]>([]);
     const edgeCPsRef = useRef<[Point, Point, Point, Point] | null>(null);
 
@@ -113,7 +106,6 @@ export default function MockupEditor() {
         };
     }, [fitMode, blendMode, opacity, shadowEnabled, shadowBlur, bgBlurEnabled, bgBlur]);
 
-    // Forward-declared via ref so interaction can call them without circular deps
     const pushHistoryRef = useRef<(mask: MockupMask | null) => void>(() => {});
 
     const commitMask = useCallback(() => {
@@ -140,7 +132,6 @@ export default function MockupEditor() {
         commitMaskDirect,
     });
 
-    // Keep refs in sync
     cornersRef.current = interaction.corners;
     edgeCPsRef.current = interaction.edgeCPs;
 
@@ -155,177 +146,25 @@ export default function MockupEditor() {
 
     pushHistoryRef.current = history.pushHistory;
 
-    // Canvas drawing
-    const drawCanvas = useCallback(() => {
-        if (!activeTemplate || !canvasRef.current) return;
-        const canvas = canvasRef.current;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return;
-
-        const corners = interaction.corners;
-        const edgeCPs = interaction.edgeCPs;
-        const dragging = interaction.dragging;
-        const quadDone = interaction.quadDone;
-        const dragStart = interaction.dragStart;
-        const dragCurrent = interaction.dragCurrent;
-
-        const draw = (img: HTMLImageElement) => {
-            if (!canvasSizedRef.current) {
-                const scale = Math.min(1, MAX_CANVAS_DIM / Math.max(img.naturalWidth, img.naturalHeight));
-                scaleRef.current = scale;
-                canvas.width = Math.round(img.naturalWidth * scale);
-                canvas.height = Math.round(img.naturalHeight * scale);
-                canvasSizedRef.current = true;
-            }
-            const s = scaleRef.current;
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            if (bgBlurEnabled && bgBlur > 0) {
-                ctx.save();
-                ctx.filter = `blur(${bgBlur}px)`;
-                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                ctx.restore();
-            } else {
-                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-            }
-
-            ctx.save();
-            ctx.scale(s, s);
-
-            if (dragStart && dragCurrent && corners.length === 0) {
-                ctx.save();
-                ctx.strokeStyle = 'rgba(0, 230, 138, 0.8)';
-                ctx.lineWidth = 2;
-                ctx.setLineDash([8, 4]);
-                const rx = Math.min(dragStart.x, dragCurrent.x);
-                const ry = Math.min(dragStart.y, dragCurrent.y);
-                const rw = Math.abs(dragCurrent.x - dragStart.x);
-                const rh = Math.abs(dragCurrent.y - dragStart.y);
-                ctx.strokeRect(rx, ry, rw, rh);
-                ctx.fillStyle = 'rgba(0, 230, 138, 0.08)';
-                ctx.fillRect(rx, ry, rw, rh);
-                ctx.restore();
-                ctx.restore();
-                return;
-            }
-
-            if (corners.length === 0) { ctx.restore(); return; }
-
-            ctx.save();
-            ctx.strokeStyle = 'rgba(0, 230, 138, 0.8)';
-            ctx.lineWidth = 3;
-            ctx.setLineDash([6, 4]);
-
-            if (corners.length >= 2 && quadDone && edgeCPs) {
-                const edgeEndpoints = (q: Point[]): [Point, Point][] => {
-                    const [tl, tr, br, bl] = q;
-                    return [[tl, tr], [tr, br], [br, bl], [tl, bl]];
-                };
-                const edges = edgeEndpoints(corners);
-                ctx.beginPath();
-                ctx.moveTo(corners[0].x, corners[0].y);
-                ctx.quadraticCurveTo(edgeCPs[0].x, edgeCPs[0].y, corners[1].x, corners[1].y);
-                ctx.quadraticCurveTo(edgeCPs[1].x, edgeCPs[1].y, corners[2].x, corners[2].y);
-                ctx.quadraticCurveTo(edgeCPs[2].x, edgeCPs[2].y, corners[3].x, corners[3].y);
-                ctx.quadraticCurveTo(edgeCPs[3].x, edgeCPs[3].y, corners[0].x, corners[0].y);
-                ctx.closePath();
-                ctx.fillStyle = 'rgba(0, 230, 138, 0.12)';
-                ctx.fill();
-                ctx.stroke();
-
-                ctx.setLineDash([3, 3]);
-                ctx.lineWidth = 1;
-                ctx.strokeStyle = 'rgba(255, 200, 0, 0.5)';
-                edges.forEach(([start, end], i) => {
-                    ctx.beginPath();
-                    ctx.moveTo(start.x, start.y);
-                    ctx.lineTo(edgeCPs[i].x, edgeCPs[i].y);
-                    ctx.lineTo(end.x, end.y);
-                    ctx.stroke();
-                });
-            } else if (corners.length >= 2) {
-                ctx.beginPath();
-                ctx.moveTo(corners[0].x, corners[0].y);
-                for (let i = 1; i < corners.length; i++) {
-                    ctx.lineTo(corners[i].x, corners[i].y);
-                }
-                if (corners.length === 4) {
-                    ctx.closePath();
-                    ctx.fillStyle = 'rgba(0, 230, 138, 0.15)';
-                    ctx.fill();
-                }
-                ctx.stroke();
-            }
-            ctx.setLineDash([]);
-
-            const CORNER_DRAW_RADIUS = 8;
-            const EDGE_DRAW_RADIUS = 6;
-            const CORNER_LABELS = ['1', '2', '3', '4'];
-            const EDGE_LABELS = ['T', 'R', 'B', 'L'];
-
-            corners.forEach((p, i) => {
-                ctx.beginPath();
-                ctx.arc(p.x, p.y, CORNER_DRAW_RADIUS, 0, Math.PI * 2);
-                const isActive = dragging?.type === 'corner' && dragging.index === i;
-                ctx.fillStyle = isActive ? 'rgba(255, 200, 0, 0.9)' : 'rgba(0, 230, 138, 0.9)';
-                ctx.fill();
-                ctx.strokeStyle = '#fff';
-                ctx.lineWidth = 2;
-                ctx.stroke();
-                ctx.fillStyle = '#fff';
-                ctx.font = 'bold 14px sans-serif';
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.fillText(CORNER_LABELS[i], p.x, p.y);
-            });
-
-            if (quadDone && edgeCPs) {
-                edgeCPs.forEach((cp, i) => {
-                    ctx.save();
-                    ctx.translate(cp.x, cp.y);
-                    ctx.rotate(Math.PI / 4);
-                    const isActive = dragging?.type === 'edge' && dragging.index === i;
-                    const size = EDGE_DRAW_RADIUS;
-                    ctx.fillStyle = isActive ? 'rgba(255, 150, 0, 0.9)' : 'rgba(255, 200, 0, 0.85)';
-                    ctx.fillRect(-size, -size, size * 2, size * 2);
-                    ctx.strokeStyle = '#fff';
-                    ctx.lineWidth = 1.5;
-                    ctx.strokeRect(-size, -size, size * 2, size * 2);
-                    ctx.restore();
-
-                    ctx.fillStyle = '#333';
-                    ctx.font = 'bold 10px sans-serif';
-                    ctx.textAlign = 'center';
-                    ctx.textBaseline = 'middle';
-                    ctx.fillText(EDGE_LABELS[i], cp.x, cp.y);
-                });
-            }
-
-            ctx.restore();
-            ctx.restore();
-        };
-
-        const cachedImg = imgCacheMap.current.get(activeTemplate.imageUrl);
-        if (cachedImg) {
-            draw(cachedImg);
-        } else {
-            const img = new Image();
-            img.onload = () => { imgCacheMap.current.set(activeTemplate.imageUrl, img); draw(img); };
-            img.src = activeTemplate.imageUrl;
-        }
-    }, [activeTemplate, interaction.corners, interaction.edgeCPs, interaction.dragging, interaction.quadDone, interaction.dragStart, interaction.dragCurrent, bgBlurEnabled, bgBlur]);
-
-    useEffect(() => { drawCanvas(); }, [drawCanvas]);
+    // Canvas drawing hook
+    const { resetCanvasSize, preloadImages } = useCanvasDrawing({
+        canvasRef,
+        scaleRef,
+        activeTemplateImageUrl: activeTemplate?.imageUrl,
+        corners: interaction.corners,
+        edgeCPs: interaction.edgeCPs,
+        dragging: interaction.dragging,
+        quadDone: interaction.quadDone,
+        dragStart: interaction.dragStart,
+        dragCurrent: interaction.dragCurrent,
+        bgBlurEnabled,
+        bgBlur,
+    });
 
     // Preload template images
     useEffect(() => {
-        for (const t of mockupTemplates) {
-            if (t.imageUrl && !imgCacheMap.current.has(t.imageUrl)) {
-                const img = new Image();
-                img.onload = () => imgCacheMap.current.set(t.imageUrl, img);
-                img.src = t.imageUrl;
-            }
-        }
-    }, [mockupTemplates]);
+        preloadImages(mockupTemplates.map(t => t.imageUrl));
+    }, [mockupTemplates, preloadImages]);
 
     // Sync state when switching templates
     useEffect(() => {
@@ -350,8 +189,8 @@ export default function MockupEditor() {
             setBgBlur(5);
         }
         history.resetHistory(mask ?? null);
-        canvasSizedRef.current = false;
-    }, [activeTemplateId, interaction.restoreFromMask, history.resetHistory, setFitMode, setBlendMode, setOpacity, setShadowEnabled, setShadowBlur]);
+        resetCanvasSize();
+    }, [activeTemplateId, interaction.restoreFromMask, history.resetHistory, setFitMode, setBlendMode, setOpacity, setShadowEnabled, setShadowBlur, resetCanvasSize]);
 
     // Update mask when blend/opacity/shadow change
     useEffect(() => {
@@ -359,7 +198,6 @@ export default function MockupEditor() {
             const mask = buildMaskFromState(interaction.corners, interaction.edgeCPs);
             updateMockupTemplate(activeTemplate.id, { mask });
         }
-        // Only trigger on blend control changes, not on template/interaction changes
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [fitMode, blendMode, opacity, shadowEnabled, shadowBlur, bgBlurEnabled, bgBlur]);
 
@@ -390,7 +228,7 @@ export default function MockupEditor() {
         setTimeout(() => commitMask(), 0);
     };
 
-    // Build a quad mask from overlay position/size (syncs mask to overlay)
+    // Build a quad mask from overlay position/size
     const buildMaskFromOverlay = useCallback((ov: DesignOverlayState, existingMask?: MockupMask | null): MockupMask => {
         const cT = (ov.cropTop ?? 0) / 100;
         const cR = (ov.cropRight ?? 0) / 100;
@@ -400,17 +238,30 @@ export default function MockupEditor() {
         const y = ov.y + ov.height * cT;
         const w = ov.width * (1 - cL - cR);
         const h = ov.height * (1 - cT - cB);
+
+        // Build quad — rotate around overlay center (not cropped rect center)
+        const cx = ov.x + ov.width / 2;
+        const cy = ov.y + ov.height / 2;
+        const rad = (ov.rotation * Math.PI) / 180;
+        const cos = Math.cos(rad);
+        const sin = Math.sin(rad);
+        const rot = (px: number, py: number): Point => ({
+            x: cos * (px - cx) - sin * (py - cy) + cx,
+            y: sin * (px - cx) + cos * (py - cy) + cy,
+        });
         const quad: [Point, Point, Point, Point] = [
-            { x, y },
-            { x: x + w, y },
-            { x: x + w, y: y + h },
-            { x, y: y + h },
+            rot(x, y),
+            rot(x + w, y),
+            rot(x + w, y + h),
+            rot(x, y + h),
         ];
+
         return {
             x, y, width: w, height: h,
-            rotation: 0,
+            rotation: ov.rotation,
             mode: 'quad' as const,
             quad,
+            edgeCurves: existingMask?.edgeCurves,
             fitMode: existingMask?.fitMode ?? 'contain',
             blendMode: existingMask?.blendMode ?? 'normal',
             opacity: existingMask?.opacity ?? 100,
@@ -423,7 +274,6 @@ export default function MockupEditor() {
     const createOverlayFromVariation = useCallback((variationId: string, imageUrl: string) => {
         if (!activeTemplate) return;
         const mask = activeTemplate.mask;
-        // Load image to get natural dimensions
         const img = new Image();
         img.onload = () => {
             const canvas = canvasRef.current;
@@ -432,7 +282,6 @@ export default function MockupEditor() {
             const ch = canvas ? canvas.height / s : 500;
             const ar = img.naturalWidth / img.naturalHeight;
 
-            // Center on mask if available, otherwise center on canvas
             let cx: number, cy: number;
             if (mask) {
                 cx = mask.x + mask.width / 2;
@@ -442,9 +291,8 @@ export default function MockupEditor() {
                 cy = ch / 2;
             }
 
-            // Size relative to canvas (50%), not constrained by mask
-            let w = Math.min(img.naturalWidth, cw * 0.5);
-            let h = w / ar;
+            const w = Math.min(img.naturalWidth, cw * 0.5);
+            const h = w / ar;
             const overlay: DesignOverlayState = {
                 variationId,
                 imageUrl,
@@ -471,7 +319,6 @@ export default function MockupEditor() {
     }, []);
 
     const handleCanvasDragLeave = useCallback((e: React.DragEvent) => {
-        // Only set false when leaving the container itself, not child elements
         const rect = e.currentTarget.getBoundingClientRect();
         const { clientX, clientY } = e;
         if (clientX < rect.left || clientX > rect.right || clientY < rect.top || clientY > rect.bottom) {
@@ -488,22 +335,18 @@ export default function MockupEditor() {
             return;
         }
 
-        // Case 1: Drop from VariationsPanel (has variation ID)
         const variationId = e.dataTransfer.getData('application/x-variation-id');
         if (variationId) {
             const variation = variations.find(v => v.id === variationId);
             if (variation) {
-                // Select variation
                 const updated = variations.map(v => ({ ...v, selected: v.id === variationId }));
                 setVariations(updated);
-                // Create design overlay centered on mask
                 createOverlayFromVariation(variation.id, variation.imageUrl);
                 addToast('success', `Đã đặt "${variation.styleName}" lên template`);
             }
             return;
         }
 
-        // Case 2: Drop from file explorer
         const files = e.dataTransfer.files;
         if (files.length > 0) {
             const file = files[0];
@@ -534,64 +377,6 @@ export default function MockupEditor() {
         }
     }, [activeTemplate, variations, setVariations, addToast, createOverlayFromVariation]);
 
-    // --- AI Generate Mockups ---
-    const handleAIGenerateMockups = async () => {
-        const templatesWithMask = mockupTemplates.filter(isTemplateReady);
-        if (templatesWithMask.length === 0 || selectedVariations.length === 0) return;
-
-        setIsAIGenerating(true);
-        setError(null);
-        setGeneratedMockups([]);
-
-        try {
-            // Build combined prompt from options
-            const promptParts: string[] = [];
-            if (aiPlacement !== 'auto') {
-                const placementMap = {
-                    center: 'Center the design on the product',
-                    full: 'Make the design cover the entire product surface',
-                    wrap: 'Wrap the design around the product naturally following its 3D shape',
-                };
-                promptParts.push(placementMap[aiPlacement]);
-            }
-            if (aiStyle !== 'photorealistic') {
-                const styleMap = {
-                    studio: 'Professional studio photography with clean background, perfect lighting',
-                    'flat-lay': 'Flat-lay top-down product photography style on a clean surface',
-                    lifestyle: 'Lifestyle scene with the product in a natural, real-world environment',
-                    artistic: 'Creative artistic composition with dramatic lighting and mood',
-                };
-                promptParts.push(styleMap[aiStyle]);
-            }
-            if (aiPrompt.trim()) promptParts.push(aiPrompt.trim());
-            const combinedPrompt = promptParts.length > 0 ? promptParts.join('. ') + '.' : undefined;
-
-            const res = await fetch('/api/mockup/ai-generate', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    templateIds: templatesWithMask.map(t => t.id),
-                    variationIds: selectedVariations.map(v => v.id),
-                    templates: templatesWithMask.map(t => ({ id: t.id, name: t.name, imageUrl: t.imageUrl })),
-                    variations: selectedVariations.map(v => ({ id: v.id, name: v.styleName, imageUrl: v.imageUrl })),
-                    prompt: combinedPrompt,
-                    imageSize: aiImageSize,
-                    aspectRatio: aiAspectRatio,
-                }),
-            });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error);
-            setGeneratedMockups(data.results);
-            addToast('success', `AI đã tạo ${data.results.length} mockup!`);
-        } catch (err) {
-            const msg = err instanceof Error ? err.message : 'Tạo AI mockup thất bại';
-            setError(msg);
-            addToast('error', msg);
-        } finally {
-            setIsAIGenerating(false);
-        }
-    };
-
     // --- Generate ---
     const handleGenerateMockups = async (excludedKeys?: Set<string>) => {
         const readyTemplates = mockupTemplates.filter(isTemplateReady);
@@ -606,7 +391,6 @@ export default function MockupEditor() {
         const items = readyTemplates.flatMap((t) => {
             const result: Array<Record<string, unknown>> = [];
 
-            // 1. Overlay design — render at user-positioned location
             if (t.designOverlay) {
                 const ov = t.designOverlay;
                 const overlayVariation = variations.find(v => v.id === ov.variationId);
@@ -652,11 +436,9 @@ export default function MockupEditor() {
                 }
             }
 
-            // 2. Mask-based generation — render selected variations via perspective warp
             if (t.mask) {
                 const maskVariations = selectedVariations
                     .filter((v) => {
-                        // Skip the overlay design (already handled above)
                         if (t.designOverlay && v.id === t.designOverlay.variationId) return false;
                         if (excludedKeys && excludedKeys.has(`${t.id}__${v.id}`)) return false;
                         return true;
@@ -709,7 +491,6 @@ export default function MockupEditor() {
         updateMockupTemplate(activeTemplate.id, { designOverlay: null });
     }, [activeTemplate, updateMockupTemplate]);
 
-    // Compute canvas display scale for overlay positioning
     const getCanvasDisplayScale = useCallback((): number => {
         const canvas = canvasRef.current;
         if (!canvas) return 1;
@@ -720,7 +501,6 @@ export default function MockupEditor() {
     const isTemplateReady = (t: typeof mockupTemplates[0]) => !!(t.mask || t.designOverlay);
     const readyTemplateCount = mockupTemplates.filter(isTemplateReady).length;
 
-    // Compute total mockup count matching generation logic
     const totalMockupCount = mockupTemplates.filter(isTemplateReady).reduce((count, t) => {
         let n = 0;
         if (t.designOverlay) {
@@ -816,6 +596,10 @@ export default function MockupEditor() {
                                         onChange={handleOverlayChange}
                                         onRemove={handleOverlayRemove}
                                         disabled={!!interaction.dragging || (!interaction.quadDone && (interaction.corners.length > 0 || !!interaction.dragStart))}
+                                        opacity={opacity}
+                                        blendMode={blendMode}
+                                        shadowEnabled={shadowEnabled}
+                                        shadowBlur={shadowBlur}
                                     />
                                 )}
                             </div>
@@ -863,71 +647,13 @@ export default function MockupEditor() {
             </div>
 
             {showAIOptions && (
-                <div className="ai-options-panel">
-                    <div className="ai-options-header">
-                        <h4>Tuỳ chỉnh AI Mockup</h4>
-                        <button className="btn-icon-sm" onClick={() => setShowAIOptions(false)}>✕</button>
-                    </div>
-
-                    <div className="ai-options-grid">
-                        <div className="ai-option-group">
-                            <label>Vị trí đặt design</label>
-                            <div className="ai-option-chips">
-                                {([['auto', 'Tự động'], ['center', 'Chính giữa'], ['full', 'Phủ toàn bộ'], ['wrap', 'Bọc quanh']] as const).map(([val, label]) => (
-                                    <button key={val} className={`ai-chip ${aiPlacement === val ? 'active' : ''}`} onClick={() => setAiPlacement(val)}>{label}</button>
-                                ))}
-                            </div>
-                        </div>
-
-                        <div className="ai-option-group">
-                            <label>Phong cách chụp</label>
-                            <div className="ai-option-chips">
-                                {([['photorealistic', 'Chân thực'], ['studio', 'Studio'], ['flat-lay', 'Flat Lay'], ['lifestyle', 'Đời thường'], ['artistic', 'Nghệ thuật']] as const).map(([val, label]) => (
-                                    <button key={val} className={`ai-chip ${aiStyle === val ? 'active' : ''}`} onClick={() => setAiStyle(val)}>{label}</button>
-                                ))}
-                            </div>
-                        </div>
-
-                        <div className="ai-option-group">
-                            <label>Độ phân giải</label>
-                            <div className="ai-option-chips">
-                                {([['1K', '1K'], ['2K', '2K'], ['4K', '4K']] as const).map(([val, label]) => (
-                                    <button key={val} className={`ai-chip ${aiImageSize === val ? 'active' : ''}`} onClick={() => setAiImageSize(val)}>{label}</button>
-                                ))}
-                            </div>
-                        </div>
-
-                        <div className="ai-option-group">
-                            <label>Tỷ lệ khung hình</label>
-                            <div className="ai-option-chips">
-                                {([['1:1', '1:1'], ['3:4', '3:4'], ['4:3', '4:3'], ['9:16', '9:16'], ['16:9', '16:9']] as const).map(([val, label]) => (
-                                    <button key={val} className={`ai-chip ${aiAspectRatio === val ? 'active' : ''}`} onClick={() => setAiAspectRatio(val)}>{label}</button>
-                                ))}
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="ai-option-group" style={{ marginTop: 8 }}>
-                        <label>Prompt tuỳ chỉnh (không bắt buộc)</label>
-                        <textarea
-                            className="ai-prompt-input"
-                            value={aiPrompt}
-                            onChange={(e) => setAiPrompt(e.target.value)}
-                            placeholder="VD: Đặt design ở mặt trước áo, thêm bóng đổ nhẹ, ánh sáng studio ấm, nền trắng..."
-                            rows={3}
-                        />
-                    </div>
-
-                    <button
-                        className="btn-primary btn-lg"
-                        disabled={totalMockupCount === 0 || isAIGenerating}
-                        onClick={handleAIGenerateMockups}
-                        style={{ marginTop: 8, width: '100%', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}
-                    >
-                        {isAIGenerating ? <><span className="spinner-sm" /> AI đang tạo...</>
-                            : `Tạo ${totalMockupCount} AI Mockup`}
-                    </button>
-                </div>
+                <MockupAIPanel
+                    selectedVariations={selectedVariations}
+                    totalMockupCount={totalMockupCount}
+                    isTemplateReady={isTemplateReady}
+                    onClose={() => setShowAIOptions(false)}
+                    onGeneratingChange={setIsAIGenerating}
+                />
             )}
 
             {generatedMockups.length > 0 && (

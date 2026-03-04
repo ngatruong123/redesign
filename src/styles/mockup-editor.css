@@ -390,6 +390,10 @@
   outline: 2px solid var(--accent) !important;
 }
 
+.design-overlay.cropping {
+  outline: 2px dashed rgba(255, 165, 0, 0.9) !important;
+}
+
 .overlay-handle {
   width: 12px;
   height: 12px;
@@ -450,49 +454,83 @@
 /* Edge crop handles */
 .overlay-crop-handle {
   position: absolute;
-  background: rgba(255, 165, 0, 0.6);
   z-index: 1;
-  transition: background 0.15s;
+  transition: background 0.15s, box-shadow 0.15s;
 }
 
-.overlay-crop-handle:hover {
-  background: rgba(255, 165, 0, 0.9);
+/* Visible bar inside the handle */
+.overlay-crop-handle::after {
+  content: '';
+  position: absolute;
+  background: rgba(255, 165, 0, 0.7);
+  border-radius: 3px;
+  transition: background 0.15s, transform 0.15s;
+}
+
+.overlay-crop-handle:hover::after,
+.overlay-crop-handle:active::after {
+  background: rgba(255, 165, 0, 1);
+  transform: scale(1.2);
+}
+
+.overlay-crop-handle:active::after {
+  box-shadow: 0 0 6px rgba(255, 165, 0, 0.6);
 }
 
 .overlay-crop-top {
-  /* top set by inline style */
-  left: 10%;
-  right: 10%;
-  height: 6px;
+  left: 0;
+  right: 0;
+  height: 16px;
+  margin-top: -8px;
   cursor: n-resize;
-  border-radius: 0 0 3px 3px;
+}
+.overlay-crop-top::after {
+  left: 20%;
+  right: 20%;
+  height: 4px;
+  top: 6px;
 }
 
 .overlay-crop-bottom {
-  /* bottom set by inline style */
-  left: 10%;
-  right: 10%;
-  height: 6px;
+  left: 0;
+  right: 0;
+  height: 16px;
+  margin-bottom: -8px;
   cursor: s-resize;
-  border-radius: 3px 3px 0 0;
+}
+.overlay-crop-bottom::after {
+  left: 20%;
+  right: 20%;
+  height: 4px;
+  bottom: 6px;
 }
 
 .overlay-crop-left {
-  /* left set by inline style */
-  top: 10%;
-  bottom: 10%;
-  width: 6px;
+  top: 0;
+  bottom: 0;
+  width: 16px;
+  margin-left: -8px;
   cursor: w-resize;
-  border-radius: 0 3px 3px 0;
+}
+.overlay-crop-left::after {
+  top: 20%;
+  bottom: 20%;
+  width: 4px;
+  left: 6px;
 }
 
 .overlay-crop-right {
-  /* right set by inline style */
-  top: 10%;
-  bottom: 10%;
-  width: 6px;
+  top: 0;
+  bottom: 0;
+  width: 16px;
+  margin-right: -8px;
   cursor: e-resize;
-  border-radius: 3px 0 0 3px;
+}
+.overlay-crop-right::after {
+  top: 20%;
+  bottom: 20%;
+  width: 4px;
+  right: 6px;
 }
 
 .overlay-reset-crop-btn {

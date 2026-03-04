@@ -7,6 +7,7 @@ import UploadZone from '@/components/UploadZone';
 import VariationGrid from '@/components/VariationGrid';
 import MockupEditor from '@/components/MockupEditor';
 import VideoGenerator from '@/components/VideoGenerator';
+import ErrorBoundary from '@/components/ErrorBoundary';
 import { Sparkles, LogOut, Plus, X, Folder, UploadCloud, Layers, Film } from '@/components/ui-icons';
 import type { WorkflowStep } from '@/types';
 
@@ -187,8 +188,8 @@ export default function Home() {
                 {/* Content */}
                 <main className="app-content">
                     {currentStep === 'upload' && <UploadZone />}
-                    {currentStep === 'variations' && <VariationGrid />}
-                    {currentStep === 'mockup' && <MockupEditor />}
+                    {currentStep === 'variations' && <ErrorBoundary><VariationGrid /></ErrorBoundary>}
+                    {currentStep === 'mockup' && <ErrorBoundary><MockupEditor /></ErrorBoundary>}
                     {currentStep === 'video' && <VideoGenerator />}
                 </main>
             </div>

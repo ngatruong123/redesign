@@ -8,7 +8,7 @@ interface Props {
     templateImageUrl: string;
     designImageUrl: string;
     mask: MockupMask;
-    overlay?: { x: number; y: number; width: number; height: number; rotation?: number };
+    overlay?: { x: number; y: number; width: number; height: number; rotation?: number; cropTop?: number; cropRight?: number; cropBottom?: number; cropLeft?: number };
     width?: number;
 }
 
@@ -96,16 +96,33 @@ export default function BatchPreviewCanvas({ templateImageUrl, designImageUrl, m
                 : mask.blendMode as GlobalCompositeOperation;
 
             if (overlay) {
-                // Overlay mode: draw design directly at overlay position (no perspective warp)
+                // Overlay mode: draw design at overlay position with crop support
+                const cT = (overlay.cropTop ?? 0) / 100;
+                const cR = (overlay.cropRight ?? 0) / 100;
+                const cB = (overlay.cropBottom ?? 0) / 100;
+                const cL = (overlay.cropLeft ?? 0) / 100;
+
+                // Source rect (cropped region of the design image)
+                const sx = cL * designImg.width;
+                const sy = cT * designImg.height;
+                const sw = designImg.width * (1 - cL - cR);
+                const sh = designImg.height * (1 - cT - cB);
+
+                // Destination rect (adjusted for crop)
+                const dx = (overlay.x + overlay.width * cL) * scale;
+                const dy = (overlay.y + overlay.height * cT) * scale;
+                const dw = overlay.width * (1 - cL - cR) * scale;
+                const dh = overlay.height * (1 - cT - cB) * scale;
+
                 ctx.save();
                 if (overlay.rotation) {
                     const ocx = (overlay.x + overlay.width / 2) * scale;
                     const ocy = (overlay.y + overlay.height / 2) * scale;
                     ctx.translate(ocx, ocy);
                     ctx.rotate((overlay.rotation * Math.PI) / 180);
-                    ctx.drawImage(designImg, -overlay.width * scale / 2, -overlay.height * scale / 2, overlay.width * scale, overlay.height * scale);
+                    ctx.drawImage(designImg, sx, sy, sw, sh, dx - ocx, dy - ocy, dw, dh);
                 } else {
-                    ctx.drawImage(designImg, overlay.x * scale, overlay.y * scale, overlay.width * scale, overlay.height * scale);
+                    ctx.drawImage(designImg, sx, sy, sw, sh, dx, dy, dw, dh);
                 }
                 ctx.restore();
             } else {

@@ -12,6 +12,10 @@ interface DesignOverlayProps {
     onChange: (update: Partial<DesignOverlayState>) => void;
     onRemove: () => void;
     disabled?: boolean;
+    opacity?: number;
+    blendMode?: string;
+    shadowEnabled?: boolean;
+    shadowBlur?: number;
 }
 
 const SNAP_THRESHOLD = 5; // px in canvas space
@@ -20,7 +24,7 @@ type DragMode = 'move' | 'resize' | 'rotate' | 'crop' | null;
 type Corner = 'tl' | 'tr' | 'br' | 'bl';
 type Edge = 'top' | 'right' | 'bottom' | 'left';
 
-export default function DesignOverlay({ overlay, mask, canvasScale, canvasWidth, canvasHeight, onChange, onRemove, disabled }: DesignOverlayProps) {
+export default function DesignOverlay({ overlay, mask, canvasScale, canvasWidth, canvasHeight, onChange, onRemove, disabled, opacity = 100, blendMode = 'normal', shadowEnabled = false, shadowBlur = 10 }: DesignOverlayProps) {
     const [mode, setMode] = useState<DragMode>(null);
     const [activeCorner, setActiveCorner] = useState<Corner | null>(null);
     const [activeEdge, setActiveEdge] = useState<Edge | null>(null);
@@ -83,24 +87,31 @@ export default function DesignOverlay({ overlay, mask, canvasScale, canvasWidth,
             setSnapV(isSnapV);
             onChange({ x: newX, y: newY });
         } else if (mode === 'resize') {
+            // Rotate screen-space delta into overlay's local space
+            const rad = -(overlay.rotation * Math.PI) / 180;
+            const cos = Math.cos(rad);
+            const sin = Math.sin(rad);
+            const ldx = cos * dx - sin * dy;
+            const ldy = sin * dx + cos * dy;
+
             let newW = s.ow;
             let newH = s.oh;
             let newX = s.ox;
             let newY = s.oy;
 
             if (activeCorner === 'br') {
-                newW = Math.max(30, s.ow + dx);
+                newW = Math.max(30, s.ow + ldx);
                 newH = newW / aspectRatio;
             } else if (activeCorner === 'bl') {
-                newW = Math.max(30, s.ow - dx);
+                newW = Math.max(30, s.ow - ldx);
                 newH = newW / aspectRatio;
                 newX = s.ox + (s.ow - newW);
             } else if (activeCorner === 'tr') {
-                newW = Math.max(30, s.ow + dx);
+                newW = Math.max(30, s.ow + ldx);
                 newH = newW / aspectRatio;
                 newY = s.oy + (s.oh - newH);
             } else if (activeCorner === 'tl') {
-                newW = Math.max(30, s.ow - dx);
+                newW = Math.max(30, s.ow - ldx);
                 newH = newW / aspectRatio;
                 newX = s.ox + (s.ow - newW);
                 newY = s.oy + (s.oh - newH);
@@ -114,16 +125,22 @@ export default function DesignOverlay({ overlay, mask, canvasScale, canvasWidth,
             const angle = Math.atan2(e.clientY - centerY, e.clientX - centerX) * (180 / Math.PI) + 90;
             onChange({ rotation: Math.round(angle) % 360 });
         } else if (mode === 'crop' && activeEdge) {
-            // Crop: convert pixel delta to percentage of overlay dimension
+            // Rotate screen-space delta into overlay's local space
+            const rad = -(overlay.rotation * Math.PI) / 180;
+            const cos = Math.cos(rad);
+            const sin = Math.sin(rad);
+            const ldx = cos * dx - sin * dy;
+            const ldy = sin * dx + cos * dy;
+
             const clamp = (v: number) => Math.max(0, Math.min(90, v));
             if (activeEdge === 'top') {
-                onChange({ cropTop: clamp(s.ct + (dy / s.oh) * 100) });
+                onChange({ cropTop: clamp(s.ct + (ldy / s.oh) * 100) });
             } else if (activeEdge === 'bottom') {
-                onChange({ cropBottom: clamp(s.cb - (dy / s.oh) * 100) });
+                onChange({ cropBottom: clamp(s.cb - (ldy / s.oh) * 100) });
             } else if (activeEdge === 'left') {
-                onChange({ cropLeft: clamp(s.cl + (dx / s.ow) * 100) });
+                onChange({ cropLeft: clamp(s.cl + (ldx / s.ow) * 100) });
             } else if (activeEdge === 'right') {
-                onChange({ cropRight: clamp(s.cr - (dx / s.ow) * 100) });
+                onChange({ cropRight: clamp(s.cr - (ldx / s.ow) * 100) });
             }
         }
     }, [mode, activeCorner, activeEdge, canvasScale, canvasWidth, canvasHeight, aspectRatio, onChange, overlay]);
@@ -158,7 +175,7 @@ export default function DesignOverlay({ overlay, mask, canvasScale, canvasWidth,
     return (
         <div
             ref={containerRef}
-            className="design-overlay"
+            className={`design-overlay${mode === 'crop' ? ' cropping' : ''}`}
             style={{
                 position: 'absolute',
                 left: overlay.x * sc,
@@ -170,7 +187,7 @@ export default function DesignOverlay({ overlay, mask, canvasScale, canvasWidth,
                 // No clip-path here — handles must remain visible and interactive
                 zIndex: 10,
                 pointerEvents: disabled ? 'none' : 'auto',
-                opacity: disabled ? 0.5 : 1,
+                opacity: disabled ? 0.5 : undefined,
                 cursor: mode === 'move' ? 'grabbing' : 'grab',
                 outline: mode ? '2px solid var(--accent, #00e68a)' : '2px solid rgba(0,230,138,0.6)',
                 borderRadius: 2,
@@ -188,6 +205,9 @@ export default function DesignOverlay({ overlay, mask, canvasScale, canvasWidth,
                 clipPath: imageClip,
                 overflow: 'hidden',
                 borderRadius: 2,
+                opacity: opacity / 100,
+                mixBlendMode: blendMode === 'normal' ? undefined : blendMode as React.CSSProperties['mixBlendMode'],
+                filter: shadowEnabled ? `drop-shadow(0 0 ${shadowBlur}px rgba(0,0,0,0.5))` : undefined,
             }}>
                 <img
                     src={overlay.imageUrl}
@@ -207,22 +227,22 @@ export default function DesignOverlay({ overlay, mask, canvasScale, canvasWidth,
             {/* Edge crop handles — positioned at current crop inset */}
             <div
                 className="overlay-crop-handle overlay-crop-top"
-                style={{ top: `${ct}%` }}
+                style={{ top: `${ct}%`, zIndex: 5 }}
                 onPointerDown={(e) => handlePointerDown(e, 'crop', undefined, 'top')}
             />
             <div
                 className="overlay-crop-handle overlay-crop-bottom"
-                style={{ bottom: `${cb}%` }}
+                style={{ bottom: `${cb}%`, zIndex: 5 }}
                 onPointerDown={(e) => handlePointerDown(e, 'crop', undefined, 'bottom')}
             />
             <div
                 className="overlay-crop-handle overlay-crop-left"
-                style={{ left: `${cl}%` }}
+                style={{ left: `${cl}%`, zIndex: 5 }}
                 onPointerDown={(e) => handlePointerDown(e, 'crop', undefined, 'left')}
             />
             <div
                 className="overlay-crop-handle overlay-crop-right"
-                style={{ right: `${cr}%` }}
+                style={{ right: `${cr}%`, zIndex: 5 }}
                 onPointerDown={(e) => handlePointerDown(e, 'crop', undefined, 'right')}
             />
 
