@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { checkCredentials, createAuthToken, AUTH_COOKIE, authCookieOptions } from '@/auth';
 import { checkRateLimit } from '@/lib/rate-limiter';
 import { prisma } from '@/lib/db';
+import { loginSchema } from '@/lib/validators';
 
 export async function POST(request: NextRequest) {
     const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
@@ -10,12 +11,11 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Quá nhiều lần thử. Vui lòng đợi 1 phút.' }, { status: 429 });
     }
 
-    const body = await request.json();
-    const { username, password } = body;
-
-    if (typeof username !== 'string' || typeof password !== 'string' || !username.trim() || !password) {
+    const parsed = loginSchema.safeParse(await request.json());
+    if (!parsed.success) {
         return NextResponse.json({ error: 'Username và password không được để trống' }, { status: 400 });
     }
+    const { username, password } = parsed.data;
 
     if (!(await checkCredentials(username, password))) {
         return NextResponse.json({ error: 'Sai tài khoản hoặc mật khẩu' }, { status: 401 });

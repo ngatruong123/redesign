@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getAuthUsername } from '@/auth';
 import { requireAuth } from '@/lib/api-auth';
+import { createWorkspaceSchema } from '@/lib/validators';
 
 export async function GET() {
     const authError = await requireAuth();
@@ -27,10 +28,11 @@ export async function POST(request: NextRequest) {
     const user = await prisma.user.findUnique({ where: { username } });
     if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 });
 
-    const { name, id: clientId } = await request.json();
-    if (!name || typeof name !== 'string') {
+    const parsed = createWorkspaceSchema.safeParse(await request.json());
+    if (!parsed.success) {
         return NextResponse.json({ error: 'Name is required' }, { status: 400 });
     }
+    const { name, id: clientId } = parsed.data;
 
     try {
         // Allow client to specify an id (e.g. "default") — check ownership first
