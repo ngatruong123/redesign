@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getAuthUsername } from '@/auth';
+import { requireAuth } from '@/lib/api-auth';
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+    const authError = await requireAuth();
+    if (authError) return authError;
     const username = await getAuthUsername();
-    if (!username) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     try {
         const { id } = await params;
@@ -24,8 +26,9 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 }
 
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+    const authError = await requireAuth();
+    if (authError) return authError;
     const username = await getAuthUsername();
-    if (!username) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     try {
         const { id } = await params;
@@ -53,8 +56,9 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 }
 
 export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+    const authError = await requireAuth();
+    if (authError) return authError;
     const username = await getAuthUsername();
-    if (!username) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const { id } = await params;
     const user = await prisma.user.findUnique({ where: { username } });
