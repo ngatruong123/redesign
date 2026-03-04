@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { useWorkflowStore } from '@/store/workflow-store';
 
 function getActiveUser(): string {
     if (typeof window === 'undefined') return 'default';
@@ -67,14 +68,14 @@ export const useWorkspaceStore = create<WorkspaceState>()(
                     ...(active === id ? { activeId: 'default' } : {}),
                 }));
                 if (active === id) {
-                    window.location.reload();
+                    useWorkflowStore.getState().reset();
                 }
             },
 
             switchWorkspace: (id) => {
                 if (id === get().activeId) return;
                 set({ activeId: id });
-                window.location.reload();
+                useWorkflowStore.getState().reset();
             },
 
             syncFromServer: async () => {
