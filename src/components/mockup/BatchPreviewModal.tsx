@@ -34,7 +34,7 @@ export default function BatchPreviewModal({
                     const overlayData = { x: ov.x, y: ov.y, width: ov.width, height: ov.height, rotation: ov.rotation };
                     if (t.mask) {
                         result.push({
-                            key: `${t.id}__${v.id}__overlay`,
+                            key: `${t.id}__${v.id}`,
                             template: t,
                             variation: v,
                             overlayMask: undefined,
@@ -42,7 +42,7 @@ export default function BatchPreviewModal({
                         });
                     } else {
                         result.push({
-                            key: `${t.id}__${v.id}__overlay`,
+                            key: `${t.id}__${v.id}`,
                             template: t,
                             variation: v,
                             overlayMask: {

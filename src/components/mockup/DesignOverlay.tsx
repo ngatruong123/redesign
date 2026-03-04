@@ -124,7 +124,7 @@ export default function DesignOverlay({ overlay, mask, canvasScale, canvasWidth,
                 onChange({ cropRight: clamp(s.cr - (dx / s.ow) * 100) });
             }
         }
-    }, [mode, activeCorner, activeEdge, canvasScale, aspectRatio, onChange, overlay]);
+    }, [mode, activeCorner, activeEdge, canvasScale, canvasWidth, canvasHeight, aspectRatio, onChange, overlay]);
 
     const handlePointerUp = useCallback(() => {
         setMode(null);
