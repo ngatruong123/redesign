@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { resolveToBuffer } from '@/lib/blob-storage';
 import { requireAuth } from '@/lib/api-auth';
+import { checkRateLimit } from '@/lib/rate-limiter';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -8,6 +9,12 @@ export const maxDuration = 60;
 export async function POST(req: NextRequest) {
     const authError = await requireAuth();
     if (authError) return authError;
+
+    const ip = req.headers.get('x-forwarded-for') ?? req.headers.get('x-real-ip') ?? 'unknown';
+    const rl = checkRateLimit('ai:' + ip, 10, 60_000);
+    if (!rl.allowed) {
+        return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429, headers: { 'Retry-After': String(Math.ceil(rl.retryAfterMs / 1000)) } });
+    }
     try {
         const { imageUrl, productContext } = await req.json();
         if (!imageUrl) {

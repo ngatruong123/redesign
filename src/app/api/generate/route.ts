@@ -4,10 +4,17 @@ import { DEFAULT_STYLE_PRESETS, buildVariationPrompt } from '@/lib/prompt-engine
 import { v4 as uuidv4 } from 'uuid';
 import { storeFile, resolveToBuffer } from '@/lib/blob-storage';
 import { requireAuth } from '@/lib/api-auth';
+import { checkRateLimit } from '@/lib/rate-limiter';
 
 export async function POST(request: NextRequest) {
     const authError = await requireAuth();
     if (authError) return authError;
+
+    const ip = request.headers.get('x-forwarded-for') ?? request.headers.get('x-real-ip') ?? 'unknown';
+    const rl = checkRateLimit('ai:' + ip, 10, 60_000);
+    if (!rl.allowed) {
+        return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429, headers: { 'Retry-After': String(Math.ceil(rl.retryAfterMs / 1000)) } });
+    }
     try {
         const body = await request.json();
         const { sourceImageUrl, sourceImagePath, styles, additionalPrompt, count } = body;
