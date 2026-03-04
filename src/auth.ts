@@ -8,8 +8,8 @@ const AUTH_USER = process.env.AUTH_USERNAME || 'admin';
 const AUTH_PASS = process.env.AUTH_PASSWORD;
 
 function getSecret(): Uint8Array {
-    const secret = process.env.AUTH_SECRET || process.env.AUTH_PASSWORD;
-    if (!secret) throw new Error('AUTH_SECRET or AUTH_PASSWORD must be set');
+    const secret = process.env.AUTH_SECRET;
+    if (!secret) throw new Error('AUTH_SECRET must be set');
     return new TextEncoder().encode(secret);
 }
 

@@ -4,7 +4,7 @@ import { jwtVerify } from 'jose';
 const PUBLIC_PATHS = ['/login', '/register', '/api/auth', '/landing'];
 
 function getSecret(): Uint8Array | null {
-    const secret = process.env.AUTH_SECRET || process.env.AUTH_PASSWORD;
+    const secret = process.env.AUTH_SECRET;
     if (!secret) return null;
     return new TextEncoder().encode(secret);
 }
