@@ -10,9 +10,10 @@ interface MockupAIPanelProps {
     totalMockupCount: number;
     isTemplateReady: (t: MockupTemplate) => boolean;
     onClose: () => void;
+    onGeneratingChange?: (generating: boolean) => void;
 }
 
-export default function MockupAIPanel({ selectedVariations, totalMockupCount, isTemplateReady, onClose }: MockupAIPanelProps) {
+export default function MockupAIPanel({ selectedVariations, totalMockupCount, isTemplateReady, onClose, onGeneratingChange }: MockupAIPanelProps) {
     const { mockupTemplates, setGeneratedMockups, setError } = useWorkflowStore();
     const addToast = useToastStore((s) => s.addToast);
 
@@ -28,6 +29,7 @@ export default function MockupAIPanel({ selectedVariations, totalMockupCount, is
         if (templatesWithMask.length === 0 || selectedVariations.length === 0) return;
 
         setIsAIGenerating(true);
+        onGeneratingChange?.(true);
         setError(null);
         setGeneratedMockups([]);
 
@@ -76,6 +78,7 @@ export default function MockupAIPanel({ selectedVariations, totalMockupCount, is
             addToast('error', msg);
         } finally {
             setIsAIGenerating(false);
+            onGeneratingChange?.(false);
         }
     };
 

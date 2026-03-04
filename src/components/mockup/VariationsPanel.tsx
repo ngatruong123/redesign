@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback } from 'react';
 import { useToastStore } from '@/store/toast-store';
+import { useWorkflowStore } from '@/store/workflow-store';
 import type { GeneratedVariation } from '@/types';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -128,6 +129,13 @@ export default function VariationsPanel({
                             className="btn-icon-sm"
                             onClick={(e) => {
                                 e.stopPropagation();
+                                // Clear overlay from templates that reference this variation
+                                const { mockupTemplates, updateMockupTemplate } = useWorkflowStore.getState();
+                                for (const t of mockupTemplates) {
+                                    if (t.designOverlay?.variationId === v.id) {
+                                        updateMockupTemplate(t.id, { designOverlay: null });
+                                    }
+                                }
                                 setVariations(variations.filter(x => x.id !== v.id));
                             }}
                             title="Xoá"

@@ -47,6 +47,7 @@ export default function MockupEditor() {
     const [showBatchPreview, setShowBatchPreview] = useState(false);
     const [canvasDragOver, setCanvasDragOver] = useState(false);
     const [showAIOptions, setShowAIOptions] = useState(false);
+    const [isAIGenerating, setIsAIGenerating] = useState(false);
 
     // Blend controls
     const [fitMode, setFitMode] = useState<MockupMask['fitMode']>('contain');
@@ -237,17 +238,30 @@ export default function MockupEditor() {
         const y = ov.y + ov.height * cT;
         const w = ov.width * (1 - cL - cR);
         const h = ov.height * (1 - cT - cB);
+
+        // Build quad — rotate around overlay center (not cropped rect center)
+        const cx = ov.x + ov.width / 2;
+        const cy = ov.y + ov.height / 2;
+        const rad = (ov.rotation * Math.PI) / 180;
+        const cos = Math.cos(rad);
+        const sin = Math.sin(rad);
+        const rot = (px: number, py: number): Point => ({
+            x: cos * (px - cx) - sin * (py - cy) + cx,
+            y: sin * (px - cx) + cos * (py - cy) + cy,
+        });
         const quad: [Point, Point, Point, Point] = [
-            { x, y },
-            { x: x + w, y },
-            { x: x + w, y: y + h },
-            { x, y: y + h },
+            rot(x, y),
+            rot(x + w, y),
+            rot(x + w, y + h),
+            rot(x, y + h),
         ];
+
         return {
             x, y, width: w, height: h,
-            rotation: 0,
+            rotation: ov.rotation,
             mode: 'quad' as const,
             quad,
+            edgeCurves: existingMask?.edgeCurves,
             fitMode: existingMask?.fitMode ?? 'contain',
             blendMode: existingMask?.blendMode ?? 'normal',
             opacity: existingMask?.opacity ?? 100,
@@ -582,6 +596,10 @@ export default function MockupEditor() {
                                         onChange={handleOverlayChange}
                                         onRemove={handleOverlayRemove}
                                         disabled={!!interaction.dragging || (!interaction.quadDone && (interaction.corners.length > 0 || !!interaction.dragStart))}
+                                        opacity={opacity}
+                                        blendMode={blendMode}
+                                        shadowEnabled={shadowEnabled}
+                                        shadowBlur={shadowBlur}
                                     />
                                 )}
                             </div>
@@ -619,11 +637,12 @@ export default function MockupEditor() {
                 </button>
                 <button
                     className="btn-primary btn-lg"
-                    disabled={totalMockupCount === 0 || isCompositing}
+                    disabled={totalMockupCount === 0 || isAIGenerating || isCompositing}
                     onClick={() => setShowAIOptions(!showAIOptions)}
                     style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}
                 >
-                    {`Tạo AI ${totalMockupCount} mockup`}
+                    {isAIGenerating ? <><span className="spinner-sm" /> AI đang tạo...</>
+                        : `Tạo AI ${totalMockupCount} mockup`}
                 </button>
             </div>
 
@@ -633,6 +652,7 @@ export default function MockupEditor() {
                     totalMockupCount={totalMockupCount}
                     isTemplateReady={isTemplateReady}
                     onClose={() => setShowAIOptions(false)}
+                    onGeneratingChange={setIsAIGenerating}
                 />
             )}
 

@@ -18,8 +18,9 @@ export default function BatchPreviewModal({
     onGenerate,
 }: BatchPreviewModalProps) {
     const [batchExcluded, setBatchExcluded] = useState<Set<string>>(new Set());
+    const [enlargedKey, setEnlargedKey] = useState<string | null>(null);
 
-    type Combo = { key: string; template: MockupTemplate; variation: GeneratedVariation; overlayMask: MockupMask | undefined; overlay?: { x: number; y: number; width: number; height: number; rotation: number } };
+    type Combo = { key: string; template: MockupTemplate; variation: GeneratedVariation; overlayMask: MockupMask | undefined; overlay?: { x: number; y: number; width: number; height: number; rotation: number; cropTop?: number; cropRight?: number; cropBottom?: number; cropLeft?: number } };
 
     const combos = mockupTemplates
         .filter((t) => t.mask || t.designOverlay)
@@ -31,7 +32,7 @@ export default function BatchPreviewModal({
                 const ov = t.designOverlay;
                 const v = selectedVariations.find(sv => sv.id === ov.variationId);
                 if (v) {
-                    const overlayData = { x: ov.x, y: ov.y, width: ov.width, height: ov.height, rotation: ov.rotation };
+                    const overlayData = { x: ov.x, y: ov.y, width: ov.width, height: ov.height, rotation: ov.rotation, cropTop: ov.cropTop, cropRight: ov.cropRight, cropBottom: ov.cropBottom, cropLeft: ov.cropLeft };
                     if (t.mask) {
                         result.push({
                             key: `${t.id}__${v.id}`,
@@ -83,6 +84,8 @@ export default function BatchPreviewModal({
         });
     };
 
+    const enlargedCombo = enlargedKey ? combos.find(c => c.key === enlargedKey) : null;
+
     return (
         <div className="batch-preview-overlay" onClick={onClose}>
             <div className="batch-preview-modal" onClick={(e) => e.stopPropagation()}>
@@ -91,7 +94,7 @@ export default function BatchPreviewModal({
                     <button className="btn-icon-sm" onClick={onClose}>✕</button>
                 </div>
                 <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: 12 }}>
-                    Bỏ chọn combo bạn không muốn tạo. Click vào ảnh để toggle.
+                    Click phải / giữ để xem to. Click trái để chọn/bỏ chọn.
                 </p>
                 <div className="batch-preview-grid">
                     {combos.map(({ key, template, variation, overlayMask, overlay }) => {
@@ -101,14 +104,25 @@ export default function BatchPreviewModal({
                                 key={key}
                                 className={`batch-preview-item ${isChecked ? 'checked' : ''}`}
                                 onClick={() => toggleBatchItem(key)}
+                                onContextMenu={(e) => { e.preventDefault(); setEnlargedKey(key); }}
+                                onDoubleClick={(e) => { e.stopPropagation(); setEnlargedKey(key); }}
                             >
                                 {isChecked && <div className="batch-preview-check">✓</div>}
-                                <BatchPreviewCanvas
-                                    templateImageUrl={template.imageUrl}
-                                    designImageUrl={overlay ? (template.designOverlay?.imageUrl ?? variation.imageUrl) : overlayMask ? (template.designOverlay?.imageUrl ?? variation.imageUrl) : variation.imageUrl}
-                                    mask={overlayMask ?? template.mask!}
-                                    overlay={overlay}
-                                />
+                                <div style={{ position: 'relative' }}>
+                                    <BatchPreviewCanvas
+                                        templateImageUrl={template.imageUrl}
+                                        designImageUrl={overlay ? (template.designOverlay?.imageUrl ?? variation.imageUrl) : overlayMask ? (template.designOverlay?.imageUrl ?? variation.imageUrl) : variation.imageUrl}
+                                        mask={overlayMask ?? template.mask!}
+                                        overlay={overlay}
+                                    />
+                                    <button
+                                        className="batch-preview-enlarge-btn"
+                                        onClick={(e) => { e.stopPropagation(); setEnlargedKey(key); }}
+                                        title="Xem to"
+                                    >
+                                        ⤢
+                                    </button>
+                                </div>
                                 <div className="batch-preview-item-label">
                                     {template.name} × {variation.styleName}
                                 </div>
@@ -127,6 +141,34 @@ export default function BatchPreviewModal({
                     </button>
                 </div>
             </div>
+
+            {/* Enlarged preview lightbox */}
+            {enlargedCombo && (
+                <div
+                    className="batch-enlarged-overlay"
+                    onClick={(e) => { e.stopPropagation(); setEnlargedKey(null); }}
+                >
+                    <div className="batch-enlarged-content" onClick={(e) => e.stopPropagation()}>
+                        <BatchPreviewCanvas
+                            templateImageUrl={enlargedCombo.template.imageUrl}
+                            designImageUrl={enlargedCombo.overlay ? (enlargedCombo.template.designOverlay?.imageUrl ?? enlargedCombo.variation.imageUrl) : enlargedCombo.overlayMask ? (enlargedCombo.template.designOverlay?.imageUrl ?? enlargedCombo.variation.imageUrl) : enlargedCombo.variation.imageUrl}
+                            mask={enlargedCombo.overlayMask ?? enlargedCombo.template.mask!}
+                            overlay={enlargedCombo.overlay}
+                            width={800}
+                        />
+                        <div style={{ textAlign: 'center', marginTop: 8, fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                            {enlargedCombo.template.name} × {enlargedCombo.variation.styleName}
+                        </div>
+                        <button
+                            className="btn-secondary"
+                            onClick={() => setEnlargedKey(null)}
+                            style={{ display: 'block', margin: '12px auto 0' }}
+                        >
+                            Đóng
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
