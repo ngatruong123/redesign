@@ -7,14 +7,30 @@ datasource db {
   provider = "sqlite"
 }
 
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum AssetType {
+  UPLOAD
+  VARIATION
+  MOCKUP
+  TEMPLATE
+  VIDEO
+}
+
 model User {
   id        String   @id @default(cuid())
   username  String   @unique
   email     String?  @unique
   password  String
+  role      UserRole @default(USER)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   workspaces Workspace[]
+  apiKeys    ApiKey[]
+  auditLogs  AuditLog[]
 }
 
 model Workspace {
@@ -23,8 +39,55 @@ model Workspace {
   userId    String
   user      User     @relation(fields: [userId], references: [id])
   data      String?
+  deletedAt DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  assets    Asset[]
+
+  @@index([userId])
+}
+
+model Asset {
+  id          String    @id @default(cuid())
+  type        AssetType
+  filename    String
+  url         String
+  mimeType    String?
+  size        Int?
+  metadata    String?
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([workspaceId])
+  @@index([type])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  action    String
+  entity    String
+  entityId  String?
+  detail    String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([entity, entityId])
+}
+
+model ApiKey {
+  id        String   @id @default(cuid())
+  name      String
+  keyHash   String   @unique
+  prefix    String
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lastUsed  DateTime?
+  expiresAt DateTime?
+  createdAt DateTime @default(now())
 
   @@index([userId])
 }
