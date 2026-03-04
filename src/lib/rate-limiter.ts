@@ -3,15 +3,7 @@ interface RateLimitEntry {
 }
 
 const store = new Map<string, RateLimitEntry>();
-
-// Clean old entries periodically
-setInterval(() => {
-    const now = Date.now();
-    for (const [key, entry] of store) {
-        entry.timestamps = entry.timestamps.filter((t) => now - t < 120_000);
-        if (entry.timestamps.length === 0) store.delete(key);
-    }
-}, 60_000);
+let lastCleanup = Date.now();
 
 export interface RateLimitResult {
     allowed: boolean;
@@ -26,6 +18,16 @@ export interface RateLimitResult {
  */
 export function checkRateLimit(key: string, limit: number, windowMs: number): RateLimitResult {
     const now = Date.now();
+
+    // Lazy cleanup every 60s instead of module-level setInterval
+    if (now - lastCleanup > 60_000) {
+        lastCleanup = now;
+        for (const [k, e] of store) {
+            e.timestamps = e.timestamps.filter((t) => now - t < 120_000);
+            if (e.timestamps.length === 0) store.delete(k);
+        }
+    }
+
     let entry = store.get(key);
     if (!entry) {
         entry = { timestamps: [] };

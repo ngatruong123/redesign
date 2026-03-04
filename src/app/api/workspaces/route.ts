@@ -6,7 +6,7 @@ import { requireAuth } from '@/lib/api-auth';
 export async function GET() {
     const authError = await requireAuth();
     if (authError) return authError;
-    const username = await getAuthUsername();
+    const username = (await getAuthUsername())!;
 
     const user = await prisma.user.findUnique({ where: { username } });
     if (!user) return NextResponse.json([]);
@@ -22,7 +22,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
     const authError = await requireAuth();
     if (authError) return authError;
-    const username = await getAuthUsername();
+    const username = (await getAuthUsername())!;
 
     const user = await prisma.user.findUnique({ where: { username } });
     if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 });
