@@ -30,12 +30,16 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-        // Allow client to specify an id (e.g. "default") — upsert to avoid duplicates
+        // Allow client to specify an id (e.g. "default") — check ownership first
         if (clientId && typeof clientId === 'string') {
-            const workspace = await prisma.workspace.upsert({
-                where: { id: clientId },
-                create: { id: clientId, name, userId: user.id },
-                update: {},
+            const existing = await prisma.workspace.findFirst({
+                where: { id: clientId, userId: user.id },
+            });
+            if (existing) {
+                return NextResponse.json(existing, { status: 200 });
+            }
+            const workspace = await prisma.workspace.create({
+                data: { id: clientId, name, userId: user.id },
             });
             return NextResponse.json(workspace, { status: 201 });
         }
