@@ -920,12 +920,12 @@ export default function MockupEditor() {
 
                     <button
                         className="btn-primary btn-lg"
-                        disabled={readyTemplateCount === 0 || selectedVariations.length === 0 || isAIGenerating}
+                        disabled={totalMockupCount === 0 || isAIGenerating}
                         onClick={handleAIGenerateMockups}
                         style={{ marginTop: 8, width: '100%', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}
                     >
                         {isAIGenerating ? <><span className="spinner-sm" /> AI đang tạo...</>
-                            : `Tạo ${readyTemplateCount * selectedVariations.length} AI Mockup`}
+                            : `Tạo ${totalMockupCount} AI Mockup`}
                     </button>
                 </div>
             )}

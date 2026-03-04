@@ -69,12 +69,14 @@ export default function DesignOverlay({ overlay, mask, canvasScale, canvasWidth,
         if (mode === 'move') {
             let newX = s.ox + dx;
             let newY = s.oy + dy;
+            // Only snap when not rotated (rotation breaks center alignment meaning)
+            const canSnap = !overlay.rotation || overlay.rotation === 0;
             const centerX = newX + s.ow / 2;
             const centerY = newY + s.oh / 2;
             const midX = canvasWidth / 2;
             const midY = canvasHeight / 2;
-            const isSnapH = Math.abs(centerX - midX) < SNAP_THRESHOLD;
-            const isSnapV = Math.abs(centerY - midY) < SNAP_THRESHOLD;
+            const isSnapH = canSnap && Math.abs(centerX - midX) < SNAP_THRESHOLD;
+            const isSnapV = canSnap && Math.abs(centerY - midY) < SNAP_THRESHOLD;
             if (isSnapH) newX = midX - s.ow / 2;
             if (isSnapV) newY = midY - s.oh / 2;
             setSnapH(isSnapH);
