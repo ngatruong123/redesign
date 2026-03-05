@@ -530,7 +530,18 @@ export default function MockupEditor() {
                 </div>
             </div>
 
-            <div className="mockup-layout mockup-layout--fullcenter">
+            <div className="mockup-layout mockup-layout--3col">
+                <div className="mockup-col-left">
+                    <TemplatePanel
+                        mockupTemplates={mockupTemplates}
+                        activeTemplateId={activeTemplateId}
+                        addMockupTemplate={addMockupTemplate}
+                        removeMockupTemplate={removeMockupTemplate}
+                        updateMockupTemplate={updateMockupTemplate}
+                        setActiveTemplateId={setActiveTemplateId}
+                    />
+                </div>
+
                 <div
                     className="mockup-canvas-area"
                     onDragOver={handleCanvasDragOver}
@@ -615,25 +626,13 @@ export default function MockupEditor() {
                     )}
                 </div>
 
-                <div className="mockup-strip">
-                    <div className="mockup-strip-section">
-                        <TemplatePanel
-                            mockupTemplates={mockupTemplates}
-                            activeTemplateId={activeTemplateId}
-                            addMockupTemplate={addMockupTemplate}
-                            removeMockupTemplate={removeMockupTemplate}
-                            updateMockupTemplate={updateMockupTemplate}
-                            setActiveTemplateId={setActiveTemplateId}
-                        />
-                    </div>
-                    <div className="mockup-strip-section">
-                        <VariationsPanel
-                            variations={variations}
-                            setVariations={setVariations}
-                            toggleVariationSelection={toggleVariationSelection}
-                            setRemoveBgVariationId={setRemoveBgVariationId}
-                        />
-                    </div>
+                <div className="mockup-col-right">
+                    <VariationsPanel
+                        variations={variations}
+                        setVariations={setVariations}
+                        toggleVariationSelection={toggleVariationSelection}
+                        setRemoveBgVariationId={setRemoveBgVariationId}
+                    />
                 </div>
             </div>
 
