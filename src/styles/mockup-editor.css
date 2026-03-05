@@ -106,7 +106,7 @@
 
 .template-list {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: repeat(2, 1fr);
   gap: 6px;
 }
 
@@ -136,8 +136,7 @@
 .template-item img {
   width: 100%;
   aspect-ratio: 1;
-  object-fit: contain;
-  background: var(--bg-secondary);
+  object-fit: cover;
   border-radius: 4px;
 }
 
