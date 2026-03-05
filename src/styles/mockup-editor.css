@@ -595,24 +595,24 @@
   z-index: 11;
   touch-action: none;
   box-shadow: 0 1px 4px rgba(0,0,0,0.3);
-  /* Invisible larger hit area */
-  position: relative;
+  transition: transform 0.15s, background 0.15s, border-color 0.15s;
 }
 
+/* Invisible larger hit area */
 .overlay-handle::before {
   content: '';
   position: absolute;
-  top: -10px;
-  left: -10px;
-  right: -10px;
-  bottom: -10px;
+  top: -12px;
+  left: -12px;
+  width: 38px;
+  height: 38px;
   border-radius: 50%;
 }
 
 .overlay-handle:hover {
   background: rgba(160, 120, 255, 1);
   border-color: rgba(160, 120, 255, 1);
-  transform: scale(1.2);
+  transform: scale(1.4);
 }
 
 
