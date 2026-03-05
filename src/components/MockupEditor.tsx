@@ -671,8 +671,6 @@ export default function MockupEditor() {
                                 <div className="undo-redo-bar">
                                     <button className="btn-icon" title="Hoàn tác (Ctrl+Z)" onClick={history.undo} disabled={history.historyIndex <= 0}>{Icons.undo}</button>
                                     <button className="btn-icon" title="Làm lại (Ctrl+Shift+Z)" onClick={history.redo} disabled={history.historyIndex >= history.maskHistory.length - 1}>{Icons.redo}</button>
-                                    <button className="btn-ghost-sm" onClick={handleResetMask}>Đặt lại</button>
-                                    {interaction.quadDone && <button className="btn-ghost-sm" onClick={handleResetMask} style={{ color: 'var(--error, #ef4444)' }} title="Xoá mask (Delete)">Xoá mask</button>}
                                     {interaction.quadDone && <button className="btn-ghost-sm" onClick={handleResetCurves}>Đặt lại đường cong</button>}
                                     {interaction.quadDone && activeTemplate?.mask && mockupTemplates.length > 1 && (
                                         <button
@@ -698,6 +696,26 @@ export default function MockupEditor() {
                                     onTouchEnd={interaction.handleTouchEnd}
                                     style={{ cursor: interaction.quadDone ? 'default' : 'crosshair', touchAction: 'none' }}
                                 />
+                                {interaction.quadDone && activeTemplate?.mask && !activeTemplate.designOverlay && (() => {
+                                    const cs = getCanvasDisplayScale();
+                                    const mask = activeTemplate.mask;
+                                    const quad = mask.quad;
+                                    // Top center of mask
+                                    let topX: number, topY: number;
+                                    if (quad) {
+                                        topX = (quad[0].x + quad[1].x) / 2 * cs;
+                                        topY = Math.min(quad[0].y, quad[1].y) * cs;
+                                    } else {
+                                        topX = (mask.x + mask.width / 2) * cs;
+                                        topY = mask.y * cs;
+                                    }
+                                    return (
+                                        <div className="overlay-toolbar" style={{ top: topY - 40, left: topX, transform: 'translateX(-50%)' }}>
+                                            <button className="overlay-toolbar-btn" title="Đặt lại đường cong" onClick={handleResetCurves}>⟲</button>
+                                            <button className="overlay-toolbar-btn overlay-toolbar-btn--delete" title="Xoá mask (Delete)" onClick={handleResetMask}>✕</button>
+                                        </div>
+                                    );
+                                })()}
                                 {activeTemplate?.designOverlay && (
                                     <DesignOverlay
                                         overlay={activeTemplate.designOverlay}
