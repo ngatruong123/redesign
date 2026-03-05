@@ -574,6 +574,10 @@
   transition: outline-color 0.15s;
 }
 
+.design-overlay:hover {
+  outline: 2px solid rgba(0, 230, 138, 0.6) !important;
+}
+
 .design-overlay:focus {
   outline: 2px solid var(--accent) !important;
 }
@@ -590,6 +594,12 @@
   border-radius: 50%;
   z-index: 11;
   touch-action: none;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.design-overlay:hover .overlay-handle {
+  opacity: 1;
 }
 
 .overlay-handle:hover {
@@ -654,7 +664,12 @@
 .overlay-crop-handle {
   position: absolute;
   z-index: 1;
-  transition: background 0.15s, box-shadow 0.15s;
+  transition: background 0.15s, box-shadow 0.15s, opacity 0.15s;
+  opacity: 0;
+}
+
+.design-overlay:hover .overlay-crop-handle {
+  opacity: 1;
 }
 
 /* Visible bar inside the handle */

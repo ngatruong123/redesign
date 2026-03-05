@@ -190,7 +190,7 @@ export default function DesignOverlay({ overlay, mask, canvasScale, canvasWidth,
                 pointerEvents: disabled ? 'none' : 'auto',
                 opacity: disabled ? 0.5 : undefined,
                 cursor: mode === 'move' ? 'grabbing' : 'grab',
-                outline: mode ? '2px solid var(--accent, #00e68a)' : '2px solid rgba(0,230,138,0.6)',
+                outline: mode ? '2px solid var(--accent, #00e68a)' : '2px solid transparent',
                 borderRadius: 2,
                 overflow: 'visible',
             }}
