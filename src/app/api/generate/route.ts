@@ -7,6 +7,8 @@ import { requireAuth } from '@/lib/api-auth';
 import { checkRateLimit } from '@/lib/rate-limiter';
 
 export async function POST(request: NextRequest) {
+    console.warn('[DEPRECATED] /api/generate is deprecated. Use /api/generate-stream instead.');
+
     const authError = await requireAuth();
     if (authError) return authError;
 
@@ -91,7 +93,9 @@ export async function POST(request: NextRequest) {
             }
         }
 
-        return NextResponse.json({ variations: results });
+        const response = NextResponse.json({ variations: results });
+        response.headers.set('X-Deprecated', 'Use /api/generate-stream instead');
+        return response;
     } catch (error) {
         console.error('Generate error:', error);
         return NextResponse.json(

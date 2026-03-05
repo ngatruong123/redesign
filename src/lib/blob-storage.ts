@@ -141,7 +141,8 @@ export async function resolveToBuffer(url: string): Promise<Buffer> {
     const cachePath = path.join(CACHE_ROOT, dir, filename);
     try {
         return await readFile(cachePath);
-    } catch {
+    } catch (err) {
+        console.warn('[resolveToBuffer] Error reading cache path, falling back to public/:', err);
         // Fallback to public/
         const publicPath = path.join(process.cwd(), 'public', dir, filename);
         return await readFile(publicPath);

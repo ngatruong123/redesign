@@ -20,6 +20,7 @@ import GeneratedMockupsGrid from './mockup/GeneratedMockupsGrid';
 import BatchPreviewModal from './mockup/BatchPreviewModal';
 import DesignOverlay from './mockup/DesignOverlay';
 import MockupAIPanel from './mockup/MockupAIPanel';
+import Skeleton from './ui/Skeleton';
 import type { DesignOverlayState } from '@/types';
 
 function mid(a: Point, b: Point): Point {
@@ -48,6 +49,7 @@ export default function MockupEditor() {
     const [canvasDragOver, setCanvasDragOver] = useState(false);
     const [showAIOptions, setShowAIOptions] = useState(false);
     const [isAIGenerating, setIsAIGenerating] = useState(false);
+    const [, setTemplateImageLoaded] = useState(false);
 
     // Blend controls
     const [fitMode, setFitMode] = useState<MockupMask['fitMode']>('contain');
@@ -190,6 +192,15 @@ export default function MockupEditor() {
         }
         history.resetHistory(mask ?? null);
         resetCanvasSize();
+
+        // Track template image loading
+        setTemplateImageLoaded(false);
+        if (template?.imageUrl) {
+            const img = new Image();
+            img.onload = () => setTemplateImageLoaded(true);
+            img.onerror = () => setTemplateImageLoaded(true);
+            img.src = template.imageUrl;
+        }
     }, [activeTemplateId, interaction.restoreFromMask, history.resetHistory, setFitMode, setBlendMode, setOpacity, setShadowEnabled, setShadowBlur, resetCanvasSize]);
 
     // Update mask when blend/opacity/shadow change
@@ -516,7 +527,7 @@ export default function MockupEditor() {
     return (
         <div className="mockup-container">
             <div className="mockup-header">
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div className="mockup-header-actions">
                     <button className="btn-ghost" onClick={() => setStep('variations')}>← Quay lại</button>
                     <span className="badge">{selectedVariations.length} biến thể đã chọn</span>
                 </div>
@@ -556,7 +567,7 @@ export default function MockupEditor() {
                                     : 'Kéo góc xanh để chỉnh. Kéo handle vàng để uốn cong. Kéo bên trong để di chuyển.'}
                             </p>
 
-                            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+                            <div className="mockup-canvas-toolbar">
                                 <div className="undo-redo-bar">
                                     <button className="btn-icon" title="Hoàn tác (Ctrl+Z)" onClick={history.undo} disabled={history.historyIndex <= 0}>{Icons.undo}</button>
                                     <button className="btn-icon" title="Làm lại (Ctrl+Shift+Z)" onClick={history.redo} disabled={history.historyIndex >= history.maskHistory.length - 1}>{Icons.redo}</button>

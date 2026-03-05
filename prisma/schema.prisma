@@ -4,7 +4,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
 }
 
 enum UserRole {
@@ -54,7 +54,7 @@ model Asset {
   url         String
   mimeType    String?
   size        Int?
-  metadata    String?
+  metadata    Json?
   workspaceId String
   workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   createdAt   DateTime  @default(now())

@@ -89,11 +89,11 @@ export default function BatchPreviewModal({
     return (
         <div className="batch-preview-overlay" onClick={onClose}>
             <div className="batch-preview-modal" onClick={(e) => e.stopPropagation()}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                    <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Preview mockup combinations</h3>
+                <div className="batch-modal-header">
+                    <h3 className="batch-modal-title">Preview mockup combinations</h3>
                     <button className="btn-icon-sm" onClick={onClose}>✕</button>
                 </div>
-                <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: 12 }}>
+                <p className="batch-modal-subtitle">
                     Click phải / giữ để xem to. Click trái để chọn/bỏ chọn.
                 </p>
                 <div className="batch-preview-grid">
@@ -130,7 +130,7 @@ export default function BatchPreviewModal({
                         );
                     })}
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+                <div className="batch-modal-footer">
                     <button className="btn-secondary" onClick={onClose}>Huỷ</button>
                     <button
                         className="btn-primary"
@@ -156,13 +156,12 @@ export default function BatchPreviewModal({
                             overlay={enlargedCombo.overlay}
                             width={800}
                         />
-                        <div style={{ textAlign: 'center', marginTop: 8, fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                        <div className="batch-enlarged-caption">
                             {enlargedCombo.template.name} × {enlargedCombo.variation.styleName}
                         </div>
                         <button
-                            className="btn-secondary"
+                            className="btn-secondary batch-enlarged-close"
                             onClick={() => setEnlargedKey(null)}
-                            style={{ display: 'block', margin: '12px auto 0' }}
                         >
                             Đóng
                         </button>

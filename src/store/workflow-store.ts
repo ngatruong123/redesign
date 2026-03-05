@@ -1,129 +1,11 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { DesignFile, GeneratedVariation, MockupTemplate, GeneratedMockup, WorkflowStep, VideoGeneration, EtsySEO } from '@/types';
-
-function getActiveUser(): string {
-    if (typeof window === 'undefined') return 'default';
-    return localStorage.getItem('design-tool-user') || 'default';
-}
-
-function getActiveWorkspaceId(): string {
-    if (typeof window === 'undefined') return 'default';
-    try {
-        const raw = localStorage.getItem(`design-tool-${getActiveUser()}-workspaces`);
-        if (raw) {
-            const parsed = JSON.parse(raw);
-            return parsed?.state?.activeId || 'default';
-        }
-    } catch { /* ignore */ }
-    return 'default';
-}
-
-/** Migrate data from old persist key to new workspace-based key (one-time) */
-function migrateFromOldKey(): void {
-    if (typeof window === 'undefined') return;
-    const OLD_KEY = 'design-tool-workflow';
-    const newKey = `design-tool-${getActiveUser()}-ws-${getActiveWorkspaceId()}`;
-    try {
-        const oldRaw = localStorage.getItem(OLD_KEY);
-        if (!oldRaw) return;
-        const newRaw = localStorage.getItem(newKey);
-        // Only migrate if new key is empty or has no mockupTemplates
-        if (!newRaw || !JSON.parse(newRaw)?.state?.mockupTemplates?.length) {
-            const oldData = JSON.parse(oldRaw);
-            if (oldData?.state?.mockupTemplates?.length) {
-                // Merge old templates into new key
-                const newData = newRaw ? JSON.parse(newRaw) : { state: {}, version: 0 };
-                newData.state = { ...newData.state, mockupTemplates: oldData.state.mockupTemplates };
-                localStorage.setItem(newKey, JSON.stringify(newData));
-            }
-        }
-        // Remove old key after migration
-        localStorage.removeItem(OLD_KEY);
-    } catch { /* ignore */ }
-}
+import { getActiveUser, getActiveWorkspaceId, syncTemplatesToServer, syncWorkflowToServer, loadWorkflowFromServer } from './workflow-sync';
+import { migrateFromOldKey } from './workflow-migration';
 
 // Run migration before store creation
 migrateFromOldKey();
-
-/** Sync current templates to server (scoped by workspace) */
-function syncTemplatesToServer(templates: MockupTemplate[]) {
-    const wsId = getActiveWorkspaceId();
-    fetch(`/api/templates?workspace=${encodeURIComponent(wsId)}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(templates),
-    }).catch(() => {});
-}
-
-/** Debounced sync of workflow data to server via workspace `data` field */
-let syncTimer: ReturnType<typeof setTimeout> | null = null;
-function syncWorkflowToServer() {
-    if (typeof window === 'undefined') return;
-    if (syncTimer) clearTimeout(syncTimer);
-    syncTimer = setTimeout(() => {
-        const wsId = getActiveWorkspaceId();
-        // Don't sync if no active workspace in DB
-        if (!wsId) return;
-        const state = useWorkflowStore.getState();
-        const data = {
-            currentStep: state.currentStep,
-            sourceDesigns: state.sourceDesigns.map(({ file, ...rest }) => rest),
-            variations: state.variations,
-            mockupTemplates: state.mockupTemplates,
-        };
-        // Ensure workspace exists in DB (handles "default" workspace)
-        ensureWorkspaceExists(wsId).then(() => {
-            fetch(`/api/workspaces/${encodeURIComponent(wsId)}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ data }),
-            }).catch(() => {});
-        });
-    }, 2000);
-}
-
-/** Ensure a workspace exists in DB (creates it if missing, e.g. "default") */
-const ensuredWorkspaces = new Set<string>();
-async function ensureWorkspaceExists(wsId: string) {
-    if (ensuredWorkspaces.has(wsId)) return;
-    try {
-        const res = await fetch(`/api/workspaces/${encodeURIComponent(wsId)}`);
-        if (res.ok) {
-            ensuredWorkspaces.add(wsId);
-            return;
-        }
-        // Create it
-        const createRes = await fetch('/api/workspaces', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id: wsId, name: wsId === 'default' ? 'Default' : wsId }),
-        });
-        if (createRes.ok) ensuredWorkspaces.add(wsId);
-    } catch { /* ignore */ }
-}
-
-/** Load workflow data from server when localStorage is empty */
-async function loadWorkflowFromServer() {
-    if (typeof window === 'undefined') return;
-    const wsId = getActiveWorkspaceId();
-    if (!wsId) return;
-    try {
-        const res = await fetch(`/api/workspaces/${encodeURIComponent(wsId)}`);
-        if (!res.ok) return;
-        const workspace = await res.json();
-        if (!workspace.data) return;
-        const data = typeof workspace.data === 'string' ? JSON.parse(workspace.data) : workspace.data;
-        if (data && (data.sourceDesigns?.length || data.variations?.length || data.mockupTemplates?.length)) {
-            useWorkflowStore.setState({
-                currentStep: data.currentStep || 'upload',
-                sourceDesigns: data.sourceDesigns || [],
-                variations: data.variations || [],
-                mockupTemplates: data.mockupTemplates || [],
-            });
-        }
-    } catch { /* ignore */ }
-}
 
 interface WorkflowState {
     currentStep: WorkflowStep;
@@ -301,7 +183,8 @@ export const useWorkflowStore = create<WorkflowState>()(
 
                 // If localStorage has no workflow data, try loading from server
                 if (typeof window !== 'undefined' && isEmpty) {
-                    loadWorkflowFromServer();
+                    const wsId = getActiveWorkspaceId();
+                    loadWorkflowFromServer(wsId, (data) => useWorkflowStore.setState(data));
                 }
 
                 // Load templates from server if localStorage has none
@@ -318,7 +201,6 @@ export const useWorkflowStore = create<WorkflowState>()(
 
                 // Validate persisted image URLs still exist on server
                 if (typeof window !== 'undefined') {
-                    // Pick the first available URL to check
                     const urlToCheck =
                         state.sourceDesigns[0]?.url ||
                         state.variations.find((v) => v.imageUrl)?.imageUrl ||
@@ -328,11 +210,9 @@ export const useWorkflowStore = create<WorkflowState>()(
                         fetch(urlToCheck, { method: 'HEAD' })
                             .then((res) => {
                                 if (!res.ok) {
-                                    // Files are gone — clear work data, keep templates
                                     useWorkflowStore.setState({
                                         currentStep: 'upload',
                                         sourceDesigns: [],
-    
                                         variations: [],
                                         generatedMockups: [],
                                     });
@@ -342,7 +222,6 @@ export const useWorkflowStore = create<WorkflowState>()(
                                 useWorkflowStore.setState({
                                     currentStep: 'upload',
                                     sourceDesigns: [],
-
                                     variations: [],
                                     generatedMockups: [],
                                 });
@@ -358,14 +237,13 @@ export const useWorkflowStore = create<WorkflowState>()(
 if (typeof window !== 'undefined') {
     useWorkflowStore.subscribe(
         (state, prevState) => {
-            // Only sync when relevant data changes
             if (
                 state.sourceDesigns !== prevState.sourceDesigns ||
                 state.variations !== prevState.variations ||
                 state.mockupTemplates !== prevState.mockupTemplates ||
                 state.currentStep !== prevState.currentStep
             ) {
-                syncWorkflowToServer();
+                syncWorkflowToServer(() => useWorkflowStore.getState());
             }
         }
     );

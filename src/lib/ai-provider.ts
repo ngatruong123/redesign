@@ -18,7 +18,37 @@ export interface AIProvider {
     ): Promise<string>; // returns base64 image (PNG)
 }
 
-export function createAIProvider(provider: string): AIProvider {
+export class AIProviderChain implements AIProvider {
+    constructor(private providers: AIProvider[]) {}
+
+    async generateVariation(sourceImageBase64: string, prompt: string, options?: AIImageOptions): Promise<string> {
+        let lastError: Error | null = null;
+        for (const provider of this.providers) {
+            try {
+                return await provider.generateVariation(sourceImageBase64, prompt, options);
+            } catch (err) {
+                lastError = err instanceof Error ? err : new Error(String(err));
+                console.warn(`[AIProviderChain] Provider failed, trying next:`, lastError.message);
+            }
+        }
+        throw lastError ?? new Error('All AI providers failed');
+    }
+
+    async generateMockup(templateImageBase64: string, designImageBase64: string, prompt: string, options?: AIImageOptions): Promise<string> {
+        let lastError: Error | null = null;
+        for (const provider of this.providers) {
+            try {
+                return await provider.generateMockup(templateImageBase64, designImageBase64, prompt, options);
+            } catch (err) {
+                lastError = err instanceof Error ? err : new Error(String(err));
+                console.warn(`[AIProviderChain] Provider failed, trying next:`, lastError.message);
+            }
+        }
+        throw lastError ?? new Error('All AI providers failed');
+    }
+}
+
+function createSingleProvider(provider: string): AIProvider {
     switch (provider) {
         case 'gemini':
             return new GeminiProvider();
@@ -29,6 +59,15 @@ export function createAIProvider(provider: string): AIProvider {
         default:
             return new MockProvider();
     }
+}
+
+export function createAIProvider(provider: string): AIProvider {
+    // Support comma-separated providers for fallback chain
+    const providers = provider.split(',').map(p => p.trim()).filter(Boolean);
+    if (providers.length > 1) {
+        return new AIProviderChain(providers.map(p => createSingleProvider(p)));
+    }
+    return createSingleProvider(providers[0] || 'mock');
 }
 
 /**

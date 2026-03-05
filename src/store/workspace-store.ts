@@ -1,11 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { useWorkflowStore } from '@/store/workflow-store';
-
-function getActiveUser(): string {
-    if (typeof window === 'undefined') return 'default';
-    return localStorage.getItem('design-tool-user') || 'default';
-}
+import { getActiveUser } from '@/store/workflow-sync';
 
 export interface Workspace {
     id: string;
@@ -44,7 +40,8 @@ export const useWorkspaceStore = create<WorkspaceState>()(
                     } else {
                         throw new Error('Server error');
                     }
-                } catch {
+                } catch (err) {
+                    console.warn('[createWorkspace] Error:', err);
                     // Fallback to local ID if server unavailable
                     id = typeof crypto !== 'undefined' && crypto.randomUUID
                         ? crypto.randomUUID()
@@ -59,7 +56,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
             deleteWorkspace: (id) => {
                 if (id === 'default') return;
                 // Remove workspace data from localStorage
-                try { localStorage.removeItem(`design-tool-${getActiveUser()}-ws-${id}`); } catch { /* ignore */ }
+                try { localStorage.removeItem(`design-tool-${getActiveUser()}-ws-${id}`); } catch (err) { console.warn('[deleteWorkspace] Error:', err); }
                 // Delete from server
                 fetch(`/api/workspaces/${id}`, { method: 'DELETE' }).catch(() => {});
                 const active = get().activeId;
@@ -109,14 +106,15 @@ export const useWorkspaceStore = create<WorkspaceState>()(
                     } else {
                         set({ synced: true });
                     }
-                } catch {
+                } catch (err) {
+                    console.warn('[syncFromServer] Error:', err);
                     // Server not available, use local only
                     set({ synced: true });
                 }
             },
         }),
         {
-            name: `design-tool-${getActiveUser()}-workspaces`,
+            name: 'design-tool-workspace',
             partialize: (state) => ({
                 workspaces: state.workspaces,
                 activeId: state.activeId,

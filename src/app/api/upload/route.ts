@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
 import { storeFile, storeTemplateFile } from '@/lib/blob-storage';
 import { requireAuth } from '@/lib/api-auth';
+import { validateApiKey } from '@/lib/api-key-auth';
 
 function getCorsHeaders(request: NextRequest): Record<string, string> {
     const origin = request.headers.get('origin') || '';
@@ -33,12 +34,13 @@ export async function POST(request: NextRequest) {
     const corsHeaders = getCorsHeaders(request);
     const origin = request.headers.get('origin') || '';
 
-    // Skip auth for allowed Chrome extension uploads
+    // Skip auth for allowed Chrome extension uploads or valid API key
     const allowedExtIds = (process.env.ALLOWED_EXTENSION_IDS || '').split(',').map(s => s.trim()).filter(Boolean);
     const isAllowedExt = origin.startsWith('chrome-extension://') &&
         allowedExtIds.length > 0 &&
         allowedExtIds.some(id => origin === `chrome-extension://${id}`);
-    if (!isAllowedExt) {
+    const apiKeyUserId = await validateApiKey(request);
+    if (!isAllowedExt && !apiKeyUserId) {
         const authError = await requireAuth();
         if (authError) return authError;
     }

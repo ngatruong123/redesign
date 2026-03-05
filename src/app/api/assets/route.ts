@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
             url,
             mimeType: mimeType || null,
             size: size || null,
-            metadata: metadata ? JSON.stringify(metadata) : null,
+            metadata: metadata || undefined,
             workspaceId,
         },
     });

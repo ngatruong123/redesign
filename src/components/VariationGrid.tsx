@@ -6,7 +6,9 @@ import { useToastStore } from '@/store/toast-store';
 import { DEFAULT_STYLE_PRESETS } from '@/lib/prompt-engine';
 import Lightbox from './Lightbox';
 import RemoveBgPanel from './RemoveBgPanel';
-import { Icons } from './icons';
+import StyleSelector from './variation/StyleSelector';
+import VariationCard from './variation/VariationCard';
+import GenerationControls from './variation/GenerationControls';
 
 const STYLE_PRESETS = DEFAULT_STYLE_PRESETS;
 
@@ -26,7 +28,6 @@ export default function VariationGrid() {
     const [bgProcessing, setBgProcessing] = useState<Set<string>>(new Set());
     const addToast = useToastStore((s) => s.addToast);
     const [streamProgress, setStreamProgress] = useState<{ done: number; total: number } | null>(null);
-    const [showAdvanced, setShowAdvanced] = useState(false);
     const [imageSize, setImageSize] = useState<'1K' | '2K' | '4K'>('2K');
     const [aspectRatio, setAspectRatio] = useState<'1:1' | '3:4' | '4:3' | '9:16' | '16:9'>('1:1');
 
@@ -42,7 +43,6 @@ export default function VariationGrid() {
     const handleGenerate = async () => {
         if (sourceDesigns.length === 0) return;
 
-        // Build styles list: selected presets + custom prompt if no presets selected
         let styles: { id: string; name: string; prompt: string; icon?: string }[];
         if (selectedStyles.size > 0) {
             styles = STYLE_PRESETS.filter((s) => selectedStyles.has(s.id));
@@ -56,7 +56,6 @@ export default function VariationGrid() {
         setIsGenerating(true);
         setError(null);
 
-        // Create placeholders: for each source × style
         const placeholders = sourceDesigns.flatMap((design) =>
             styles.map((s) => ({
                 id: `${design.id}_${s.id}`,
@@ -114,7 +113,6 @@ export default function VariationGrid() {
                         const variation = JSON.parse(jsonStr);
                         doneCount++;
                         setStreamProgress({ done: doneCount, total: totalCount });
-                        // Match by composite id (sourceDesignId_styleId)
                         const compositeId = `${variation.sourceDesignId}_${variation.styleId}`;
                         updateVariation(compositeId, {
                             imageUrl: variation.imageUrl,
@@ -136,7 +134,6 @@ export default function VariationGrid() {
         }
     };
 
-    // Regenerate a single variation
     const handleRegenerate = async (variationId: string) => {
         const v = variations.find((v) => v.id === variationId);
         if (!v) return;
@@ -202,12 +199,10 @@ export default function VariationGrid() {
         }
     };
 
-    // Open BG removal panel for a variation
     const handleOpenRemoveBg = useCallback((variationId: string, imageUrl: string) => {
         setRemoveBgTarget({ id: variationId, imageUrl });
     }, []);
 
-    // Quick toggle: remove bg (transparent) or restore original
     const handleToggleBg = useCallback(async (variationId: string, currentUrl: string) => {
         if (bgProcessing.has(variationId)) return;
 
@@ -254,107 +249,32 @@ export default function VariationGrid() {
                         <div key={d.id} className="source-preview-mini zoomable" onClick={() => setLightboxImage({ url: d.url, alt: d.name })}>
                             <img src={d.url} alt={d.name} />
                             <span>{d.name}</span>
-                            <span className="zoom-hint">{Icons.search}</span>
                         </div>
                     ))}
                 </div>
             )}
 
-            {/* Style picker */}
-            <div className="style-picker">
-                <div className="style-picker-header">
-                    <h3>Chọn phong cách ({selectedStyles.size}/{STYLE_PRESETS.length})</h3>
-                    <div className="style-picker-actions">
-                        {selectedStyles.size > 0 && <span className="style-picker-count">{selectedStyles.size} selected</span>}
-                        <button className="btn-ghost-sm" onClick={() => setSelectedStyles(new Set(STYLE_PRESETS.map((s) => s.id)))}>Chọn tất cả</button>
-                        <button className="btn-ghost-sm" onClick={() => setSelectedStyles(new Set())}>Bỏ chọn</button>
-                    </div>
-                </div>
-                <div className="style-chips">
-                    {STYLE_PRESETS.map((style) => (
-                        <button
-                            key={style.id}
-                            className={`style-chip ${selectedStyles.has(style.id) ? 'picked' : ''}`}
-                            onClick={() => toggleStyle(style.id)}
-                            disabled={isGenerating}
-                        >
-                            <span className="style-chip-icon">{style.icon}</span>
-                            <span className="style-chip-name">{style.name}</span>
-                        </button>
-                    ))}
-                </div>
-            </div>
+            <StyleSelector
+                presets={STYLE_PRESETS}
+                selectedStyles={selectedStyles}
+                onToggleStyle={toggleStyle}
+                onSelectAll={() => setSelectedStyles(new Set(STYLE_PRESETS.map((s) => s.id)))}
+                onDeselectAll={() => setSelectedStyles(new Set())}
+                disabled={isGenerating}
+            />
 
-            {/* Prompt & Generate */}
-            <div className="prompt-section">
-                <label>{selectedStyles.size > 0 ? 'Prompt bổ sung (tùy chọn)' : 'Nhập prompt để tạo ảnh'}</label>
-                <div className="prompt-input-row">
-                    <input
-                        type="text"
-                        placeholder={selectedStyles.size > 0 ? 'VD: thêm hoa văn, đổi màu nền...' : 'VD: chuyển sang phong cách watercolor, thêm hoa...'}
-                        value={additionalPrompt}
-                        onChange={(e) => setAdditionalPrompt(e.target.value)}
-                        onKeyDown={(e) => { if (e.key === 'Enter' && !isGenerating) handleGenerate(); }}
-                        disabled={isGenerating}
-                    />
-                    <button
-                        className="btn-primary"
-                        onClick={handleGenerate}
-                        disabled={isGenerating || (selectedStyles.size === 0 && !additionalPrompt.trim())}
-                    >
-                        {isGenerating && streamProgress
-                            ? <><span className="spinner-sm" /> {streamProgress.done}/{streamProgress.total} hoàn thành</>
-                            : isGenerating
-                                ? <><span className="spinner-sm" /> Đang tạo...</>
-                                : selectedStyles.size > 0
-                                    ? `Tạo ${selectedStyles.size} biến thể`
-                                    : 'Tạo từ prompt'}
-                    </button>
-                </div>
-
-                {isGenerating && streamProgress && streamProgress.total > 0 && (
-                    <div className="generation-progress">
-                        <div className="generation-progress-bar">
-                            <div
-                                className="generation-progress-fill"
-                                style={{ width: `${(streamProgress.done / streamProgress.total) * 100}%` }}
-                            />
-                        </div>
-                        <span className="generation-progress-text">
-                            {streamProgress.done}/{streamProgress.total} hoàn thành
-                        </span>
-                    </div>
-                )}
-
-                <button
-                    className="btn-ghost-sm"
-                    onClick={() => setShowAdvanced(!showAdvanced)}
-                    style={{ marginTop: 6, fontSize: '0.78rem' }}
-                >
-                    {showAdvanced ? '▾ Ẩn tuỳ chỉnh nâng cao' : '▸ Tuỳ chỉnh nâng cao (độ phân giải, tỷ lệ)'}
-                </button>
-
-                {showAdvanced && (
-                    <div className="ai-options-grid" style={{ marginTop: 8 }}>
-                        <div className="ai-option-group">
-                            <label>Độ phân giải</label>
-                            <div className="ai-option-chips">
-                                {([['1K', '1K'], ['2K', '2K'], ['4K', '4K']] as const).map(([val, label]) => (
-                                    <button key={val} className={`ai-chip ${imageSize === val ? 'active' : ''}`} onClick={() => setImageSize(val)}>{label}</button>
-                                ))}
-                            </div>
-                        </div>
-                        <div className="ai-option-group">
-                            <label>Tỷ lệ khung hình</label>
-                            <div className="ai-option-chips">
-                                {([['1:1', '1:1'], ['3:4', '3:4'], ['4:3', '4:3'], ['9:16', '9:16'], ['16:9', '16:9']] as const).map(([val, label]) => (
-                                    <button key={val} className={`ai-chip ${aspectRatio === val ? 'active' : ''}`} onClick={() => setAspectRatio(val)}>{label}</button>
-                                ))}
-                            </div>
-                        </div>
-                    </div>
-                )}
-            </div>
+            <GenerationControls
+                selectedStyleCount={selectedStyles.size}
+                additionalPrompt={additionalPrompt}
+                onAdditionalPromptChange={setAdditionalPrompt}
+                isGenerating={isGenerating}
+                streamProgress={streamProgress}
+                onGenerate={handleGenerate}
+                imageSize={imageSize}
+                onImageSizeChange={setImageSize}
+                aspectRatio={aspectRatio}
+                onAspectRatioChange={setAspectRatio}
+            />
 
             {/* Variation grid */}
             {variations.length > 0 && (
@@ -384,62 +304,17 @@ export default function VariationGrid() {
                                 )}
                                 <div className="variation-grid">
                                     {group.map((variation) => (
-                                        <div
+                                        <VariationCard
                                             key={variation.id}
-                                            className={`variation-card ${variation.selected ? 'selected' : ''} ${variation.loading ? 'loading' : ''}`}
-                                            onClick={() => !variation.loading && toggleVariation(variation.id)}
-                                        >
-                                            {variation.loading ? (
-                                                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                                                    <div className="skeleton" style={{ aspectRatio: '1', width: '100%' }} />
-                                                    <div style={{ padding: '8px 12px' }}>
-                                                        <div className="skeleton-text" />
-                                                    </div>
-                                                </div>
-                                            ) : variation.imageUrl ? (
-                                                <>
-                                                    <div
-                                                        className={`variation-check ${variation.selected ? 'checked' : ''}`}
-                                                        onClick={(e) => { e.stopPropagation(); toggleVariation(variation.id); }}
-                                                    >
-                                                        {variation.selected && '✓'}
-                                                    </div>
-
-                                                    {bgRemoved.has(variation.id) && (
-                                                        <span className="variation-badge-nobg">No BG</span>
-                                                    )}
-
-                                                    <div className={`variation-image-wrap ${bgRemoved.has(variation.id) ? 'checkerboard' : ''}`}>
-                                                        <img src={variation.imageUrl} alt={variation.styleName} />
-
-                                                        <div className="variation-toolbar">
-                                                            <button className="vtool-btn" title="Phóng to" onClick={(e) => { e.stopPropagation(); setLightboxImage({ url: variation.imageUrl, alt: variation.styleName }); }}>{Icons.search}</button>
-                                                            <button className="vtool-btn" title="Tạo lại" onClick={(e) => { e.stopPropagation(); handleRegenerate(variation.id); }}>{Icons.refresh}</button>
-                                                            <button
-                                                                className={`vtool-btn ${bgRemoved.has(variation.id) ? 'vtool-active' : ''}`}
-                                                                title={bgRemoved.has(variation.id) ? 'Khôi phục nền' : 'Xoá nền nhanh'}
-                                                                onClick={(e) => { e.stopPropagation(); handleToggleBg(variation.id, variation.imageUrl); }}
-                                                                disabled={bgProcessing.has(variation.id)}
-                                                            >
-                                                                {bgProcessing.has(variation.id) ? <span className="spinner-sm" /> : bgRemoved.has(variation.id) ? Icons.undo : Icons.scissors}
-                                                            </button>
-                                                            <button className="vtool-btn" title="Xoá nền (tuỳ chỉnh)" onClick={(e) => { e.stopPropagation(); handleOpenRemoveBg(variation.id, variation.imageUrl); }}>{Icons.wand}</button>
-                                                            <a className="vtool-btn" title="Tải xuống" href={`/api/download/${encodeURIComponent(variation.styleName + '.png')}?source=${encodeURIComponent(variation.imageUrl)}`} onClick={(e) => e.stopPropagation()}>{Icons.download}</a>
-                                                        </div>
-                                                    </div>
-
-                                                    <div className="variation-card-footer">
-                                                        <span className="variation-label">{variation.styleName}</span>
-                                                    </div>
-                                                </>
-                                            ) : (
-                                                <div className="variation-error">
-                                                    <span>⚠️</span>
-                                                    <p>Lỗi</p>
-                                                    <button className="btn-ghost-sm" style={{ marginTop: 4 }} onClick={(e) => { e.stopPropagation(); handleRegenerate(variation.id); }}>Thử lại</button>
-                                                </div>
-                                            )}
-                                        </div>
+                                            variation={variation}
+                                            bgRemoved={bgRemoved.has(variation.id)}
+                                            bgProcessing={bgProcessing.has(variation.id)}
+                                            onToggleSelection={toggleVariation}
+                                            onLightbox={(url, alt) => setLightboxImage({ url, alt })}
+                                            onRegenerate={handleRegenerate}
+                                            onToggleBg={handleToggleBg}
+                                            onOpenRemoveBg={handleOpenRemoveBg}
+                                        />
                                     ))}
                                 </div>
                             </div>
@@ -452,26 +327,17 @@ export default function VariationGrid() {
                         return (
                             <div className="variation-grid">
                                 {ungrouped.map((variation) => (
-                                    <div
+                                    <VariationCard
                                         key={variation.id}
-                                        className={`variation-card ${variation.selected ? 'selected' : ''} ${variation.loading ? 'loading' : ''}`}
-                                        onClick={() => !variation.loading && toggleVariation(variation.id)}
-                                    >
-                                        {variation.loading ? (
-                                            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                                                <div className="skeleton" style={{ aspectRatio: '1', width: '100%' }} />
-                                                <div style={{ padding: '8px 12px' }}><div className="skeleton-text" /></div>
-                                            </div>
-                                        ) : variation.imageUrl ? (
-                                            <>
-                                                <div className={`variation-check ${variation.selected ? 'checked' : ''}`} onClick={(e) => { e.stopPropagation(); toggleVariation(variation.id); }}>{variation.selected && '✓'}</div>
-                                                <div className="variation-image-wrap"><img src={variation.imageUrl} alt={variation.styleName} /></div>
-                                                <div className="variation-card-footer"><span className="variation-label">{variation.styleName}</span></div>
-                                            </>
-                                        ) : (
-                                            <div className="variation-error"><span>⚠️</span><p>Lỗi</p></div>
-                                        )}
-                                    </div>
+                                        variation={variation}
+                                        bgRemoved={bgRemoved.has(variation.id)}
+                                        bgProcessing={bgProcessing.has(variation.id)}
+                                        onToggleSelection={toggleVariation}
+                                        onLightbox={(url, alt) => setLightboxImage({ url, alt })}
+                                        onRegenerate={handleRegenerate}
+                                        onToggleBg={handleToggleBg}
+                                        onOpenRemoveBg={handleOpenRemoveBg}
+                                    />
                                 ))}
                             </div>
                         );

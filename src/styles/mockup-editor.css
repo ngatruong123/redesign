@@ -703,3 +703,57 @@
   min-width: 32px;
 }
 
+/* Header actions row */
+.mockup-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Canvas toolbar row */
+.mockup-canvas-toolbar {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+/* Batch preview modal header */
+.batch-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.batch-modal-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.batch-modal-subtitle {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+}
+
+/* Batch preview modal footer */
+.batch-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+/* Enlarged preview caption */
+.batch-enlarged-caption {
+  text-align: center;
+  margin-top: 8px;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+.batch-enlarged-close {
+  display: block;
+  margin: 12px auto 0;
+}
+

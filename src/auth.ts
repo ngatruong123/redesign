@@ -33,7 +33,8 @@ export async function getAuthUsername(): Promise<string | null> {
         if (!token) return null;
         const { payload } = await jwtVerify(token, getSecret());
         return (payload.sub as string) || null;
-    } catch {
+    } catch (err) {
+        console.warn('[getAuthUsername] Error:', err);
         return null;
     }
 }
@@ -46,8 +47,9 @@ export async function checkCredentials(username: string, password: string): Prom
             return bcrypt.compare(password, user.password);
         }
         // If user has dummy password (auto-created from env login), fall through to env-based auth
-    } catch {
+    } catch (err) {
         // DB not available, fall through to env-based auth
+        console.warn('[checkCredentials] Error:', err);
     }
 
     // Fallback to env-based auth
