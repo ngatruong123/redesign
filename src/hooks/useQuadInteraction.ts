@@ -51,6 +51,7 @@ export function useQuadInteraction({
     const [dragStart, setDragStart] = useState<Point | null>(null);
     const [dragCurrent, setDragCurrent] = useState<Point | null>(null);
     const [lastDragPos, setLastDragPos] = useState<Point | null>(null);
+    const scaleAnchorRef = useRef<{ anchor: Point; initCorners: Point[]; initEdgeCPs: [Point, Point, Point, Point] | null; initDist: number } | null>(null);
     const rafRef = useRef<number>(0);
 
     const quadDone = corners.length === 4;
@@ -85,6 +86,18 @@ export function useQuadInteraction({
             if (handle) {
                 setDragging(handle);
                 if (handle.type === 'quad') setLastDragPos(coords);
+                if (handle.type === 'corner') {
+                    const oppositeIndex = (handle.index + 2) % 4;
+                    const anchor = corners[oppositeIndex];
+                    const dx = coords.x - anchor.x;
+                    const dy = coords.y - anchor.y;
+                    scaleAnchorRef.current = {
+                        anchor,
+                        initCorners: corners.map(p => ({ ...p })),
+                        initEdgeCPs: edgeCPs ? edgeCPs.map(p => ({ ...p })) as [Point, Point, Point, Point] : null,
+                        initDist: Math.sqrt(dx * dx + dy * dy),
+                    };
+                }
             }
         } else {
             if (corners.length === 0) {
@@ -126,11 +139,24 @@ export function useQuadInteraction({
         if (!dragging) return;
 
         if (dragging.type === 'corner') {
-            setCorners(prev => {
-                const next = [...prev];
-                next[dragging.index] = coords;
-                return next;
-            });
+            const ref = scaleAnchorRef.current;
+            if (ref && ref.initDist > 0) {
+                const { anchor, initCorners, initEdgeCPs, initDist } = ref;
+                const dx = coords.x - anchor.x;
+                const dy = coords.y - anchor.y;
+                const newDist = Math.sqrt(dx * dx + dy * dy);
+                const scale = Math.max(0.1, newDist / initDist);
+                setCorners(initCorners.map(p => ({
+                    x: anchor.x + (p.x - anchor.x) * scale,
+                    y: anchor.y + (p.y - anchor.y) * scale,
+                })));
+                if (initEdgeCPs) {
+                    setEdgeCPs(initEdgeCPs.map(p => ({
+                        x: anchor.x + (p.x - anchor.x) * scale,
+                        y: anchor.y + (p.y - anchor.y) * scale,
+                    })) as [Point, Point, Point, Point]);
+                }
+            }
         } else if (dragging.type === 'edge') {
             setEdgeCPs(prev => {
                 if (!prev) return prev;
@@ -182,6 +208,7 @@ export function useQuadInteraction({
         if (dragging) {
             setDragging(null);
             setLastDragPos(null);
+            scaleAnchorRef.current = null;
             commitMask();
         }
     }, [dragStart, dragCurrent, quadDone, dragging, commitMask, commitMaskDirect]);

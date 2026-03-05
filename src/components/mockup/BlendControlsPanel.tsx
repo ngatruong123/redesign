@@ -19,6 +19,7 @@ interface BlendControlsPanelProps {
     setBgBlurEnabled: (v: boolean) => void;
     bgBlur: number;
     setBgBlur: (v: number) => void;
+    showFitMode?: boolean;
 }
 
 export default function BlendControlsPanel({
@@ -29,19 +30,22 @@ export default function BlendControlsPanel({
     shadowBlur, setShadowBlur,
     bgBlurEnabled, setBgBlurEnabled,
     bgBlur, setBgBlur,
+    showFitMode = true,
 }: BlendControlsPanelProps) {
     return (
         <div className="blend-controls">
-            <div className="blend-control-group">
-                <label>Vừa khung:</label>
-                <select
-                    value={fitMode}
-                    onChange={(e) => setFitMode(e.target.value as MockupMask['fitMode'])}
-                >
-                    <option value="contain">Giữ tỉ lệ</option>
-                    <option value="fill">Kéo giãn</option>
-                </select>
-            </div>
+            {showFitMode && (
+                <div className="blend-control-group">
+                    <label>Vừa khung:</label>
+                    <select
+                        value={fitMode}
+                        onChange={(e) => setFitMode(e.target.value as MockupMask['fitMode'])}
+                    >
+                        <option value="contain">Giữ tỉ lệ</option>
+                        <option value="fill">Kéo giãn</option>
+                    </select>
+                </div>
+            )}
             <div className="blend-control-group">
                 <label>Hoà trộn:</label>
                 <select

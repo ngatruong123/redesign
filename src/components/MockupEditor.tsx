@@ -309,17 +309,24 @@ export default function MockupEditor() {
             const ch = canvas ? canvas.height / s : 500;
             const ar = img.naturalWidth / img.naturalHeight;
 
-            let cx: number, cy: number;
-            if (mask) {
+            let cx: number, cy: number, w: number, h: number;
+            if (mask && mask.width > 0 && mask.height > 0) {
                 cx = mask.x + mask.width / 2;
                 cy = mask.y + mask.height / 2;
+                // Fit design into mask bounds while keeping aspect ratio
+                if (ar > mask.width / mask.height) {
+                    w = mask.width;
+                    h = w / ar;
+                } else {
+                    h = mask.height;
+                    w = h * ar;
+                }
             } else {
                 cx = cw / 2;
                 cy = ch / 2;
+                w = Math.min(img.naturalWidth, cw * 0.5);
+                h = w / ar;
             }
-
-            const w = Math.min(img.naturalWidth, cw * 0.5);
-            const h = w / ar;
             const overlay: DesignOverlayState = {
                 variationId,
                 imageUrl,
@@ -733,7 +740,7 @@ export default function MockupEditor() {
                                 )}
                             </div>
 
-                            {interaction.quadDone && (
+                            {(interaction.quadDone || activeTemplate?.designOverlay) && (
                                 <BlendControlsPanel
                                     fitMode={fitMode} setFitMode={setFitMode}
                                     blendMode={blendMode} setBlendMode={setBlendMode}
@@ -742,6 +749,7 @@ export default function MockupEditor() {
                                     shadowBlur={shadowBlur} setShadowBlur={setShadowBlur}
                                     bgBlurEnabled={bgBlurEnabled} setBgBlurEnabled={setBgBlurEnabled}
                                     bgBlur={bgBlur} setBgBlur={setBgBlur}
+                                    showFitMode={interaction.quadDone && !activeTemplate?.designOverlay}
                                 />
                             )}
                         </>
