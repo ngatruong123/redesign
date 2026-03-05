@@ -164,6 +164,7 @@ export default function MockupEditor() {
         dragCurrent: interaction.dragCurrent,
         bgBlurEnabled,
         bgBlur,
+        hideQuad: !!activeTemplate?.designOverlay,
     });
 
     // Preload template images

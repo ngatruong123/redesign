@@ -16,6 +16,7 @@ interface UseCanvasDrawingOptions {
     dragCurrent: Point | null;
     bgBlurEnabled: boolean;
     bgBlur: number;
+    hideQuad?: boolean;
 }
 
 const MAX_CANVAS_DIM = 1200;
@@ -32,6 +33,7 @@ export function useCanvasDrawing({
     dragCurrent,
     bgBlurEnabled,
     bgBlur,
+    hideQuad,
 }: UseCanvasDrawingOptions) {
     const imgCacheMap = useRef<Map<string, HTMLImageElement>>(new Map());
     const canvasSizedRef = useRef(false);
@@ -67,6 +69,12 @@ export function useCanvasDrawing({
 
             ctx.save();
             ctx.scale(s, s);
+
+            if (hideQuad) {
+                ctx.restore();
+                ctx.restore();
+                return;
+            }
 
             if (dragStart && dragCurrent && corners.length === 0) {
                 ctx.save();
@@ -189,7 +197,7 @@ export function useCanvasDrawing({
             img.onload = () => { imgCacheMap.current.set(activeTemplateImageUrl, img); draw(img); };
             img.src = activeTemplateImageUrl;
         }
-    }, [activeTemplateImageUrl, corners, edgeCPs, dragging, quadDone, dragStart, dragCurrent, bgBlurEnabled, bgBlur, canvasRef, scaleRef]);
+    }, [activeTemplateImageUrl, corners, edgeCPs, dragging, quadDone, dragStart, dragCurrent, bgBlurEnabled, bgBlur, hideQuad, canvasRef, scaleRef]);
 
     useEffect(() => { drawCanvas(); }, [drawCanvas]);
 
