@@ -153,13 +153,14 @@ export default function DesignOverlay({ overlay, mask, canvasScale, canvasWidth,
         setSnapV(false);
     }, []);
 
-    // Keyboard: Delete to remove
+    // Keyboard: Delete to remove (works globally when overlay exists)
     useEffect(() => {
         const handler = (e: KeyboardEvent) => {
             if (e.key === 'Delete' || e.key === 'Backspace') {
-                if (containerRef.current?.contains(document.activeElement)) {
-                    onRemove();
-                }
+                // Don't trigger if user is typing in an input
+                const tag = (e.target as HTMLElement)?.tagName;
+                if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+                onRemove();
             }
         };
         window.addEventListener('keydown', handler);
@@ -262,32 +263,32 @@ export default function DesignOverlay({ overlay, mask, canvasScale, canvasWidth,
                 />
             ))}
 
-            {/* Rotation handle */}
-            <div
-                className="overlay-handle overlay-handle-rotate"
-                style={{
-                    position: 'absolute',
-                    top: -28,
-                    left: '50%',
-                    transform: 'translateX(-50%)',
-                    cursor: 'crosshair',
-                    zIndex: 2,
-                }}
-                onPointerDown={(e) => handlePointerDown(e, 'rotate')}
-            >
-                ↻
-            </div>
-
-            {/* Reset crop button (visible when cropped) */}
-            {hasCrop && (
+            {/* Floating toolbar above overlay */}
+            <div className="overlay-toolbar" onPointerDown={(e) => e.stopPropagation()}>
                 <button
-                    className="overlay-reset-crop-btn"
-                    onClick={(e) => { e.stopPropagation(); onChange({ cropTop: 0, cropRight: 0, cropBottom: 0, cropLeft: 0 }); }}
-                    title="Reset crop"
+                    className="overlay-toolbar-btn"
+                    title="Xoay"
+                    onPointerDown={(e) => { e.stopPropagation(); handlePointerDown(e, 'rotate'); }}
                 >
-                    ⟲
+                    ↻
                 </button>
-            )}
+                {hasCrop && (
+                    <button
+                        className="overlay-toolbar-btn"
+                        title="Reset crop"
+                        onClick={(e) => { e.stopPropagation(); onChange({ cropTop: 0, cropRight: 0, cropBottom: 0, cropLeft: 0 }); }}
+                    >
+                        ⟲
+                    </button>
+                )}
+                <button
+                    className="overlay-toolbar-btn overlay-toolbar-btn--delete"
+                    title="Xoá (Delete)"
+                    onClick={(e) => { e.stopPropagation(); onRemove(); }}
+                >
+                    ✕
+                </button>
+            </div>
 
             {/* Center snap guides */}
             {snapV && (
@@ -319,19 +320,6 @@ export default function DesignOverlay({ overlay, mask, canvasScale, canvasWidth,
                 }} />
             )}
 
-            {/* Remove button */}
-            <button
-                className="overlay-remove-btn"
-                onClick={(e) => { e.stopPropagation(); onRemove(); }}
-                style={{
-                    position: 'absolute',
-                    top: -10,
-                    right: -10,
-                    zIndex: 3,
-                }}
-            >
-                ✕
-            </button>
         </div>
     );
 }

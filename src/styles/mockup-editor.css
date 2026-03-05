@@ -596,45 +596,56 @@
   background: var(--accent);
 }
 
-.overlay-handle-rotate {
-  width: 22px;
-  height: 22px;
-  background: white;
-  border: 2px solid var(--accent);
-  border-radius: 50%;
+
+/* Floating toolbar above overlay */
+.overlay-toolbar {
+  position: absolute;
+  top: -36px;
+  left: 50%;
+  transform: translateX(-50%);
   display: flex;
   align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  color: var(--accent);
-  font-weight: bold;
-  z-index: 11;
-  touch-action: none;
-}
-
-.overlay-handle-rotate:hover {
-  background: var(--accent);
-  color: white;
-}
-
-.overlay-remove-btn {
-  width: 20px;
-  height: 20px;
-  background: var(--error, #ef4444);
-  color: white;
-  border: 2px solid white;
-  border-radius: 50%;
-  font-size: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
+  gap: 2px;
+  padding: 3px 4px;
+  background: rgba(30, 30, 30, 0.9);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 8px;
   z-index: 12;
   opacity: 0;
   transition: opacity 0.15s;
+  backdrop-filter: blur(8px);
+  pointer-events: auto;
 }
 
-.design-overlay:hover .overlay-remove-btn,
+.design-overlay:hover .overlay-toolbar {
+  opacity: 1;
+}
+
+.overlay-toolbar-btn {
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: rgba(255,255,255,0.8);
+  border-radius: 6px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.overlay-toolbar-btn:hover {
+  background: rgba(255,255,255,0.15);
+  color: white;
+}
+
+.overlay-toolbar-btn--delete:hover {
+  background: var(--error, #ef4444);
+  color: white;
+}
+
 .design-overlay:hover .overlay-reset-crop-btn {
   opacity: 1;
 }
@@ -721,26 +732,6 @@
   right: 6px;
 }
 
-.overlay-reset-crop-btn {
-  position: absolute;
-  bottom: -10px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 22px;
-  height: 22px;
-  background: rgba(255, 165, 0, 0.9);
-  color: white;
-  border: 2px solid white;
-  border-radius: 50%;
-  font-size: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  z-index: 12;
-  opacity: 0;
-  transition: opacity 0.15s;
-}
 
 /* --- AI Options Panel --- */
 .ai-options-panel {
