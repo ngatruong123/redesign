@@ -95,17 +95,17 @@ export function useCanvasDrawing({
 
             if (corners.length === 0) { ctx.restore(); return; }
 
+            // Purple color matching overlay style
+            const PURPLE = 'rgba(160, 120, 255, 0.8)';
+            const PURPLE_FILL = 'rgba(160, 120, 255, 0.08)';
+            const PURPLE_ACTIVE = 'rgba(160, 120, 255, 1)';
+
             ctx.save();
-            ctx.strokeStyle = 'rgba(0, 230, 138, 0.8)';
-            ctx.lineWidth = 3;
-            ctx.setLineDash([6, 4]);
+            ctx.strokeStyle = PURPLE;
+            ctx.lineWidth = 2.5;
+            ctx.setLineDash([]);
 
             if (corners.length >= 2 && quadDone && edgeCPs) {
-                const edgeEndpoints = (q: Point[]): [Point, Point][] => {
-                    const [tl, tr, br, bl] = q;
-                    return [[tl, tr], [tr, br], [br, bl], [tl, bl]];
-                };
-                const edges = edgeEndpoints(corners);
                 ctx.beginPath();
                 ctx.moveTo(corners[0].x, corners[0].y);
                 ctx.quadraticCurveTo(edgeCPs[0].x, edgeCPs[0].y, corners[1].x, corners[1].y);
@@ -113,13 +113,19 @@ export function useCanvasDrawing({
                 ctx.quadraticCurveTo(edgeCPs[2].x, edgeCPs[2].y, corners[3].x, corners[3].y);
                 ctx.quadraticCurveTo(edgeCPs[3].x, edgeCPs[3].y, corners[0].x, corners[0].y);
                 ctx.closePath();
-                ctx.fillStyle = 'rgba(0, 230, 138, 0.12)';
+                ctx.fillStyle = PURPLE_FILL;
                 ctx.fill();
                 ctx.stroke();
 
+                // Edge curve guide lines (subtle)
                 ctx.setLineDash([3, 3]);
                 ctx.lineWidth = 1;
-                ctx.strokeStyle = 'rgba(255, 200, 0, 0.5)';
+                ctx.strokeStyle = 'rgba(160, 120, 255, 0.3)';
+                const edgeEndpoints = (q: Point[]): [Point, Point][] => {
+                    const [tl, tr, br, bl] = q;
+                    return [[tl, tr], [tr, br], [br, bl], [tl, bl]];
+                };
+                const edges = edgeEndpoints(corners);
                 edges.forEach(([start, end], i) => {
                     ctx.beginPath();
                     ctx.moveTo(start.x, start.y);
@@ -135,53 +141,59 @@ export function useCanvasDrawing({
                 }
                 if (corners.length === 4) {
                     ctx.closePath();
-                    ctx.fillStyle = 'rgba(0, 230, 138, 0.15)';
+                    ctx.fillStyle = PURPLE_FILL;
                     ctx.fill();
                 }
                 ctx.stroke();
             }
             ctx.setLineDash([]);
 
-            const CORNER_DRAW_RADIUS = 8;
-            const EDGE_DRAW_RADIUS = 6;
-            const CORNER_LABELS = ['1', '2', '3', '4'];
-            const EDGE_LABELS = ['T', 'R', 'B', 'L'];
+            // Corner handles — white circles with purple border
+            const CORNER_RADIUS = 7;
 
             corners.forEach((p, i) => {
-                ctx.beginPath();
-                ctx.arc(p.x, p.y, CORNER_DRAW_RADIUS, 0, Math.PI * 2);
                 const isActive = dragging?.type === 'corner' && dragging.index === i;
-                ctx.fillStyle = isActive ? 'rgba(255, 200, 0, 0.9)' : 'rgba(0, 230, 138, 0.9)';
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, CORNER_RADIUS, 0, Math.PI * 2);
+                ctx.fillStyle = isActive ? PURPLE_ACTIVE : 'white';
                 ctx.fill();
-                ctx.strokeStyle = '#fff';
+                ctx.strokeStyle = PURPLE;
                 ctx.lineWidth = 2;
                 ctx.stroke();
-                ctx.fillStyle = '#fff';
-                ctx.font = 'bold 14px sans-serif';
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.fillText(CORNER_LABELS[i], p.x, p.y);
+                // Shadow
+                ctx.shadowColor = 'rgba(0,0,0,0.2)';
+                ctx.shadowBlur = 3;
+                ctx.shadowColor = 'transparent';
+                ctx.shadowBlur = 0;
             });
 
+            // Edge curve handles — pill shaped
             if (quadDone && edgeCPs) {
                 edgeCPs.forEach((cp, i) => {
-                    ctx.save();
-                    ctx.translate(cp.x, cp.y);
-                    ctx.rotate(Math.PI / 4);
                     const isActive = dragging?.type === 'edge' && dragging.index === i;
-                    const size = EDGE_DRAW_RADIUS;
-                    ctx.fillStyle = isActive ? 'rgba(255, 150, 0, 0.9)' : 'rgba(255, 200, 0, 0.85)';
-                    ctx.fillRect(-size, -size, size * 2, size * 2);
-                    ctx.strokeStyle = '#fff';
-                    ctx.lineWidth = 1.5;
-                    ctx.strokeRect(-size, -size, size * 2, size * 2);
-                    ctx.restore();
+                    const isH = i === 0 || i === 2; // top/bottom edges are horizontal
+                    const pw = isH ? 12 : 4; // pill half-width
+                    const ph = isH ? 4 : 12; // pill half-height
+                    const r = 3; // border radius
 
-                    ctx.fillStyle = '#333';
-                    ctx.font = 'bold 10px sans-serif';
-                    ctx.textAlign = 'center';
-                    ctx.textBaseline = 'middle';
-                    ctx.fillText(EDGE_LABELS[i], cp.x, cp.y);
+                    ctx.beginPath();
+                    // Rounded rect
+                    ctx.moveTo(cp.x - pw + r, cp.y - ph);
+                    ctx.lineTo(cp.x + pw - r, cp.y - ph);
+                    ctx.arcTo(cp.x + pw, cp.y - ph, cp.x + pw, cp.y - ph + r, r);
+                    ctx.lineTo(cp.x + pw, cp.y + ph - r);
+                    ctx.arcTo(cp.x + pw, cp.y + ph, cp.x + pw - r, cp.y + ph, r);
+                    ctx.lineTo(cp.x - pw + r, cp.y + ph);
+                    ctx.arcTo(cp.x - pw, cp.y + ph, cp.x - pw, cp.y + ph - r, r);
+                    ctx.lineTo(cp.x - pw, cp.y - ph + r);
+                    ctx.arcTo(cp.x - pw, cp.y - ph, cp.x - pw + r, cp.y - ph, r);
+                    ctx.closePath();
+
+                    ctx.fillStyle = isActive ? PURPLE_ACTIVE : 'white';
+                    ctx.fill();
+                    ctx.strokeStyle = PURPLE;
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
                 });
             }
 

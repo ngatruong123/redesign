@@ -213,6 +213,21 @@ export default function MockupEditor() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [fitMode, blendMode, opacity, shadowEnabled, shadowBlur, bgBlurEnabled, bgBlur]);
 
+    // Delete key to remove mask (when no overlay active)
+    useEffect(() => {
+        const handler = (e: KeyboardEvent) => {
+            if (e.key === 'Delete' || e.key === 'Backspace') {
+                const tag = (e.target as HTMLElement)?.tagName;
+                if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+                if (!activeTemplate || activeTemplate.designOverlay) return;
+                if (!activeTemplate.mask) return;
+                handleResetMask();
+            }
+        };
+        window.addEventListener('keydown', handler);
+        return () => window.removeEventListener('keydown', handler);
+    }, [activeTemplate]);
+
     // Copy active template's mask to all other templates
     const applyMaskToAll = () => {
         if (!activeTemplate?.mask) {
@@ -657,6 +672,7 @@ export default function MockupEditor() {
                                     <button className="btn-icon" title="Hoàn tác (Ctrl+Z)" onClick={history.undo} disabled={history.historyIndex <= 0}>{Icons.undo}</button>
                                     <button className="btn-icon" title="Làm lại (Ctrl+Shift+Z)" onClick={history.redo} disabled={history.historyIndex >= history.maskHistory.length - 1}>{Icons.redo}</button>
                                     <button className="btn-ghost-sm" onClick={handleResetMask}>Đặt lại</button>
+                                    {interaction.quadDone && <button className="btn-ghost-sm" onClick={handleResetMask} style={{ color: 'var(--error, #ef4444)' }} title="Xoá mask (Delete)">Xoá mask</button>}
                                     {interaction.quadDone && <button className="btn-ghost-sm" onClick={handleResetCurves}>Đặt lại đường cong</button>}
                                     {interaction.quadDone && activeTemplate?.mask && mockupTemplates.length > 1 && (
                                         <button
