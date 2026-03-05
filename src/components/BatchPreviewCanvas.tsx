@@ -126,7 +126,7 @@ export default function BatchPreviewCanvas({ templateImageUrl, designImageUrl, m
                 }
                 ctx.restore();
             } else {
-                drawPerspectiveClient(ctx, designImg, quad, edgeCurves, 5, mask.fitMode || 'contain');
+                drawPerspectiveClient(ctx, designImg, quad, edgeCurves, 12, mask.fitMode || 'contain');
             }
 
             ctx.globalAlpha = 1;
