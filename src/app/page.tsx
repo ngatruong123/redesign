@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useSyncExternalStore } from 'react';
 import { useWorkflowStore } from '@/store/workflow-store';
 import { useWorkspaceStore } from '@/store/workspace-store';
 import UploadZone from '@/components/UploadZone';
@@ -19,8 +19,10 @@ const NAV_ITEMS: { id: WorkflowStep; icon: typeof UploadCloud; label: string }[]
 ];
 
 function UserMenu() {
-    const [username] = useState(() =>
-        typeof window !== 'undefined' ? localStorage.getItem('design-tool-user') || '' : ''
+    const username = useSyncExternalStore(
+        (cb) => { window.addEventListener('storage', cb); return () => window.removeEventListener('storage', cb); },
+        () => localStorage.getItem('design-tool-user') || '',
+        () => '',
     );
 
     const handleLogout = async () => {
