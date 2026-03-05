@@ -272,7 +272,7 @@ export default function MockupEditor() {
             rotation: ov.rotation,
             mode: 'quad' as const,
             quad,
-            edgeCurves: existingMask?.edgeCurves,
+            edgeCurves: undefined,
             fitMode: existingMask?.fitMode ?? 'contain',
             blendMode: existingMask?.blendMode ?? 'normal',
             opacity: existingMask?.opacity ?? 100,
