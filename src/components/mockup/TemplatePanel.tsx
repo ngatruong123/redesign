@@ -131,84 +131,88 @@ export default function TemplatePanel({
     }, [addMockupTemplate, addToast, setActiveTemplateId]);
 
     return (
-        <>
-            <h3>Mẫu Mockup</h3>
-            <div
-                className={`mockup-upload-mini ${dragActive ? 'drag-active' : ''}`}
-                onDragOver={(e) => { e.preventDefault(); setDragActive(true); }}
-                onDragLeave={() => setDragActive(false)}
-                onDrop={(e) => {
-                    e.preventDefault(); setDragActive(false);
-                    if (e.dataTransfer.files.length > 1) {
-                        handleUploadMultiple(e.dataTransfer.files);
-                    } else {
-                        const file = e.dataTransfer.files[0];
-                        if (file) handleUploadTemplate(file);
-                    }
-                }}
-                onClick={() => fileInputRef.current?.click()}
-            >
-                <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={(e) => {
-                    const files = e.target.files;
-                    if (!files) return;
-                    if (files.length > 1) {
-                        handleUploadMultiple(files);
-                    } else if (files[0]) {
-                        handleUploadTemplate(files[0]);
-                    }
+        <div className="sidebar-panel">
+            <div className="sidebar-panel-header">
+                <h3>Mẫu Mockup</h3>
+                <div
+                    className={`mockup-upload-mini ${dragActive ? 'drag-active' : ''}`}
+                    onDragOver={(e) => { e.preventDefault(); setDragActive(true); }}
+                    onDragLeave={() => setDragActive(false)}
+                    onDrop={(e) => {
+                        e.preventDefault(); setDragActive(false);
+                        if (e.dataTransfer.files.length > 1) {
+                            handleUploadMultiple(e.dataTransfer.files);
+                        } else {
+                            const file = e.dataTransfer.files[0];
+                            if (file) handleUploadTemplate(file);
+                        }
+                    }}
+                    onClick={() => fileInputRef.current?.click()}
+                >
+                    <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={(e) => {
+                        const files = e.target.files;
+                        if (!files) return;
+                        if (files.length > 1) {
+                            handleUploadMultiple(files);
+                        } else if (files[0]) {
+                            handleUploadTemplate(files[0]);
+                        }
+                        e.target.value = '';
+                    }} hidden />
+                    {uploadingTemplates ? <><span className="spinner-sm" /> Đang tải lên...</> : '+ Thêm mẫu mockup (chọn nhiều)'}
+                </div>
+                <input ref={replaceImageInputRef} type="file" accept="image/*" onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file && replacingTemplateId) handleReplaceTemplateImage(replacingTemplateId, file);
                     e.target.value = '';
+                    setReplacingTemplateId(null);
                 }} hidden />
-                {uploadingTemplates ? <><span className="spinner-sm" /> Đang tải lên...</> : '+ Thêm mẫu mockup (chọn nhiều)'}
             </div>
-            <input ref={replaceImageInputRef} type="file" accept="image/*" onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file && replacingTemplateId) handleReplaceTemplateImage(replacingTemplateId, file);
-                e.target.value = '';
-                setReplacingTemplateId(null);
-            }} hidden />
 
-            <div className="template-list">
-                {mockupTemplates.map((t) => (
-                    <div
-                        key={t.id}
-                        className={`template-item ${activeTemplateId === t.id ? 'active' : ''}`}
-                        onClick={() => setActiveTemplateId(t.id)}
-                    >
-                        {brokenTemplateIds.has(t.id) ? (
-                            <div style={{ width: 48, height: 48, background: 'var(--bg-tertiary, #333)', borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>
-                                ?
-                            </div>
-                        ) : (
-                            <img src={t.imageUrl} alt={t.name} />
-                        )}
-                        <div className="template-item-info">
-                            <span className="template-name">{t.name}</span>
+            <div className="sidebar-panel-scroll">
+                <div className="template-list">
+                    {mockupTemplates.map((t) => (
+                        <div
+                            key={t.id}
+                            className={`template-item ${activeTemplateId === t.id ? 'active' : ''}`}
+                            onClick={() => setActiveTemplateId(t.id)}
+                        >
                             {brokenTemplateIds.has(t.id) ? (
-                                <button
-                                    className="btn-ghost-sm"
-                                    style={{ fontSize: 10, color: 'var(--warning, #f59e0b)', padding: '2px 6px' }}
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        setReplacingTemplateId(t.id);
-                                        replaceImageInputRef.current?.click();
-                                    }}
-                                >
-                                    Upload lại ảnh
-                                </button>
+                                <div style={{ width: 48, height: 48, background: 'var(--bg-tertiary, #333)', borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>
+                                    ?
+                                </div>
                             ) : (
-                                <span className={`template-status ${t.mask ? 'has-mask' : ''}`}>
-                                    {t.mask ? 'Đã có mask' : 'Chưa vẽ mask'}
-                                </span>
+                                <img src={t.imageUrl} alt={t.name} />
                             )}
+                            <div className="template-item-info">
+                                <span className="template-name">{t.name}</span>
+                                {brokenTemplateIds.has(t.id) ? (
+                                    <button
+                                        className="btn-ghost-sm"
+                                        style={{ fontSize: 10, color: 'var(--warning, #f59e0b)', padding: '2px 6px' }}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setReplacingTemplateId(t.id);
+                                            replaceImageInputRef.current?.click();
+                                        }}
+                                    >
+                                        Upload lại ảnh
+                                    </button>
+                                ) : (
+                                    <span className={`template-status ${t.mask ? 'has-mask' : ''}`}>
+                                        {t.mask ? 'Đã có mask' : 'Chưa vẽ mask'}
+                                    </span>
+                                )}
+                            </div>
+                            <button className="btn-icon-sm" onClick={(e) => {
+                                e.stopPropagation();
+                                removeMockupTemplate(t.id);
+                                if (activeTemplateId === t.id) setActiveTemplateId(null);
+                            }}>✕</button>
                         </div>
-                        <button className="btn-icon-sm" onClick={(e) => {
-                            e.stopPropagation();
-                            removeMockupTemplate(t.id);
-                            if (activeTemplateId === t.id) setActiveTemplateId(null);
-                        }}>✕</button>
-                    </div>
-                ))}
+                    ))}
+                </div>
             </div>
-        </>
+        </div>
     );
 }

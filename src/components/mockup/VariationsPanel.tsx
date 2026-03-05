@@ -74,25 +74,27 @@ export default function VariationsPanel({
     }, []);
 
     return (
-        <>
-            <h3>Ảnh thiết kế ({selectedVariations.length}/{variations.length})</h3>
-            <div
-                className={`mockup-upload-mini ${designDragActive ? 'drag-active' : ''}`}
-                onClick={() => designInputRef.current?.click()}
-                onDragOver={(e) => { e.preventDefault(); setDesignDragActive(true); }}
-                onDragLeave={() => setDesignDragActive(false)}
-                onDrop={(e) => {
-                    e.preventDefault(); setDesignDragActive(false);
-                    if (e.dataTransfer.files.length > 0) handleUploadDesigns(e.dataTransfer.files);
-                }}
-                style={{ marginBottom: 8 }}
-            >
-                <input ref={designInputRef} type="file" accept="image/*" multiple onChange={(e) => {
-                    if (e.target.files) handleUploadDesigns(e.target.files);
-                    e.target.value = '';
-                }} hidden />
-                {uploadingDesigns ? <><span className="spinner-sm" /> Đang upload...</> : '+ Thêm ảnh thiết kế'}
+        <div className="sidebar-panel">
+            <div className="sidebar-panel-header">
+                <h3>Ảnh thiết kế ({selectedVariations.length}/{variations.length})</h3>
+                <div
+                    className={`mockup-upload-mini ${designDragActive ? 'drag-active' : ''}`}
+                    onClick={() => designInputRef.current?.click()}
+                    onDragOver={(e) => { e.preventDefault(); setDesignDragActive(true); }}
+                    onDragLeave={() => setDesignDragActive(false)}
+                    onDrop={(e) => {
+                        e.preventDefault(); setDesignDragActive(false);
+                        if (e.dataTransfer.files.length > 0) handleUploadDesigns(e.dataTransfer.files);
+                    }}
+                >
+                    <input ref={designInputRef} type="file" accept="image/*" multiple onChange={(e) => {
+                        if (e.target.files) handleUploadDesigns(e.target.files);
+                        e.target.value = '';
+                    }} hidden />
+                    {uploadingDesigns ? <><span className="spinner-sm" /> Đang upload...</> : '+ Thêm ảnh thiết kế'}
+                </div>
             </div>
+            <div className="sidebar-panel-scroll">
             <div className="selected-variations-mini">
                 {variations.filter(v => v.imageUrl).map((v) => (
                     <div
@@ -146,6 +148,7 @@ export default function VariationsPanel({
                     </div>
                 ))}
             </div>
-        </>
+            </div>
+        </div>
     );
 }
