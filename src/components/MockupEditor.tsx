@@ -563,7 +563,8 @@ export default function MockupEditor() {
 
             const newMockup = data.results[0];
             if (newMockup) {
-                const updated = generatedMockups.map(m =>
+                const currentMockups = useWorkflowStore.getState().generatedMockups;
+                const updated = currentMockups.map(m =>
                     m.id === editingMockupId ? { ...newMockup, id: editingMockupId } : m
                 );
                 setGeneratedMockups(updated);
