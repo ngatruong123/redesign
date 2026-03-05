@@ -238,19 +238,22 @@ export default function DesignOverlay({ overlay, mask, canvasScale, canvasWidth,
                 zIndex: 1,
             }} />
 
-            {/* Edge midpoint handles for crop */}
+            {/* Edge midpoint handles for crop — pill shaped */}
             {(['top', 'right', 'bottom', 'left'] as Edge[]).map((edge) => {
-                const midTop = edge === 'top' ? `calc(${ct}% - 5px)`
-                    : edge === 'bottom' ? `calc(${100 - cb}% - 5px)`
-                    : `calc(${ct}% + (${100 - ct - cb}% ) / 2 - 5px)`;
-                const midLeft = edge === 'left' ? `calc(${cl}% - 5px)`
-                    : edge === 'right' ? `calc(${100 - cr}% - 5px)`
-                    : `calc(${cl}% + (${100 - cl - cr}% ) / 2 - 5px)`;
-                const cursor = edge === 'top' || edge === 'bottom' ? 'ns-resize' : 'ew-resize';
+                const isH = edge === 'top' || edge === 'bottom';
+                const hw = isH ? 12 : 4; // half-width
+                const hh = isH ? 4 : 12; // half-height
+                const midTop = edge === 'top' ? `calc(${ct}% - ${hh}px)`
+                    : edge === 'bottom' ? `calc(${100 - cb}% - ${hh}px)`
+                    : `calc(${ct}% + (${100 - ct - cb}%) / 2 - ${hh}px)`;
+                const midLeft = edge === 'left' ? `calc(${cl}% - ${hw}px)`
+                    : edge === 'right' ? `calc(${100 - cr}% - ${hw}px)`
+                    : `calc(${cl}% + (${100 - cl - cr}%) / 2 - ${hw}px)`;
+                const cursor = isH ? 'ns-resize' : 'ew-resize';
                 return (
                     <div
                         key={edge}
-                        className="overlay-handle overlay-handle-edge"
+                        className={`overlay-handle overlay-handle-edge overlay-handle-edge--${isH ? 'h' : 'v'}`}
                         style={{ position: 'absolute', top: midTop, left: midLeft, cursor, zIndex: 5 }}
                         onPointerDown={(e) => handlePointerDown(e, 'crop', undefined, edge)}
                     />
