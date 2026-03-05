@@ -574,16 +574,16 @@
   transition: outline-color 0.15s;
 }
 
-.design-overlay:hover {
-  outline: 1.5px solid rgba(160, 120, 255, 0.9) !important;
+.design-overlay:hover .overlay-border {
+  border-color: rgba(160, 120, 255, 1) !important;
 }
 
 .design-overlay:focus {
-  outline: 1.5px solid rgba(160, 120, 255, 1) !important;
+  outline: none !important;
 }
 
-.design-overlay.cropping {
-  outline: 1.5px solid rgba(160, 120, 255, 1) !important;
+.design-overlay:focus .overlay-border {
+  border-color: rgba(160, 120, 255, 1) !important;
 }
 
 .overlay-handle {

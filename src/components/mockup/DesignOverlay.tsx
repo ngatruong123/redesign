@@ -190,7 +190,7 @@ export default function DesignOverlay({ overlay, mask, canvasScale, canvasWidth,
                 pointerEvents: disabled ? 'none' : 'auto',
                 opacity: disabled ? 0.5 : undefined,
                 cursor: mode === 'move' ? 'grabbing' : 'grab',
-                outline: '1.5px solid rgba(160, 120, 255, 0.7)',
+                outline: 'none',
                 borderRadius: 2,
                 overflow: 'visible',
             }}
@@ -225,6 +225,19 @@ export default function DesignOverlay({ overlay, mask, canvasScale, canvasWidth,
                 />
             </div>
 
+            {/* Border follows cropped area */}
+            <div className="overlay-border" style={{
+                position: 'absolute',
+                top: `${ct}%`,
+                left: `${cl}%`,
+                right: `${cr}%`,
+                bottom: `${cb}%`,
+                border: '1.5px solid rgba(160, 120, 255, 0.7)',
+                borderRadius: 2,
+                pointerEvents: 'none',
+                zIndex: 1,
+            }} />
+
             {/* Edge crop handles — positioned at current crop inset */}
             <div
                 className="overlay-crop-handle overlay-crop-top"
@@ -247,21 +260,25 @@ export default function DesignOverlay({ overlay, mask, canvasScale, canvasWidth,
                 onPointerDown={(e) => handlePointerDown(e, 'crop', undefined, 'right')}
             />
 
-            {/* Corner resize handles */}
-            {(['tl', 'tr', 'br', 'bl'] as Corner[]).map((corner) => (
-                <div
-                    key={corner}
-                    className="overlay-handle overlay-handle-resize"
-                    style={{
-                        position: 'absolute',
-                        ...(corner.includes('t') ? { top: -5 } : { bottom: -5 }),
-                        ...(corner.includes('l') ? { left: -5 } : { right: -5 }),
-                        cursor: corner === 'tl' || corner === 'br' ? 'nwse-resize' : 'nesw-resize',
-                        zIndex: 2,
-                    }}
-                    onPointerDown={(e) => handlePointerDown(e, 'resize', corner)}
-                />
-            ))}
+            {/* Corner resize handles — follow crop insets */}
+            {(['tl', 'tr', 'br', 'bl'] as Corner[]).map((corner) => {
+                const topPos = corner.includes('t') ? `calc(${ct}% - 5px)` : `calc(${100 - cb}% - 5px)`;
+                const leftPos = corner.includes('l') ? `calc(${cl}% - 5px)` : `calc(${100 - cr}% - 5px)`;
+                return (
+                    <div
+                        key={corner}
+                        className="overlay-handle overlay-handle-resize"
+                        style={{
+                            position: 'absolute',
+                            top: topPos,
+                            left: leftPos,
+                            cursor: corner === 'tl' || corner === 'br' ? 'nwse-resize' : 'nesw-resize',
+                            zIndex: 2,
+                        }}
+                        onPointerDown={(e) => handlePointerDown(e, 'resize', corner)}
+                    />
+                );
+            })}
 
             {/* Floating toolbar above overlay */}
             <div className="overlay-toolbar" onPointerDown={(e) => e.stopPropagation()}>
