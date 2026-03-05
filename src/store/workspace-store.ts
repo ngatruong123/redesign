@@ -65,6 +65,14 @@ export const useWorkspaceStore = create<WorkspaceState>()(
                     ...(active === id ? { activeId: 'default' } : {}),
                 }));
                 if (active === id) {
+                    try {
+                        const raw = localStorage.getItem('design-tool-workspace');
+                        if (raw) {
+                            const parsed = JSON.parse(raw);
+                            parsed.state.activeId = 'default';
+                            localStorage.setItem('design-tool-workspace', JSON.stringify(parsed));
+                        }
+                    } catch { /* ignore */ }
                     window.location.reload();
                 }
             },
@@ -72,7 +80,16 @@ export const useWorkspaceStore = create<WorkspaceState>()(
             switchWorkspace: (id) => {
                 if (id === get().activeId) return;
                 set({ activeId: id });
-                // Reload so workflow-store persist key is re-evaluated for the new workspace
+                // Manually persist activeId to localStorage before reload,
+                // because zustand persist writes asynchronously and reload() may fire first
+                try {
+                    const raw = localStorage.getItem('design-tool-workspace');
+                    if (raw) {
+                        const parsed = JSON.parse(raw);
+                        parsed.state.activeId = id;
+                        localStorage.setItem('design-tool-workspace', JSON.stringify(parsed));
+                    }
+                } catch { /* ignore */ }
                 window.location.reload();
             },
 
