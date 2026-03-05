@@ -232,33 +232,30 @@ export default function DesignOverlay({ overlay, mask, canvasScale, canvasWidth,
                 left: `${cl}%`,
                 right: `${cr}%`,
                 bottom: `${cb}%`,
-                border: '1.5px solid rgba(160, 120, 255, 0.7)',
+                border: '2.5px solid rgba(160, 120, 255, 0.8)',
                 borderRadius: 2,
                 pointerEvents: 'none',
                 zIndex: 1,
             }} />
 
-            {/* Edge crop handles — positioned at current crop inset */}
-            <div
-                className="overlay-crop-handle overlay-crop-top"
-                style={{ top: `${ct}%`, zIndex: 5 }}
-                onPointerDown={(e) => handlePointerDown(e, 'crop', undefined, 'top')}
-            />
-            <div
-                className="overlay-crop-handle overlay-crop-bottom"
-                style={{ bottom: `${cb}%`, zIndex: 5 }}
-                onPointerDown={(e) => handlePointerDown(e, 'crop', undefined, 'bottom')}
-            />
-            <div
-                className="overlay-crop-handle overlay-crop-left"
-                style={{ left: `${cl}%`, zIndex: 5 }}
-                onPointerDown={(e) => handlePointerDown(e, 'crop', undefined, 'left')}
-            />
-            <div
-                className="overlay-crop-handle overlay-crop-right"
-                style={{ right: `${cr}%`, zIndex: 5 }}
-                onPointerDown={(e) => handlePointerDown(e, 'crop', undefined, 'right')}
-            />
+            {/* Edge midpoint handles for crop */}
+            {(['top', 'right', 'bottom', 'left'] as Edge[]).map((edge) => {
+                const midTop = edge === 'top' ? `calc(${ct}% - 5px)`
+                    : edge === 'bottom' ? `calc(${100 - cb}% - 5px)`
+                    : `calc(${ct}% + (${100 - ct - cb}% ) / 2 - 5px)`;
+                const midLeft = edge === 'left' ? `calc(${cl}% - 5px)`
+                    : edge === 'right' ? `calc(${100 - cr}% - 5px)`
+                    : `calc(${cl}% + (${100 - cl - cr}% ) / 2 - 5px)`;
+                const cursor = edge === 'top' || edge === 'bottom' ? 'ns-resize' : 'ew-resize';
+                return (
+                    <div
+                        key={edge}
+                        className="overlay-handle overlay-handle-edge"
+                        style={{ position: 'absolute', top: midTop, left: midLeft, cursor, zIndex: 5 }}
+                        onPointerDown={(e) => handlePointerDown(e, 'crop', undefined, edge)}
+                    />
+                );
+            })}
 
             {/* Corner resize handles — follow crop insets */}
             {(['tl', 'tr', 'br', 'bl'] as Corner[]).map((corner) => {

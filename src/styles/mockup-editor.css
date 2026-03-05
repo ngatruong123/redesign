@@ -576,6 +576,7 @@
 
 .design-overlay:hover .overlay-border {
   border-color: rgba(160, 120, 255, 1) !important;
+  border-width: 2.5px !important;
 }
 
 .design-overlay:focus {
@@ -661,70 +662,10 @@
   opacity: 1;
 }
 
-/* Edge crop handles — invisible hit areas, cursor only */
-.overlay-crop-handle {
-  position: absolute;
-  z-index: 1;
-}
-
-.overlay-crop-handle::after {
-  display: none;
-}
-
-.overlay-crop-top {
-  left: 0;
-  right: 0;
-  height: 10px;
-  margin-top: -5px;
-  cursor: n-resize;
-}
-.overlay-crop-top::after {
-  left: 30%;
-  right: 30%;
-  height: 3px;
-  top: 3px;
-}
-
-.overlay-crop-bottom {
-  left: 0;
-  right: 0;
-  height: 10px;
-  margin-bottom: -5px;
-  cursor: s-resize;
-}
-.overlay-crop-bottom::after {
-  left: 30%;
-  right: 30%;
-  height: 3px;
-  bottom: 3px;
-}
-
-.overlay-crop-left {
-  top: 0;
-  bottom: 0;
+/* Edge midpoint handles */
+.overlay-handle-edge {
   width: 10px;
-  margin-left: -5px;
-  cursor: w-resize;
-}
-.overlay-crop-left::after {
-  top: 30%;
-  bottom: 30%;
-  width: 3px;
-  left: 3px;
-}
-
-.overlay-crop-right {
-  top: 0;
-  bottom: 0;
-  width: 10px;
-  margin-right: -5px;
-  cursor: e-resize;
-}
-.overlay-crop-right::after {
-  top: 30%;
-  bottom: 30%;
-  width: 3px;
-  right: 3px;
+  height: 10px;
 }
 
 
