@@ -281,7 +281,7 @@ export default function DesignOverlay({ overlay, mask, canvasScale, canvasWidth,
             })}
 
             {/* Floating toolbar above overlay */}
-            <div className="overlay-toolbar" onPointerDown={(e) => e.stopPropagation()}>
+            <div className="overlay-toolbar" style={{ top: `calc(${ct}% - 40px)` }} onPointerDown={(e) => e.stopPropagation()}>
                 <button
                     className="overlay-toolbar-btn"
                     title="Xoay"

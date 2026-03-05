@@ -619,7 +619,6 @@
 /* Floating toolbar above overlay */
 .overlay-toolbar {
   position: absolute;
-  top: -40px;
   left: 50%;
   transform: translateX(-50%);
   display: flex;
