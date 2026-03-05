@@ -579,12 +579,13 @@ export default function MockupEditor() {
     };
 
     const handleOverlayChange = useCallback((update: Partial<DesignOverlayState>) => {
-        if (!activeTemplate?.designOverlay) return;
-        const newOverlay = { ...activeTemplate.designOverlay, ...update };
-        const newMask = buildMaskFromOverlay(newOverlay, activeTemplate.mask);
-        updateMockupTemplate(activeTemplate.id, { designOverlay: newOverlay, mask: newMask });
+        const currentTemplate = useWorkflowStore.getState().mockupTemplates.find(t => t.id === activeTemplateId);
+        if (!currentTemplate?.designOverlay) return;
+        const newOverlay = { ...currentTemplate.designOverlay, ...update };
+        const newMask = buildMaskFromOverlay(newOverlay, currentTemplate.mask);
+        updateMockupTemplate(currentTemplate.id, { designOverlay: newOverlay, mask: newMask });
         interaction.restoreFromMask(newMask);
-    }, [activeTemplate, updateMockupTemplate, buildMaskFromOverlay, interaction]);
+    }, [activeTemplateId, updateMockupTemplate, buildMaskFromOverlay, interaction]);
 
     const handleOverlayRemove = useCallback(() => {
         if (!activeTemplate) return;
