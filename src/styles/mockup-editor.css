@@ -575,80 +575,69 @@
 }
 
 .design-overlay:hover {
-  outline: 2px solid rgba(0, 230, 138, 0.6) !important;
+  outline: 1.5px solid rgba(160, 120, 255, 0.9) !important;
 }
 
 .design-overlay:focus {
-  outline: 2px solid var(--accent) !important;
+  outline: 1.5px solid rgba(160, 120, 255, 1) !important;
 }
 
 .design-overlay.cropping {
-  outline: 2px dashed rgba(0, 230, 138, 0.9) !important;
+  outline: 1.5px solid rgba(160, 120, 255, 1) !important;
 }
 
 .overlay-handle {
   width: 10px;
   height: 10px;
   background: white;
-  border: 2px solid var(--accent);
+  border: 1.5px solid rgba(160, 120, 255, 0.9);
   border-radius: 50%;
   z-index: 11;
   touch-action: none;
-  opacity: 0;
-  transition: opacity 0.15s;
-}
-
-.design-overlay:hover .overlay-handle {
-  opacity: 1;
+  box-shadow: 0 0 3px rgba(0,0,0,0.3);
 }
 
 .overlay-handle:hover {
-  background: var(--accent);
+  background: rgba(160, 120, 255, 1);
+  border-color: rgba(160, 120, 255, 1);
 }
 
 
 /* Floating toolbar above overlay */
 .overlay-toolbar {
   position: absolute;
-  top: -36px;
+  top: -40px;
   left: 50%;
   transform: translateX(-50%);
   display: flex;
   align-items: center;
   gap: 2px;
-  padding: 3px 4px;
-  background: rgba(30, 30, 30, 0.9);
-  border: 1px solid rgba(255,255,255,0.15);
-  border-radius: 8px;
+  padding: 4px 6px;
+  background: white;
+  border-radius: 20px;
   z-index: 12;
-  opacity: 0;
-  transition: opacity 0.15s;
-  backdrop-filter: blur(8px);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15), 0 0 0 1px rgba(0,0,0,0.05);
   pointer-events: auto;
 }
 
-.design-overlay:hover .overlay-toolbar {
-  opacity: 1;
-}
-
 .overlay-toolbar-btn {
-  width: 26px;
-  height: 26px;
+  width: 28px;
+  height: 28px;
   display: flex;
   align-items: center;
   justify-content: center;
   border: none;
   background: transparent;
-  color: rgba(255,255,255,0.8);
-  border-radius: 6px;
-  font-size: 14px;
+  color: #444;
+  border-radius: 50%;
+  font-size: 15px;
   cursor: pointer;
   transition: background 0.15s, color 0.15s;
 }
 
 .overlay-toolbar-btn:hover {
-  background: rgba(255,255,255,0.15);
-  color: white;
+  background: rgba(0,0,0,0.08);
+  color: #111;
 }
 
 .overlay-toolbar-btn--delete:hover {
@@ -660,30 +649,14 @@
   opacity: 1;
 }
 
-/* Edge crop handles */
+/* Edge crop handles — invisible hit areas, cursor only */
 .overlay-crop-handle {
   position: absolute;
   z-index: 1;
-  transition: background 0.15s, box-shadow 0.15s, opacity 0.15s;
-  opacity: 0;
 }
 
-.design-overlay:hover .overlay-crop-handle {
-  opacity: 1;
-}
-
-/* Visible bar inside the handle */
 .overlay-crop-handle::after {
-  content: '';
-  position: absolute;
-  background: rgba(0, 230, 138, 0.6);
-  border-radius: 2px;
-  transition: background 0.15s;
-}
-
-.overlay-crop-handle:hover::after,
-.overlay-crop-handle:active::after {
-  background: rgba(0, 230, 138, 1);
+  display: none;
 }
 
 .overlay-crop-top {
