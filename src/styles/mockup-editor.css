@@ -48,10 +48,11 @@
 
 .mockup-col-left h3,
 .mockup-col-right h3 {
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--text-secondary);
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-primary);
   margin: 0;
+  letter-spacing: 0.02em;
 }
 
 @media (max-width: 1024px) {
@@ -84,21 +85,23 @@
 }
 
 .mockup-upload-mini {
-  padding: 8px;
-  border: 2px dashed var(--border);
+  padding: 10px 12px;
+  border: 2px dashed var(--accent);
   border-radius: var(--radius-sm);
   text-align: center;
   cursor: pointer;
-  font-size: 0.7rem;
-  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--accent);
+  background: var(--accent-glow);
   transition: var(--transition);
 }
 
 .mockup-upload-mini:hover,
 .mockup-upload-mini.drag-active {
   border-color: var(--accent);
-  color: var(--accent);
-  background: var(--accent-glow);
+  color: #fff;
+  background: var(--accent);
 }
 
 .template-list {
@@ -449,6 +452,23 @@
 }
 
 
+/* Editing mockup card highlight */
+.generated-card.editing {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent), 0 0 12px rgba(0, 230, 138, 0.2);
+}
+
+/* Regenerate single bar */
+.regenerate-single-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.btn-regenerate-single {
+  background: linear-gradient(135deg, var(--accent, #00e68a), #00b36b) !important;
+}
+
 /* --- Rotation Controls --- */
 .rotation-controls {
   display: flex;
@@ -490,6 +510,14 @@
   display: flex;
   align-items: center;
   gap: 6px;
+}
+
+.undo-redo-bar .btn-icon {
+  color: #fff;
+}
+
+.undo-redo-bar .btn-icon:disabled {
+  color: rgba(255, 255, 255, 0.3);
 }
 
 /* --- Design Overlay --- */

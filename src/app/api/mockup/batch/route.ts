@@ -26,6 +26,8 @@ interface BatchItem {
         x: number; y: number; width: number; height: number; rotation?: number;
         cropTop?: number; cropRight?: number; cropBottom?: number; cropLeft?: number;
     };
+    templateId?: string;
+    variationId?: string;
     templateName: string;
     variationName: string;
 }
@@ -167,6 +169,8 @@ export async function POST(request: NextRequest) {
                 results.push({
                     id,
                     imageUrl: url,
+                    templateId: item.templateId,
+                    variationId: item.variationId,
                     templateName: item.templateName,
                     variationName: item.variationName,
                 });
@@ -175,6 +179,8 @@ export async function POST(request: NextRequest) {
                 results.push({
                     id: uuidv4(),
                     imageUrl: '',
+                    templateId: item.templateId,
+                    variationId: item.variationId,
                     templateName: item.templateName,
                     variationName: item.variationName,
                     error: err instanceof Error ? err.message : 'Failed',

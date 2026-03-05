@@ -49,6 +49,9 @@ export default function MockupEditor() {
     const [canvasDragOver, setCanvasDragOver] = useState(false);
     const [showAIOptions, setShowAIOptions] = useState(false);
     const [isAIGenerating, setIsAIGenerating] = useState(false);
+    const [editingMockupId, setEditingMockupId] = useState<string | null>(null);
+    const [isRegeneratingSingle, setIsRegeneratingSingle] = useState(false);
+    const canvasAreaRef = useRef<HTMLDivElement>(null);
 
 
     // Blend controls
@@ -413,6 +416,8 @@ export default function MockupEditor() {
                             designImagePath: ov.imageUrl,
                             mask: t.mask,
                             overlay: overlayData,
+                            templateId: t.id,
+                            variationId: ov.variationId,
                             templateName: t.name,
                             variationName: overlayVariation.styleName,
                         });
@@ -437,6 +442,8 @@ export default function MockupEditor() {
                             designImagePath: ov.imageUrl,
                             mask: rectMask,
                             overlay: overlayData,
+                            templateId: t.id,
+                            variationId: ov.variationId,
                             templateName: t.name,
                             variationName: overlayVariation.styleName,
                         });
@@ -456,6 +463,8 @@ export default function MockupEditor() {
                         mockupImagePath: t.imageUrl,
                         designImagePath: v.imageUrl,
                         mask: t.mask,
+                        templateId: t.id,
+                        variationId: v.id,
                         templateName: t.name,
                         variationName: v.styleName,
                     });
@@ -483,6 +492,88 @@ export default function MockupEditor() {
             addToast('error', msg);
         } finally {
             setIsCompositing(false);
+        }
+    };
+
+    const handleEditMockup = useCallback((mockup: import('@/types').GeneratedMockup) => {
+        if (!mockup.templateId) return;
+        const template = mockupTemplates.find(t => t.id === mockup.templateId);
+        if (!template) {
+            addToast('error', 'Không tìm thấy template');
+            return;
+        }
+        setActiveTemplateId(template.id);
+        setEditingMockupId(mockup.id);
+        // Scroll to canvas area
+        setTimeout(() => {
+            canvasAreaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 100);
+        addToast('info', `Đang chỉnh sửa mockup: ${mockup.templateName} · ${mockup.variationName}`);
+    }, [mockupTemplates, addToast]);
+
+    const handleRegenerateSingle = async () => {
+        if (!editingMockupId) return;
+        const mockup = generatedMockups.find(m => m.id === editingMockupId);
+        if (!mockup?.templateId) return;
+
+        const template = mockupTemplates.find(t => t.id === mockup.templateId);
+        if (!template) return;
+
+        const variation = variations.find(v => v.id === mockup.variationId);
+        if (!variation) return;
+
+        setIsRegeneratingSingle(true);
+
+        // Build the single item (same logic as batch)
+        const item: Record<string, unknown> = {
+            mockupImagePath: template.imageUrl,
+            designImagePath: variation.imageUrl,
+            templateId: template.id,
+            variationId: variation.id,
+            templateName: template.name,
+            variationName: variation.styleName,
+        };
+
+        if (template.designOverlay && template.designOverlay.variationId === variation.id) {
+            const ov = template.designOverlay;
+            item.overlay = {
+                x: ov.x, y: ov.y, width: ov.width, height: ov.height, rotation: ov.rotation,
+                cropTop: ov.cropTop, cropRight: ov.cropRight, cropBottom: ov.cropBottom, cropLeft: ov.cropLeft,
+            };
+            item.mask = template.mask || {
+                x: ov.x, y: ov.y, width: ov.width, height: ov.height,
+                rotation: ov.rotation, mode: 'rect', fitMode: 'fill', blendMode: 'normal', opacity: 100,
+            };
+        } else if (template.mask) {
+            item.mask = template.mask;
+        } else {
+            addToast('error', 'Template chưa có mask');
+            setIsRegeneratingSingle(false);
+            return;
+        }
+
+        try {
+            const res = await fetch('/api/mockup/batch', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ items: [item] }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error);
+
+            const newMockup = data.results[0];
+            if (newMockup) {
+                const updated = generatedMockups.map(m =>
+                    m.id === editingMockupId ? { ...newMockup, id: editingMockupId } : m
+                );
+                setGeneratedMockups(updated);
+                addToast('success', 'Đã tạo lại mockup!');
+            }
+        } catch (err) {
+            addToast('error', err instanceof Error ? err.message : 'Tạo lại mockup thất bại');
+        } finally {
+            setIsRegeneratingSingle(false);
+            setEditingMockupId(null);
         }
     };
 
@@ -543,6 +634,7 @@ export default function MockupEditor() {
                 </div>
 
                 <div
+                    ref={canvasAreaRef}
                     className="mockup-canvas-area"
                     onDragOver={handleCanvasDragOver}
                     onDragLeave={handleCanvasDragLeave}
@@ -637,14 +729,32 @@ export default function MockupEditor() {
             </div>
 
             <div className="mockup-generate-bar">
-                <button
-                    className="btn-primary btn-lg"
-                    disabled={totalMockupCount === 0 || isCompositing}
-                    onClick={() => { setShowBatchPreview(true); }}
-                >
-                    {isCompositing ? <><span className="spinner-sm" /> Đang tạo mockup...</>
-                        : `Tạo ${totalMockupCount} mockup`}
-                </button>
+                {editingMockupId ? (
+                    <div className="regenerate-single-bar">
+                        <button
+                            className="btn-primary btn-lg btn-regenerate-single"
+                            disabled={isRegeneratingSingle}
+                            onClick={handleRegenerateSingle}
+                        >
+                            {isRegeneratingSingle ? <><span className="spinner-sm" /> Đang tạo lại...</> : 'Tạo lại mockup này'}
+                        </button>
+                        <button
+                            className="btn-ghost"
+                            onClick={() => setEditingMockupId(null)}
+                        >
+                            Hủy chỉnh sửa
+                        </button>
+                    </div>
+                ) : (
+                    <button
+                        className="btn-primary btn-lg"
+                        disabled={totalMockupCount === 0 || isCompositing}
+                        onClick={() => { setShowBatchPreview(true); }}
+                    >
+                        {isCompositing ? <><span className="spinner-sm" /> Đang tạo mockup...</>
+                            : `Tạo ${totalMockupCount} mockup`}
+                    </button>
+                )}
                 <button
                     className="btn-primary btn-lg"
                     disabled={totalMockupCount === 0 || isAIGenerating || isCompositing}
@@ -672,6 +782,8 @@ export default function MockupEditor() {
                     setLightboxImage={setLightboxImage}
                     setSeoMockupId={setSeoMockupId}
                     onRetry={() => handleGenerateMockups()}
+                    onEditMockup={handleEditMockup}
+                    editingMockupId={editingMockupId}
                 />
             )}
 

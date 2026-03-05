@@ -12,6 +12,8 @@ interface GeneratedMockupsGridProps {
     setLightboxImage: (img: { url: string; alt: string } | null) => void;
     setSeoMockupId: (id: string | null) => void;
     onRetry: () => void;
+    onEditMockup?: (mockup: GeneratedMockup) => void;
+    editingMockupId?: string | null;
 }
 
 function makeSafeFilename(templateName: string, variationName: string) {
@@ -44,6 +46,8 @@ export default function GeneratedMockupsGrid({
     setLightboxImage,
     setSeoMockupId,
     onRetry,
+    onEditMockup,
+    editingMockupId,
 }: GeneratedMockupsGridProps) {
     const addToast = useToastStore((s) => s.addToast);
     const [selectedMockupIds, setSelectedMockupIds] = useState<Set<string>>(new Set());
@@ -118,7 +122,7 @@ export default function GeneratedMockupsGrid({
             </div>
             <div className="generated-grid">
                 {generatedMockups.map((mockup) => (
-                    <div key={mockup.id} className={`generated-card ${selectedMockupIds.has(mockup.id) ? 'selected' : ''}`}>
+                    <div key={mockup.id} className={`generated-card ${selectedMockupIds.has(mockup.id) ? 'selected' : ''} ${editingMockupId === mockup.id ? 'editing' : ''}`}>
                         {mockup.imageUrl ? (
                             <>
                                 <div className="generated-image-wrap"
@@ -133,6 +137,14 @@ export default function GeneratedMockupsGrid({
                                         <span>{mockup.variationName}</span>
                                     </div>
                                     <div className="generated-card-actions">
+                                        {onEditMockup && mockup.templateId && (
+                                            <button className="btn-icon-sm" title="Chỉnh sửa" onClick={(e) => {
+                                                e.stopPropagation();
+                                                onEditMockup(mockup);
+                                            }} style={editingMockupId === mockup.id ? { color: 'var(--accent, #00e68a)' } : undefined}>
+                                                {Icons.edit}
+                                            </button>
+                                        )}
                                         <button className="btn-icon-sm" title="Tạo Video" onClick={(e) => {
                                             e.stopPropagation();
                                             const { setVideoGeneration, setStep } = useWorkflowStore.getState();
