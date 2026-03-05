@@ -187,8 +187,8 @@ export function useQuadInteraction({
     }, [dragStart, dragCurrent, quadDone, dragging, commitMask, commitMaskDirect]);
 
     // Mouse/Touch handlers
-    const handleCanvasMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => handlePointerDown(e.clientX, e.clientY), [handlePointerDown]);
-    const handleCanvasMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    const handleCanvasMouseDown = useCallback((e: React.MouseEvent) => handlePointerDown(e.clientX, e.clientY), [handlePointerDown]);
+    const handleCanvasMouseMove = useCallback((e: React.MouseEvent) => {
         if (rafRef.current) return;
         const cx = e.clientX, cy = e.clientY;
         rafRef.current = requestAnimationFrame(() => {
@@ -198,10 +198,10 @@ export function useQuadInteraction({
     }, [handlePointerMove]);
     const handleCanvasMouseUp = useCallback(() => handlePointerUp(), [handlePointerUp]);
 
-    const handleTouchStart = useCallback((e: React.TouchEvent<HTMLCanvasElement>) => {
+    const handleTouchStart = useCallback((e: React.TouchEvent) => {
         e.preventDefault(); handlePointerDown(e.touches[0].clientX, e.touches[0].clientY);
     }, [handlePointerDown]);
-    const handleTouchMove = useCallback((e: React.TouchEvent<HTMLCanvasElement>) => {
+    const handleTouchMove = useCallback((e: React.TouchEvent) => {
         e.preventDefault();
         if (rafRef.current) return;
         const cx = e.touches[0].clientX, cy = e.touches[0].clientY;
@@ -210,7 +210,7 @@ export function useQuadInteraction({
             handlePointerMove(cx, cy);
         });
     }, [handlePointerMove]);
-    const handleTouchEnd = useCallback((e: React.TouchEvent<HTMLCanvasElement>) => {
+    const handleTouchEnd = useCallback((e: React.TouchEvent) => {
         e.preventDefault(); handlePointerUp();
     }, [handlePointerUp]);
 
