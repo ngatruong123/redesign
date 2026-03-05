@@ -24,7 +24,7 @@
 
 .mockup-layout {
   display: grid;
-  grid-template-columns: 300px auto;
+  grid-template-columns: 300px 1fr;
   gap: 16px;
   min-height: 500px;
 }
@@ -176,10 +176,6 @@
 
 /* Canvas area */
 .mockup-canvas-area {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  padding: 8px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -202,6 +198,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
 }
 
 .canvas-wrapper canvas {
