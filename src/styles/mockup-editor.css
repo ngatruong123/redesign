@@ -31,7 +31,7 @@
 
 /* 3-column layout: templates | canvas | variations */
 .mockup-layout--3col {
-  grid-template-columns: minmax(200px, 1fr) minmax(0, 2fr) minmax(200px, 1fr);
+  grid-template-columns: minmax(180px, 1fr) minmax(0, 3fr) minmax(180px, 1fr);
   gap: 12px;
   align-items: start;
 }
@@ -160,35 +160,73 @@
 
 /* Selected variations mini */
 .selected-variations-mini {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
+  gap: 6px;
 }
 
 .mini-variation {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
   position: relative;
+  padding: 4px;
+  border-radius: 8px;
+  background: var(--bg-card);
+  transition: var(--transition);
+}
+
+.mini-variation:hover {
+  background: var(--bg-tertiary, #2a2a2a);
 }
 
 .mini-variation img {
-  width: 52px;
-  height: 52px;
+  width: 100%;
+  aspect-ratio: 1;
   object-fit: cover;
   border-radius: 6px;
   border: 1px solid var(--border);
+  cursor: grab;
 }
 
 .mini-variation span {
-  font-size: 0.65rem;
+  font-size: 0.6rem;
   color: var(--text-muted);
   text-align: center;
-  max-width: 60px;
+  width: 100%;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+.mini-variation .btn-icon-sm {
+  position: absolute;
+  top: 2px;
+  background: rgba(0,0,0,0.7);
+  border-radius: 50%;
+  width: 18px !important;
+  height: 18px !important;
+  font-size: 9px !important;
+  padding: 0 !important;
+  opacity: 0;
+  transition: opacity 0.15s;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+}
+
+.mini-variation:hover .btn-icon-sm {
+  opacity: 1;
+}
+
+.mini-variation .btn-icon-sm:first-of-type {
+  right: 22px;
+}
+
+.mini-variation .btn-icon-sm:last-of-type {
+  right: 2px;
 }
 
 .mini-remove {
@@ -232,7 +270,7 @@
 .canvas-wrapper {
   position: relative;
   max-width: 100%;
-  max-height: 55vh;
+  max-height: 60vh;
   overflow: hidden;
   display: flex;
   align-items: center;
@@ -244,7 +282,7 @@
 
 .canvas-wrapper canvas {
   max-width: 100%;
-  max-height: 55vh;
+  max-height: 60vh;
   object-fit: contain;
   border-radius: var(--radius-sm);
 }
