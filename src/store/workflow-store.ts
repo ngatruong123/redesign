@@ -7,6 +7,10 @@ import { migrateFromOldKey } from './workflow-migration';
 // Run migration before store creation
 migrateFromOldKey();
 
+// Guard: don't sync to server until initial load is complete
+let _initialLoadDone = false;
+function markInitialLoadDone() { _initialLoadDone = true; }
+
 interface WorkflowState {
     currentStep: WorkflowStep;
     sourceDesigns: DesignFile[];
@@ -181,22 +185,36 @@ export const useWorkflowStore = create<WorkflowState>()(
 
                 const isEmpty = !state.sourceDesigns?.length && !state.variations?.length && !state.mockupTemplates?.length;
 
+                // Collect async loads to wait for before enabling sync
+                const pendingLoads: Promise<void>[] = [];
+
                 // If localStorage has no workflow data, try loading from server
                 if (typeof window !== 'undefined' && isEmpty) {
                     const wsId = getActiveWorkspaceId();
-                    loadWorkflowFromServer(wsId, (data) => useWorkflowStore.setState(data));
+                    pendingLoads.push(
+                        loadWorkflowFromServer(wsId, (data) => useWorkflowStore.setState(data))
+                    );
                 }
 
                 // Load templates from server if localStorage has none
                 if (typeof window !== 'undefined' && (!state.mockupTemplates || state.mockupTemplates.length === 0)) {
-                    fetch(`/api/templates?workspace=${encodeURIComponent(getActiveWorkspaceId())}`)
-                        .then((res) => res.ok ? res.json() : [])
-                        .then((templates) => {
-                            if (Array.isArray(templates) && templates.length > 0) {
-                                useWorkflowStore.setState({ mockupTemplates: templates });
-                            }
-                        })
-                        .catch(() => {});
+                    pendingLoads.push(
+                        fetch(`/api/templates?workspace=${encodeURIComponent(getActiveWorkspaceId())}`)
+                            .then((res) => res.ok ? res.json() : [])
+                            .then((templates) => {
+                                if (Array.isArray(templates) && templates.length > 0) {
+                                    useWorkflowStore.setState({ mockupTemplates: templates });
+                                }
+                            })
+                            .catch(() => {})
+                    );
+                }
+
+                // Only enable sync after ALL async loads complete
+                if (pendingLoads.length > 0) {
+                    Promise.all(pendingLoads).finally(() => { markInitialLoadDone(); });
+                } else {
+                    markInitialLoadDone();
                 }
 
                 // Validate persisted image URLs still exist on server
@@ -237,6 +255,7 @@ export const useWorkflowStore = create<WorkflowState>()(
 if (typeof window !== 'undefined') {
     useWorkflowStore.subscribe(
         (state, prevState) => {
+            if (!_initialLoadDone) return;
             if (
                 state.sourceDesigns !== prevState.sourceDesigns ||
                 state.variations !== prevState.variations ||

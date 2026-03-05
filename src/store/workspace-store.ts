@@ -65,14 +65,17 @@ export const useWorkspaceStore = create<WorkspaceState>()(
                     ...(active === id ? { activeId: 'default' } : {}),
                 }));
                 if (active === id) {
+                    set({ activeId: 'default' });
                     useWorkflowStore.getState().reset();
+                    window.location.reload();
                 }
             },
 
             switchWorkspace: (id) => {
                 if (id === get().activeId) return;
                 set({ activeId: id });
-                useWorkflowStore.getState().reset();
+                // Reload so workflow-store persist key is re-evaluated for the new workspace
+                window.location.reload();
             },
 
             syncFromServer: async () => {
