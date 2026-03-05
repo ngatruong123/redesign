@@ -44,7 +44,7 @@ export async function checkCredentials(username: string, password: string): Prom
     try {
         const user = await prisma.user.findUnique({ where: { username } });
         if (user && user.password !== '___env_auth___') {
-            return bcrypt.compare(password, user.password);
+            return await bcrypt.compare(password, user.password);
         }
         // If user has dummy password (auto-created from env login), fall through to env-based auth
     } catch (err) {
@@ -56,7 +56,7 @@ export async function checkCredentials(username: string, password: string): Prom
     if (!AUTH_PASS) return false;
     if (username !== AUTH_USER) return false;
 
-    return bcrypt.compare(password, AUTH_PASS);
+    return await bcrypt.compare(password, AUTH_PASS);
 }
 
 export function authCookieOptions(secure?: boolean) {

@@ -26,6 +26,7 @@ export function enqueueJob<T>(type: string, payload: T): string {
 }
 
 export function getJobStatus(id: string): Job | undefined {
+    cleanupJobs();
     return jobs.get(id);
 }
 

@@ -60,15 +60,20 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
     if (authError) return authError;
     const username = (await getAuthUsername())!;
 
-    const { id } = await params;
-    const user = await prisma.user.findUnique({ where: { username } });
-    if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    try {
+        const { id } = await params;
+        const user = await prisma.user.findUnique({ where: { username } });
+        if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 });
 
-    const workspace = await prisma.workspace.findFirst({
-        where: { id, userId: user.id },
-    });
-    if (!workspace) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+        const workspace = await prisma.workspace.findFirst({
+            where: { id, userId: user.id },
+        });
+        if (!workspace) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
-    await prisma.workspace.delete({ where: { id } });
-    return NextResponse.json({ ok: true });
+        await prisma.workspace.delete({ where: { id } });
+        return NextResponse.json({ ok: true });
+    } catch (e) {
+        console.error('Workspace delete error:', e);
+        return NextResponse.json({ error: 'Delete failed' }, { status: 500 });
+    }
 }

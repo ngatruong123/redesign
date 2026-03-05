@@ -49,7 +49,7 @@ export default function MockupEditor() {
     const [canvasDragOver, setCanvasDragOver] = useState(false);
     const [showAIOptions, setShowAIOptions] = useState(false);
     const [isAIGenerating, setIsAIGenerating] = useState(false);
-    const [, setTemplateImageLoaded] = useState(false);
+
 
     // Blend controls
     const [fitMode, setFitMode] = useState<MockupMask['fitMode']>('contain');
@@ -193,12 +193,9 @@ export default function MockupEditor() {
         history.resetHistory(mask ?? null);
         resetCanvasSize();
 
-        // Track template image loading
-        setTemplateImageLoaded(false);
+        // Preload template image
         if (template?.imageUrl) {
             const img = new Image();
-            img.onload = () => setTemplateImageLoaded(true);
-            img.onerror = () => setTemplateImageLoaded(true);
             img.src = template.imageUrl;
         }
     }, [activeTemplateId, interaction.restoreFromMask, history.resetHistory, setFitMode, setBlendMode, setOpacity, setShadowEnabled, setShadowBlur, resetCanvasSize]);

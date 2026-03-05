@@ -65,8 +65,6 @@ export const useWorkspaceStore = create<WorkspaceState>()(
                     ...(active === id ? { activeId: 'default' } : {}),
                 }));
                 if (active === id) {
-                    set({ activeId: 'default' });
-                    useWorkflowStore.getState().reset();
                     window.location.reload();
                 }
             },
