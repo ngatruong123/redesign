@@ -684,25 +684,32 @@ export default function MockupEditor() {
                                 </div>
                             </div>
 
-                            <div className="canvas-wrapper">
+                            <div
+                                className="canvas-wrapper"
+                                onMouseDown={interaction.handleCanvasMouseDown}
+                                onMouseMove={interaction.handleCanvasMouseMove}
+                                onMouseUp={interaction.handleCanvasMouseUp}
+                                onMouseLeave={interaction.handleCanvasMouseUp}
+                                onTouchStart={interaction.handleTouchStart}
+                                onTouchMove={interaction.handleTouchMove}
+                                onTouchEnd={interaction.handleTouchEnd}
+                                style={{ touchAction: 'none' }}
+                            >
                                 <canvas
                                     ref={canvasRef}
-                                    onMouseDown={interaction.handleCanvasMouseDown}
-                                    onMouseMove={interaction.handleCanvasMouseMove}
-                                    onMouseUp={interaction.handleCanvasMouseUp}
-                                    onMouseLeave={interaction.handleCanvasMouseUp}
-                                    onTouchStart={interaction.handleTouchStart}
-                                    onTouchMove={interaction.handleTouchMove}
-                                    onTouchEnd={interaction.handleTouchEnd}
-                                    style={{ cursor: interaction.quadDone ? 'default' : 'crosshair', touchAction: 'none' }}
+                                    style={{ cursor: interaction.quadDone ? 'default' : 'crosshair' }}
                                 />
                                 {interaction.quadDone && interaction.corners.length >= 4 && !activeTemplate?.designOverlay && (() => {
                                     const cs = getCanvasDisplayScale();
                                     const c = interaction.corners;
                                     const topX = (c[0].x + c[1].x) / 2 * cs;
                                     const topY = Math.min(c[0].y, c[1].y) * cs;
+                                    // Check if top edge CP (yellow handle) is near toolbar
+                                    const topEdgeCPY = interaction.edgeCPs ? interaction.edgeCPs[0].y * cs : topY;
+                                    const toolbarBottom = topY - 44 + 36; // toolbar top + ~height
+                                    const handleNearToolbar = topEdgeCPY < toolbarBottom && topEdgeCPY > topY - 60;
                                     return (
-                                        <div className="overlay-toolbar" style={{ top: topY - 40, left: topX, transform: 'translateX(-50%)' }}>
+                                        <div className="overlay-toolbar" style={{ top: topY - 44, left: topX, transform: 'translateX(-50%)', opacity: handleNearToolbar ? 0.4 : 1, transition: 'opacity 0.2s' }}>
                                             <button className="overlay-toolbar-btn" title="Đặt lại đường cong" onClick={handleResetCurves}>⟲</button>
                                             <button className="overlay-toolbar-btn overlay-toolbar-btn--delete" title="Xoá mask (Delete)" onClick={handleResetMask}>✕</button>
                                         </div>

@@ -630,10 +630,11 @@
   border-radius: 20px;
   z-index: 12;
   box-shadow: 0 2px 8px rgba(0,0,0,0.15), 0 0 0 1px rgba(0,0,0,0.05);
-  pointer-events: auto;
+  pointer-events: none;
 }
 
 .overlay-toolbar-btn {
+  pointer-events: auto;
   width: 28px;
   height: 28px;
   display: flex;

@@ -97,7 +97,7 @@ export function useCanvasDrawing({
 
             // Purple color matching overlay style
             const PURPLE = 'rgba(160, 120, 255, 0.8)';
-            const PURPLE_FILL = 'rgba(160, 120, 255, 0.08)';
+            const PURPLE_FILL = 'rgba(160, 120, 255, 0.28)';
             const PURPLE_ACTIVE = 'rgba(160, 120, 255, 1)';
 
             ctx.save();
@@ -117,22 +117,6 @@ export function useCanvasDrawing({
                 ctx.fill();
                 ctx.stroke();
 
-                // Edge curve guide lines (subtle)
-                ctx.setLineDash([3, 3]);
-                ctx.lineWidth = 1;
-                ctx.strokeStyle = 'rgba(160, 120, 255, 0.3)';
-                const edgeEndpoints = (q: Point[]): [Point, Point][] => {
-                    const [tl, tr, br, bl] = q;
-                    return [[tl, tr], [tr, br], [br, bl], [tl, bl]];
-                };
-                const edges = edgeEndpoints(corners);
-                edges.forEach(([start, end], i) => {
-                    ctx.beginPath();
-                    ctx.moveTo(start.x, start.y);
-                    ctx.lineTo(edgeCPs[i].x, edgeCPs[i].y);
-                    ctx.lineTo(end.x, end.y);
-                    ctx.stroke();
-                });
             } else if (corners.length >= 2) {
                 ctx.beginPath();
                 ctx.moveTo(corners[0].x, corners[0].y);
@@ -147,6 +131,23 @@ export function useCanvasDrawing({
                 ctx.stroke();
             }
             ctx.setLineDash([]);
+
+            // Connecting lines from edge handles to their corners
+            if (quadDone && edgeCPs) {
+                const edgePairs: [number, number][] = [[0, 1], [1, 2], [2, 3], [3, 0]];
+                ctx.save();
+                ctx.strokeStyle = 'rgba(255, 200, 0, 0.6)';
+                ctx.lineWidth = 2;
+                ctx.setLineDash([6, 4]);
+                edgePairs.forEach(([a, b], i) => {
+                    ctx.beginPath();
+                    ctx.moveTo(corners[a].x, corners[a].y);
+                    ctx.lineTo(edgeCPs[i].x, edgeCPs[i].y);
+                    ctx.lineTo(corners[b].x, corners[b].y);
+                    ctx.stroke();
+                });
+                ctx.restore();
+            }
 
             // Corner handles — white circles with purple border
             const CORNER_RADIUS = 7;
