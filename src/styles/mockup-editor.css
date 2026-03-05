@@ -29,6 +29,68 @@
   min-height: 500px;
 }
 
+/* Full center layout: canvas on top, templates/variations strip below */
+.mockup-layout--fullcenter {
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+.mockup-strip {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 12px;
+}
+
+.mockup-strip-section h3 {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+
+.mockup-strip .template-list {
+  flex-direction: row;
+  overflow-x: auto;
+  gap: 6px;
+  padding-bottom: 4px;
+}
+
+.mockup-strip .template-item {
+  flex-direction: column;
+  min-width: 80px;
+  max-width: 100px;
+  padding: 4px;
+  gap: 4px;
+  font-size: 0.7rem;
+}
+
+.mockup-strip .template-item img {
+  width: 72px;
+  height: 54px;
+  object-fit: cover;
+  border-radius: 4px;
+}
+
+.mockup-strip .template-item-info {
+  display: none;
+}
+
+.mockup-strip .selected-variations-mini {
+  flex-direction: row;
+  overflow-x: auto;
+  gap: 6px;
+  padding-bottom: 4px;
+}
+
+.mockup-strip .mockup-upload-mini {
+  padding: 8px;
+  font-size: 0.75rem;
+}
+
 /* Sidebar */
 .mockup-sidebar {
   display: flex;
