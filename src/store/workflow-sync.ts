@@ -8,7 +8,7 @@ export function getActiveUser(): string {
 export function getActiveWorkspaceId(): string {
     if (typeof window === 'undefined') return 'default';
     try {
-        const raw = localStorage.getItem(`design-tool-${getActiveUser()}-workspaces`);
+        const raw = localStorage.getItem('design-tool-workspace');
         if (raw) {
             const parsed = JSON.parse(raw);
             return parsed?.state?.activeId || 'default';
@@ -83,10 +83,12 @@ export async function loadWorkflowFromServer(
     if (!wsId) return;
     try {
         const res = await fetch(`/api/workspaces/${encodeURIComponent(wsId)}`);
+        console.log('[loadWorkflow] fetch status:', res.status, 'wsId:', wsId);
         if (!res.ok) return;
         const workspace = await res.json();
-        if (!workspace.data) return;
+        if (!workspace.data) { console.log('[loadWorkflow] no data field'); return; }
         const data = typeof workspace.data === 'string' ? JSON.parse(workspace.data) : workspace.data;
+        console.log('[loadWorkflow] parsed data — designs:', data.sourceDesigns?.length, 'vars:', data.variations?.length, 'templates:', data.mockupTemplates?.length);
         if (data && (data.sourceDesigns?.length || data.variations?.length || data.mockupTemplates?.length)) {
             setState({
                 currentStep: data.currentStep || 'upload',
@@ -94,6 +96,7 @@ export async function loadWorkflowFromServer(
                 variations: data.variations || [],
                 mockupTemplates: data.mockupTemplates || [],
             });
+            console.log('[loadWorkflow] setState done');
         }
-    } catch { /* ignore */ }
+    } catch (err) { console.warn('[loadWorkflow] error:', err); }
 }

@@ -184,6 +184,7 @@ export const useWorkflowStore = create<WorkflowState>()(
                 state.error = null;
 
                 const isEmpty = !state.sourceDesigns?.length && !state.variations?.length && !state.mockupTemplates?.length;
+                console.log('[rehydrate] wsId:', getActiveWorkspaceId(), 'isEmpty:', isEmpty, 'designs:', state.sourceDesigns?.length, 'vars:', state.variations?.length, 'templates:', state.mockupTemplates?.length);
 
                 // Collect async loads to wait for before enabling sync
                 const pendingLoads: Promise<void>[] = [];

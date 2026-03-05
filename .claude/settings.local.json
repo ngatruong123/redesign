@@ -8,7 +8,24 @@
       "Bash(curl:*)",
       "Bash(npm run dev:*)",
       "Bash(lsof:*)",
-      "Bash(xargs kill:*)"
+      "Bash(xargs kill:*)",
+      "Bash(npx tsc:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nfix: hydration error in UserMenu — use useSyncExternalStore for localStorage\n\nServer returns empty string, client reads from localStorage after hydration.\nAlso fixes the ESLint \"setState in effect\" error.\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(ssh:*)",
+      "Bash(ls:*)",
+      "Bash(gcloud compute instances:*)",
+      "Bash(for key in ~/.ssh/id_*)",
+      "Bash(do [[ \"$key\" == *.pub ]])",
+      "Bash(continue)",
+      "Bash(echo:*)",
+      "Bash(done)",
+      "Bash(ssh-add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(COOKIE=\"design-tool-auth=eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhZG1pbiIsImlhdCI6MTc3MjY4NTg1NCwiZXhwIjoxNzc1Mjc3ODU0fQ.eC5d7ALOX0Wn3l-wcvIAYFE2kkiUIFArALRCtEIuv2Y\")",
+      "Bash(for ws in default cmma03v6e0001gj1b4gbuoxdz cmmbi2ojo00009f1bt2iymvmo)",
+      "Bash(do)"
     ]
   }
 }
