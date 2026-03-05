@@ -189,10 +189,10 @@ export function useCanvasDrawing({
                     ctx.arcTo(cp.x - pw, cp.y - ph, cp.x - pw + r, cp.y - ph, r);
                     ctx.closePath();
 
-                    ctx.fillStyle = isActive ? PURPLE_ACTIVE : 'white';
+                    ctx.fillStyle = isActive ? 'rgba(255, 150, 0, 1)' : 'rgba(255, 200, 0, 0.9)';
                     ctx.fill();
-                    ctx.strokeStyle = PURPLE;
-                    ctx.lineWidth = 2;
+                    ctx.strokeStyle = '#fff';
+                    ctx.lineWidth = 1.5;
                     ctx.stroke();
                 });
             }

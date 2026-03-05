@@ -696,19 +696,11 @@ export default function MockupEditor() {
                                     onTouchEnd={interaction.handleTouchEnd}
                                     style={{ cursor: interaction.quadDone ? 'default' : 'crosshair', touchAction: 'none' }}
                                 />
-                                {interaction.quadDone && activeTemplate?.mask && !activeTemplate.designOverlay && (() => {
+                                {interaction.quadDone && interaction.corners.length >= 4 && !activeTemplate?.designOverlay && (() => {
                                     const cs = getCanvasDisplayScale();
-                                    const mask = activeTemplate.mask;
-                                    const quad = mask.quad;
-                                    // Top center of mask
-                                    let topX: number, topY: number;
-                                    if (quad) {
-                                        topX = (quad[0].x + quad[1].x) / 2 * cs;
-                                        topY = Math.min(quad[0].y, quad[1].y) * cs;
-                                    } else {
-                                        topX = (mask.x + mask.width / 2) * cs;
-                                        topY = mask.y * cs;
-                                    }
+                                    const c = interaction.corners;
+                                    const topX = (c[0].x + c[1].x) / 2 * cs;
+                                    const topY = Math.min(c[0].y, c[1].y) * cs;
                                     return (
                                         <div className="overlay-toolbar" style={{ top: topY - 40, left: topX, transform: 'translateX(-50%)' }}>
                                             <button className="overlay-toolbar-btn" title="Đặt lại đường cong" onClick={handleResetCurves}>⟲</button>
