@@ -262,8 +262,8 @@ export default function DesignOverlay({ overlay, mask, canvasScale, canvasWidth,
 
             {/* Corner resize handles — follow crop insets */}
             {(['tl', 'tr', 'br', 'bl'] as Corner[]).map((corner) => {
-                const topPos = corner.includes('t') ? `calc(${ct}% - 5px)` : `calc(${100 - cb}% - 5px)`;
-                const leftPos = corner.includes('l') ? `calc(${cl}% - 5px)` : `calc(${100 - cr}% - 5px)`;
+                const topPos = corner.includes('t') ? `calc(${ct}% - 7px)` : `calc(${100 - cb}% - 7px)`;
+                const leftPos = corner.includes('l') ? `calc(${cl}% - 7px)` : `calc(${100 - cr}% - 7px)`;
                 return (
                     <div
                         key={corner}

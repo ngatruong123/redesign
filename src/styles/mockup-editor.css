@@ -587,19 +587,32 @@
 }
 
 .overlay-handle {
-  width: 10px;
-  height: 10px;
+  width: 14px;
+  height: 14px;
   background: white;
-  border: 1.5px solid rgba(160, 120, 255, 0.9);
+  border: 2px solid rgba(160, 120, 255, 0.9);
   border-radius: 50%;
   z-index: 11;
   touch-action: none;
-  box-shadow: 0 0 3px rgba(0,0,0,0.3);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+  /* Invisible larger hit area */
+  position: relative;
+}
+
+.overlay-handle::before {
+  content: '';
+  position: absolute;
+  top: -10px;
+  left: -10px;
+  right: -10px;
+  bottom: -10px;
+  border-radius: 50%;
 }
 
 .overlay-handle:hover {
   background: rgba(160, 120, 255, 1);
   border-color: rgba(160, 120, 255, 1);
+  transform: scale(1.2);
 }
 
 
