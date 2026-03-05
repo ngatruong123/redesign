@@ -18,7 +18,7 @@ interface UseCanvasDrawingOptions {
     bgBlur: number;
 }
 
-const MAX_CANVAS_DIM = 800;
+const MAX_CANVAS_DIM = 1200;
 
 export function useCanvasDrawing({
     canvasRef,
