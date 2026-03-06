@@ -5,7 +5,8 @@ import { useWorkflowStore } from '@/store/workflow-store';
 import { useToastStore } from '@/store/toast-store';
 import Lightbox from './Lightbox';
 import RemoveBgPanel from './RemoveBgPanel';
-import SEOPanel from './SEOPanel';
+import dynamic from 'next/dynamic';
+const SEOPanel = dynamic(() => import('./SEOPanel'), { ssr: false });
 import { Icons } from './icons';
 import type { MockupMask, Point } from '@/types';
 

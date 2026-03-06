@@ -3,11 +3,13 @@
 import { useState, useEffect, useRef, useSyncExternalStore } from 'react';
 import { useWorkflowStore } from '@/store/workflow-store';
 import { useWorkspaceStore } from '@/store/workspace-store';
+import dynamic from 'next/dynamic';
 import UploadZone from '@/components/UploadZone';
-import VariationGrid from '@/components/VariationGrid';
-import MockupEditor from '@/components/MockupEditor';
-import VideoGenerator from '@/components/VideoGenerator';
 import ErrorBoundary from '@/components/ErrorBoundary';
+
+const VariationGrid = dynamic(() => import('@/components/VariationGrid'), { ssr: false });
+const MockupEditor = dynamic(() => import('@/components/MockupEditor'), { ssr: false });
+const VideoGenerator = dynamic(() => import('@/components/VideoGenerator'), { ssr: false });
 import { Sparkles, LogOut, Plus, X, Folder, UploadCloud, Layers, Film } from '@/components/ui-icons';
 import type { WorkflowStep } from '@/types';
 
