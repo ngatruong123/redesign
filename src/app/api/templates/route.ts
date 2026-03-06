@@ -1,34 +1,37 @@
 import { NextRequest, NextResponse } from 'next/server';
-import path from 'path';
-import { promises as fs } from 'fs';
+import { prisma } from '@/lib/db';
 import { requireAuth } from '@/lib/api-auth';
 import { getAuthUsername } from '@/auth';
-
-const TEMPLATES_DIR = path.join(process.cwd(), '.design-tool-data', 'user-templates');
-
-function userFilePath(username: string, workspaceId: string): string {
-    // Sanitize to prevent path traversal
-    const safe = username.replace(/[^a-zA-Z0-9_-]/g, '_');
-    const safeWs = workspaceId.replace(/[^a-zA-Z0-9_-]/g, '_') || 'default';
-    return path.join(TEMPLATES_DIR, `${safe}_ws_${safeWs}.json`);
-}
 
 export async function GET(request: NextRequest) {
     const authError = await requireAuth();
     if (authError) return authError;
 
     const username = await getAuthUsername();
-    if (!username) {
-        return NextResponse.json([], { status: 200 });
-    }
+    if (!username) return NextResponse.json([]);
 
     const workspaceId = request.nextUrl.searchParams.get('workspace') || 'default';
 
     try {
-        const filePath = userFilePath(username, workspaceId);
-        const data = await fs.readFile(filePath, 'utf-8');
-        return NextResponse.json(JSON.parse(data));
-    } catch {
+        const user = await prisma.user.findUnique({ where: { username } });
+        if (!user) return NextResponse.json([]);
+
+        // Find workspace owned by user
+        const workspace = await prisma.workspace.findFirst({
+            where: { id: workspaceId, userId: user.id },
+        });
+        if (!workspace) return NextResponse.json([]);
+
+        // Find the TEMPLATE asset for this workspace
+        const asset = await prisma.asset.findFirst({
+            where: { workspaceId: workspace.id, type: 'TEMPLATE' },
+        });
+
+        if (!asset?.metadata) return NextResponse.json([]);
+        const templates = (asset.metadata as { templates?: unknown[] })?.templates;
+        return NextResponse.json(Array.isArray(templates) ? templates : []);
+    } catch (err) {
+        console.error('[GET /api/templates] Error:', err);
         return NextResponse.json([]);
     }
 }
@@ -38,19 +41,49 @@ export async function PUT(request: NextRequest) {
     if (authError) return authError;
 
     const username = await getAuthUsername();
-    if (!username) {
-        return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-    }
+    if (!username) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
 
     const workspaceId = request.nextUrl.searchParams.get('workspace') || 'default';
 
     try {
         const templates = await request.json();
-        await fs.mkdir(TEMPLATES_DIR, { recursive: true });
-        await fs.writeFile(userFilePath(username, workspaceId), JSON.stringify(templates, null, 2));
+        if (!Array.isArray(templates)) {
+            return NextResponse.json({ error: 'Expected array' }, { status: 400 });
+        }
+
+        const user = await prisma.user.findUnique({ where: { username } });
+        if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 });
+
+        const workspace = await prisma.workspace.findFirst({
+            where: { id: workspaceId, userId: user.id },
+        });
+        if (!workspace) return NextResponse.json({ error: 'Workspace not found' }, { status: 404 });
+
+        // Upsert: find existing TEMPLATE asset or create
+        const existing = await prisma.asset.findFirst({
+            where: { workspaceId: workspace.id, type: 'TEMPLATE' },
+        });
+
+        if (existing) {
+            await prisma.asset.update({
+                where: { id: existing.id },
+                data: { metadata: { templates } },
+            });
+        } else {
+            await prisma.asset.create({
+                data: {
+                    type: 'TEMPLATE',
+                    filename: 'templates.json',
+                    url: '',
+                    workspaceId: workspace.id,
+                    metadata: { templates },
+                },
+            });
+        }
+
         return NextResponse.json({ ok: true });
-    } catch (e) {
-        console.error('Templates save error:', e);
+    } catch (err) {
+        console.error('[PUT /api/templates] Error:', err);
         return NextResponse.json({ error: 'Failed to save templates' }, { status: 500 });
     }
 }
