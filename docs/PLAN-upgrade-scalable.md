@@ -13,7 +13,7 @@
 | **DB Models** | 5 (User, Workspace, Asset, AuditLog, ApiKey) | ✅ Đã mở rộng |
 | **DB Engine** | PostgreSQL (via `@prisma/adapter-pg`) | ✅ Đã migrate từ SQLite |
 | **API Routes** | 17 route groups | ⚠️ Cần tổ chức, chưa dùng Zod hết |
-| **MockupEditor** | 874 LOC, đã tách 7 sub-components + 4 hooks | ⚠️ Vẫn lớn, cần phân rã thêm |
+| **MockupEditor** | 532 LOC + 6 hooks + 7 sub-components | ✅ Đã tách useMockupBlend + useMockupGeneration |
 | **VariationGrid** | 165 LOC + hook 210 LOC | ✅ Đã tách useVariationGeneration |
 | **Store** | 5 files (đã tách sync/migration) | ✅ |
 | **Lib modules** | 19 modules | ✅ perspective-core đã shared |
@@ -96,7 +96,7 @@ src/hooks/
 ├── useQuadCanvas.ts         ← exists ✅
 ```
 
-- **Cần làm**: Tách phần canvas rendering, drag/drop, batch generate logic ra `MockupCanvas.tsx`
+- ✅ Đã tách `useMockupBlend` (45 LOC) + `useMockupGeneration` (251 LOC)
 
 #### Task 3.2: ~~Phân rã VariationGrid~~ ✅ DONE (165 LOC + useVariationGeneration hook)
 
@@ -127,9 +127,7 @@ src/app/
 
 ### Phase 4: Testing & CI (3-5 ngày) — P3
 
-#### Task 4.1: CI pipeline
-- **File**: `.github/workflows/ci.yml` — ❌ chưa tồn tại
-- **OUTPUT**: lint + typecheck + test + build on PR
+#### Task 4.1: ~~CI pipeline~~ ✅ DONE (`.github/workflows/ci.yml`)
 
 #### Task 4.2: E2E test với Playwright
 ```
@@ -171,8 +169,8 @@ tests/e2e/
 |-------|--------|----------|--------|
 | Phase 1: Security & Cleanup | 1-2 ngày | P0 | ✅ 100% done |
 | Phase 2: Backend | 2-3 ngày | P1 | ✅ 100% done |
-| Phase 3: Frontend | 5-10 ngày | P2 | ~60% done |
-| Phase 4: Testing & CI | 3-5 ngày | P3 | 0% |
+| Phase 3: Frontend | 5-10 ngày | P2 | ~80% done |
+| Phase 4: Testing & CI | 3-5 ngày | P3 | ~30% done |
 | Phase 5: Advanced | Ongoing | P4 | 0% |
 
 ---
