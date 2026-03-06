@@ -5,6 +5,7 @@ vi.mock('@/lib/db', () => ({
     prisma: {
         user: { findUnique: vi.fn() },
         workspace: { findMany: vi.fn(), findFirst: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn() },
+        asset: { findFirst: vi.fn(), create: vi.fn() },
     },
 }));
 vi.mock('@/lib/api-auth', () => ({
@@ -32,6 +33,7 @@ function makeParams(id: string) {
 beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(prisma.user.findUnique).mockResolvedValue(mockUser as never);
+    vi.mocked(prisma.asset.findFirst).mockResolvedValue(null as never);
 });
 
 describe('GET /api/workspaces', () => {
