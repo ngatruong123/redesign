@@ -74,7 +74,10 @@ export async function ensureWorkspaceExists(wsId: string) {
     } catch { /* ignore */ }
 }
 
-/** Load workflow data from server when localStorage is empty */
+/**
+ * Load workflow data + templates from server in a single API call.
+ * The workspace GET endpoint returns { ...workspace, templates: [...] }.
+ */
 export async function loadWorkflowFromServer(
     wsId: string,
     setState: (state: Record<string, unknown>) => void,
@@ -86,17 +89,26 @@ export async function loadWorkflowFromServer(
         console.log('[loadWorkflow] fetch status:', res.status, 'wsId:', wsId);
         if (!res.ok) return;
         const workspace = await res.json();
-        if (!workspace.data) { console.log('[loadWorkflow] no data field'); return; }
-        const data = typeof workspace.data === 'string' ? JSON.parse(workspace.data) : workspace.data;
-        console.log('[loadWorkflow] parsed data — designs:', data.sourceDesigns?.length, 'vars:', data.variations?.length, 'templates:', data.mockupTemplates?.length);
-        if (data && (data.sourceDesigns?.length || data.variations?.length)) {
-            setState({
-                currentStep: data.currentStep || 'upload',
-                sourceDesigns: data.sourceDesigns || [],
-                variations: data.variations || [],
-                // Templates loaded separately from /api/templates
-            });
-            console.log('[loadWorkflow] setState done');
+
+        const update: Record<string, unknown> = {};
+
+        // Restore templates from server (always authoritative)
+        if (Array.isArray(workspace.templates) && workspace.templates.length > 0) {
+            update.mockupTemplates = workspace.templates;
+        }
+
+        // Restore workflow data if present
+        if (workspace.data) {
+            const data = typeof workspace.data === 'string' ? JSON.parse(workspace.data) : workspace.data;
+            console.log('[loadWorkflow] parsed data — designs:', data.sourceDesigns?.length, 'vars:', data.variations?.length);
+            if (data.sourceDesigns?.length) update.sourceDesigns = data.sourceDesigns;
+            if (data.variations?.length) update.variations = data.variations;
+            if (data.currentStep) update.currentStep = data.currentStep;
+        }
+
+        if (Object.keys(update).length > 0) {
+            setState(update);
+            console.log('[loadWorkflow] setState done', Object.keys(update));
         }
     } catch (err) { console.warn('[loadWorkflow] error:', err); }
 }

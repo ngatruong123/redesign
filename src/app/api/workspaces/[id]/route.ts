@@ -19,7 +19,38 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
         });
         if (!workspace) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
-        return NextResponse.json(workspace);
+        // Include templates from Asset TEMPLATE (or migrate from workspace.data)
+        let asset = await prisma.asset.findFirst({
+            where: { workspaceId: workspace.id, type: 'TEMPLATE' },
+        });
+
+        // Auto-migrate: if no Asset TEMPLATE, check workspace.data for legacy templates
+        if (!asset) {
+            try {
+                const wsData = workspace.data
+                    ? (typeof workspace.data === 'string' ? JSON.parse(workspace.data) : workspace.data) as Record<string, unknown>
+                    : null;
+                const legacy = wsData?.mockupTemplates;
+                if (Array.isArray(legacy) && legacy.length > 0) {
+                    asset = await prisma.asset.create({
+                        data: {
+                            type: 'TEMPLATE',
+                            filename: 'templates.json',
+                            url: '',
+                            workspaceId: workspace.id,
+                            metadata: { templates: legacy },
+                        },
+                    });
+                    console.log(`[GET workspace] Migrated ${legacy.length} templates from data field, ws=${id}`);
+                }
+            } catch { /* ignore parse errors */ }
+        }
+
+        const templates = asset?.metadata
+            ? ((asset.metadata as { templates?: unknown[] })?.templates || [])
+            : [];
+
+        return NextResponse.json({ ...workspace, templates });
     } catch (err) {
         console.error('[GET /api/workspaces/[id]] Error:', err);
         return NextResponse.json({ error: 'Internal error' }, { status: 500 });

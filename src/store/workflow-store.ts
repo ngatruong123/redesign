@@ -182,29 +182,16 @@ export const useWorkflowStore = create<WorkflowState>()(
                 state.isCompositing = false;
                 state.error = null;
 
-                const isEmpty = !state.sourceDesigns?.length && !state.variations?.length;
                 const wsId = getActiveWorkspaceId();
-                console.log('[rehydrate] wsId:', wsId, 'isEmpty:', isEmpty, 'designs:', state.sourceDesigns?.length, 'vars:', state.variations?.length);
+                console.log('[rehydrate] wsId:', wsId, 'designs:', state.sourceDesigns?.length, 'vars:', state.variations?.length);
 
                 // Collect async loads to wait for before enabling sync
                 const pendingLoads: Promise<void>[] = [];
 
-                // If localStorage has no workflow data, try loading from server
-                if (typeof window !== 'undefined' && isEmpty) {
-                    pendingLoads.push(
-                        loadWorkflowFromServer(wsId, (data) => useWorkflowStore.setState(data))
-                    );
-                }
-
-                // Always load templates from server (source of truth)
+                // Single API call: load workflow data + templates from workspace endpoint
                 if (typeof window !== 'undefined') {
                     pendingLoads.push(
-                        fetch(`/api/templates?workspace=${encodeURIComponent(wsId)}`)
-                            .then((res) => res.ok ? res.json() : [])
-                            .then((templates) => {
-                                useWorkflowStore.setState({ mockupTemplates: Array.isArray(templates) ? templates : [] });
-                            })
-                            .catch(() => {})
+                        loadWorkflowFromServer(wsId, (data) => useWorkflowStore.setState(data))
                     );
                 }
 
@@ -282,29 +269,9 @@ export function switchWorkflowToWorkspace(newWsId: string) {
         useWorkflowStore.setState({ ...initialState });
     }
 
-    // Load from server if empty
-    const state = useWorkflowStore.getState();
-    const isEmpty = !state.sourceDesigns?.length && !state.variations?.length;
-    const loads: Promise<void>[] = [];
-
-    if (isEmpty) {
-        loads.push(loadWorkflowFromServer(newWsId, (data) => useWorkflowStore.setState(data)));
-    }
-    // Always load templates from server (source of truth)
-    loads.push(
-        fetch(`/api/templates?workspace=${encodeURIComponent(newWsId)}`)
-            .then((res) => res.ok ? res.json() : [])
-            .then((templates) => {
-                useWorkflowStore.setState({ mockupTemplates: Array.isArray(templates) ? templates : [] });
-            })
-            .catch(() => {})
-    );
-
-    if (loads.length > 0) {
-        Promise.all(loads).finally(() => { markInitialLoadDone(); });
-    } else {
-        markInitialLoadDone();
-    }
+    // Single API call: load workflow data + templates from workspace endpoint
+    loadWorkflowFromServer(newWsId, (data) => useWorkflowStore.setState(data))
+        .finally(() => { markInitialLoadDone(); });
 }
 
 // Subscribe to state changes and sync workflow data to server (debounced)
