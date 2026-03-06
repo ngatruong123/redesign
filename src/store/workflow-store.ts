@@ -171,10 +171,9 @@ export const useWorkflowStore = create<WorkflowState>()(
                 currentStep: state.currentStep,
                 // Strip non-serializable File objects
                 sourceDesigns: state.sourceDesigns.map(({ file, ...rest }) => rest),
-
                 variations: state.variations,
-                mockupTemplates: state.mockupTemplates,
-                // Don't persist generated mockups (data URLs are too large for localStorage)
+                // Templates NOT persisted — server (/api/templates) is source of truth
+                // Generated mockups NOT persisted (data URLs too large for localStorage)
             }),
             onRehydrateStorage: () => (state) => {
                 if (!state) return;
@@ -183,29 +182,27 @@ export const useWorkflowStore = create<WorkflowState>()(
                 state.isCompositing = false;
                 state.error = null;
 
-                const isEmpty = !state.sourceDesigns?.length && !state.variations?.length && !state.mockupTemplates?.length;
-                console.log('[rehydrate] wsId:', getActiveWorkspaceId(), 'isEmpty:', isEmpty, 'designs:', state.sourceDesigns?.length, 'vars:', state.variations?.length, 'templates:', state.mockupTemplates?.length);
+                const isEmpty = !state.sourceDesigns?.length && !state.variations?.length;
+                const wsId = getActiveWorkspaceId();
+                console.log('[rehydrate] wsId:', wsId, 'isEmpty:', isEmpty, 'designs:', state.sourceDesigns?.length, 'vars:', state.variations?.length);
 
                 // Collect async loads to wait for before enabling sync
                 const pendingLoads: Promise<void>[] = [];
 
                 // If localStorage has no workflow data, try loading from server
                 if (typeof window !== 'undefined' && isEmpty) {
-                    const wsId = getActiveWorkspaceId();
                     pendingLoads.push(
                         loadWorkflowFromServer(wsId, (data) => useWorkflowStore.setState(data))
                     );
                 }
 
-                // Load templates from server if localStorage has none
-                if (typeof window !== 'undefined' && (!state.mockupTemplates || state.mockupTemplates.length === 0)) {
+                // Always load templates from server (source of truth)
+                if (typeof window !== 'undefined') {
                     pendingLoads.push(
-                        fetch(`/api/templates?workspace=${encodeURIComponent(getActiveWorkspaceId())}`)
+                        fetch(`/api/templates?workspace=${encodeURIComponent(wsId)}`)
                             .then((res) => res.ok ? res.json() : [])
                             .then((templates) => {
-                                if (Array.isArray(templates) && templates.length > 0) {
-                                    useWorkflowStore.setState({ mockupTemplates: templates });
-                                }
+                                useWorkflowStore.setState({ mockupTemplates: Array.isArray(templates) ? templates : [] });
                             })
                             .catch(() => {})
                     );
@@ -270,6 +267,7 @@ export function switchWorkflowToWorkspace(newWsId: string) {
                 useWorkflowStore.setState({
                     ...initialState,
                     ...parsed.state,
+                    mockupTemplates: [], // Templates loaded from server, not localStorage
                     isGenerating: false,
                     isCompositing: false,
                     error: null,
@@ -286,24 +284,21 @@ export function switchWorkflowToWorkspace(newWsId: string) {
 
     // Load from server if empty
     const state = useWorkflowStore.getState();
-    const isEmpty = !state.sourceDesigns?.length && !state.variations?.length && !state.mockupTemplates?.length;
+    const isEmpty = !state.sourceDesigns?.length && !state.variations?.length;
     const loads: Promise<void>[] = [];
 
     if (isEmpty) {
         loads.push(loadWorkflowFromServer(newWsId, (data) => useWorkflowStore.setState(data)));
     }
-    if (!state.mockupTemplates?.length) {
-        loads.push(
-            fetch(`/api/templates?workspace=${encodeURIComponent(newWsId)}`)
-                .then((res) => res.ok ? res.json() : [])
-                .then((templates) => {
-                    if (Array.isArray(templates) && templates.length > 0) {
-                        useWorkflowStore.setState({ mockupTemplates: templates });
-                    }
-                })
-                .catch(() => {})
-        );
-    }
+    // Always load templates from server (source of truth)
+    loads.push(
+        fetch(`/api/templates?workspace=${encodeURIComponent(newWsId)}`)
+            .then((res) => res.ok ? res.json() : [])
+            .then((templates) => {
+                useWorkflowStore.setState({ mockupTemplates: Array.isArray(templates) ? templates : [] });
+            })
+            .catch(() => {})
+    );
 
     if (loads.length > 0) {
         Promise.all(loads).finally(() => { markInitialLoadDone(); });
@@ -320,7 +315,6 @@ if (typeof window !== 'undefined') {
             if (
                 state.sourceDesigns !== prevState.sourceDesigns ||
                 state.variations !== prevState.variations ||
-                state.mockupTemplates !== prevState.mockupTemplates ||
                 state.currentStep !== prevState.currentStep
             ) {
                 syncWorkflowToServer(() => useWorkflowStore.getState());

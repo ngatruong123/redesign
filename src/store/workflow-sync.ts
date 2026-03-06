@@ -43,7 +43,7 @@ export function syncWorkflowToServer(getState: () => any) {
             currentStep: state.currentStep,
             sourceDesigns: state.sourceDesigns.map(({ file: _file, ...rest }: { file?: unknown; [k: string]: unknown }) => rest),
             variations: state.variations,
-            mockupTemplates: state.mockupTemplates,
+            // Templates synced separately via /api/templates (not duplicated here)
         };
         ensureWorkspaceExists(wsId).then(() => {
             fetch(`/api/workspaces/${encodeURIComponent(wsId)}`, {
@@ -89,12 +89,12 @@ export async function loadWorkflowFromServer(
         if (!workspace.data) { console.log('[loadWorkflow] no data field'); return; }
         const data = typeof workspace.data === 'string' ? JSON.parse(workspace.data) : workspace.data;
         console.log('[loadWorkflow] parsed data — designs:', data.sourceDesigns?.length, 'vars:', data.variations?.length, 'templates:', data.mockupTemplates?.length);
-        if (data && (data.sourceDesigns?.length || data.variations?.length || data.mockupTemplates?.length)) {
+        if (data && (data.sourceDesigns?.length || data.variations?.length)) {
             setState({
                 currentStep: data.currentStep || 'upload',
                 sourceDesigns: data.sourceDesigns || [],
                 variations: data.variations || [],
-                mockupTemplates: data.mockupTemplates || [],
+                // Templates loaded separately from /api/templates
             });
             console.log('[loadWorkflow] setState done');
         }
