@@ -1,0 +1,135 @@
+/* Video Generator */
+
+.video-generator {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 24px 16px;
+}
+
+.video-generator--empty {
+    text-align: center;
+    padding: 40px;
+}
+
+.video-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 24px;
+}
+
+.video-header h2 {
+    margin: 0;
+    font-size: 20px;
+}
+
+.video-preview {
+    border-radius: 12px;
+    overflow: hidden;
+    margin-bottom: 20px;
+    border: 1px solid var(--border, #333);
+}
+
+.video-preview img {
+    width: 100%;
+    display: block;
+}
+
+.video-prompt-section {
+    margin-bottom: 20px;
+}
+
+.video-label {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 14px;
+    opacity: 0.8;
+}
+
+.video-textarea {
+    width: 100%;
+    padding: 12px;
+    border-radius: 8px;
+    font-size: 14px;
+    background: var(--surface-2, #1a1a2e);
+    color: inherit;
+    border: 1px solid var(--border, #333);
+    resize: vertical;
+}
+
+.video-options-row {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 20px;
+}
+
+.video-option-group {
+    flex: 1;
+}
+
+.video-option-btns {
+    display: flex;
+    gap: 8px;
+}
+
+.video-option-btn {
+    flex: 1;
+    padding: 10px 0;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    border: 1px solid var(--border, #333);
+    background: var(--surface-2, #1a1a2e);
+    color: inherit;
+    cursor: pointer;
+}
+
+.video-option-btn:disabled {
+    cursor: not-allowed;
+}
+
+.video-option-btn--active {
+    border: 2px solid var(--accent, #7c3aed);
+    background: rgba(124, 58, 237, 0.15);
+    color: var(--accent, #7c3aed);
+}
+
+.video-generate-btn {
+    width: 100%;
+    margin-bottom: 20px;
+}
+
+.video-error {
+    padding: 12px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    background: rgba(255, 50, 50, 0.1);
+    border: 1px solid rgba(255, 50, 50, 0.3);
+    color: #ff6b6b;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.video-error .btn-ghost-sm {
+    color: #ff6b6b;
+    border-color: rgba(255, 50, 50, 0.3);
+    flex-shrink: 0;
+}
+
+.video-result {
+    margin-bottom: 20px;
+}
+
+.video-result video {
+    width: 100%;
+    border-radius: 12px;
+    border: 1px solid var(--border, #333);
+}
+
+.video-download-btn {
+    margin-top: 12px;
+    width: 100%;
+}

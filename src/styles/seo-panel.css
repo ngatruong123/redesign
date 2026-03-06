@@ -1,0 +1,224 @@
+/* SEO Panel — modal for Etsy SEO generation */
+
+.seo-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+}
+
+.seo-modal {
+    background: var(--surface-1, #0d0d1a);
+    border: 1px solid var(--border, #333);
+    border-radius: 16px;
+    width: 100%;
+    max-width: 720px;
+    max-height: 90vh;
+    overflow: auto;
+    padding: 24px;
+}
+
+.seo-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+}
+
+.seo-header h2 {
+    margin: 0;
+    font-size: 20px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.seo-close-btn {
+    background: none;
+    border: none;
+    color: inherit;
+    font-size: 24px;
+    cursor: pointer;
+    opacity: 0.6;
+    line-height: 1;
+}
+
+.seo-preview-row {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 20px;
+}
+
+.seo-preview-thumb {
+    width: 160px;
+    height: 160px;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid var(--border, #333);
+    flex-shrink: 0;
+}
+
+.seo-preview-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.seo-context-col {
+    flex: 1;
+}
+
+.seo-context-label {
+    font-size: 13px;
+    opacity: 0.6;
+    margin-bottom: 4px;
+}
+
+.seo-label {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 13px;
+    opacity: 0.8;
+}
+
+.seo-input,
+.seo-textarea {
+    width: 100%;
+    padding: 10px;
+    border-radius: 8px;
+    font-size: 13px;
+    background: var(--surface-2, #1a1a2e);
+    color: inherit;
+    border: 1px solid var(--border, #333);
+}
+
+.seo-textarea {
+    resize: vertical;
+}
+
+.seo-textarea--desc {
+    font-size: 13px;
+    line-height: 1.6;
+}
+
+.seo-input--title {
+    font-size: 14px;
+}
+
+.seo-generate-btn {
+    width: 100%;
+    margin-bottom: 20px;
+    padding: 12px 0;
+    font-size: 15px;
+}
+
+.seo-error {
+    padding: 12px;
+    border-radius: 8px;
+    margin-bottom: 16px;
+    background: rgba(255, 50, 50, 0.1);
+    border: 1px solid rgba(255, 50, 50, 0.3);
+    color: #ff6b6b;
+    font-size: 13px;
+}
+
+.seo-field {
+    margin-bottom: 16px;
+}
+
+.seo-field--tags {
+    margin-bottom: 20px;
+}
+
+.seo-field-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+}
+
+.seo-field-label {
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.seo-field-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.seo-char-count {
+    font-size: 11px;
+    opacity: 0.5;
+}
+
+.seo-char-count--over {
+    color: #ff6b6b;
+}
+
+.seo-copy-btn {
+    font-size: 11px;
+    padding: 2px 8px;
+}
+
+.seo-tags-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 8px;
+}
+
+.seo-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+    background: rgba(124, 58, 237, 0.15);
+    border: 1px solid rgba(124, 58, 237, 0.3);
+    color: var(--accent, #a78bfa);
+}
+
+.seo-tag-remove {
+    background: none;
+    border: none;
+    color: inherit;
+    font-size: 14px;
+    cursor: pointer;
+    opacity: 0.6;
+    padding: 0;
+    line-height: 1;
+}
+
+.seo-tag-input-row {
+    display: flex;
+    gap: 6px;
+}
+
+.seo-tag-input {
+    flex: 1;
+    padding: 6px 10px;
+    border-radius: 8px;
+    font-size: 12px;
+    background: var(--surface-2, #1a1a2e);
+    color: inherit;
+    border: 1px solid var(--border, #333);
+}
+
+.seo-tag-add-btn {
+    font-size: 12px;
+    padding: 6px 12px;
+}
+
+.seo-copy-all-btn {
+    width: 100%;
+    padding: 10px 0;
+    font-size: 14px;
+}
