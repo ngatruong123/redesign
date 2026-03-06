@@ -23,9 +23,29 @@ export async function GET(request: NextRequest) {
         if (!workspace) return NextResponse.json([]);
 
         // Find the TEMPLATE asset for this workspace
-        const asset = await prisma.asset.findFirst({
+        let asset = await prisma.asset.findFirst({
             where: { workspaceId: workspace.id, type: 'TEMPLATE' },
         });
+
+        // Auto-migrate: if no Asset TEMPLATE exists, check workspace.data for legacy templates
+        if (!asset) {
+            const wsData = workspace.data
+                ? (typeof workspace.data === 'string' ? JSON.parse(workspace.data) : workspace.data) as Record<string, unknown>
+                : null;
+            const legacyTemplates = wsData?.mockupTemplates;
+            if (Array.isArray(legacyTemplates) && legacyTemplates.length > 0) {
+                asset = await prisma.asset.create({
+                    data: {
+                        type: 'TEMPLATE',
+                        filename: 'templates.json',
+                        url: '',
+                        workspaceId: workspace.id,
+                        metadata: { templates: legacyTemplates },
+                    },
+                });
+                console.log(`[GET /api/templates] Migrated ${legacyTemplates.length} templates from workspace.data for ws=${workspaceId}`);
+            }
+        }
 
         if (!asset?.metadata) return NextResponse.json([]);
         const templates = (asset.metadata as { templates?: unknown[] })?.templates;
