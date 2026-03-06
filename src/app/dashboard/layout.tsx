@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useSyncExternalStore } from 'react';
@@ -22,6 +23,7 @@ function useUsername() {
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
     const username = useUsername();
+    const [sidebarOpen, setSidebarOpen] = useState(false);
 
     const handleLogout = async () => {
         await fetch('/api/auth/logout', { method: 'POST' });
@@ -31,10 +33,23 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
     return (
         <div className="dash-shell">
-            <aside className="dash-sidebar">
+            {sidebarOpen && (
+                <div
+                    className="dash-sidebar-backdrop"
+                    onClick={() => setSidebarOpen(false)}
+                />
+            )}
+            <aside className={`dash-sidebar ${sidebarOpen ? 'dash-sidebar--open' : ''}`}>
                 <div className="dash-sidebar-header">
                     <Sparkles size={16} />
                     Design Tool
+                    <button
+                        className="dash-menu-toggle"
+                        style={{ marginLeft: 'auto' }}
+                        onClick={() => setSidebarOpen(false)}
+                    >
+                        ✕
+                    </button>
                 </div>
                 <nav className="dash-sidebar-nav">
                     {NAV.map((item) => (
@@ -42,6 +57,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                             key={item.href}
                             href={item.href}
                             className={`dash-nav-item ${pathname === item.href ? 'dash-nav-item--active' : ''}`}
+                            onClick={() => setSidebarOpen(false)}
                         >
                             <span>{item.icon}</span>
                             {item.label}
@@ -64,6 +80,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 </div>
             </aside>
             <div className="dash-main">
+                <div className="dash-mobile-header">
+                    <button className="dash-menu-toggle" onClick={() => setSidebarOpen(true)}>
+                        ☰
+                    </button>
+                </div>
                 {children}
             </div>
         </div>
