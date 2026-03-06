@@ -2,28 +2,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { prisma } from '@/lib/db';
 import { createAuthToken, AUTH_COOKIE, authCookieOptions } from '@/auth';
+import { registerSchema } from '@/lib/validators';
 
 export async function POST(request: NextRequest) {
     const body = await request.json();
-    const { username, password, email } = body;
-
-    // Validate username
-    if (!username || typeof username !== 'string' || username.length < 3 || username.length > 20) {
-        return NextResponse.json({ error: 'Username phải từ 3-20 ký tự' }, { status: 400 });
+    const parsed = registerSchema.safeParse(body);
+    if (!parsed.success) {
+        return NextResponse.json({ error: parsed.error.issues[0]?.message || 'Invalid input' }, { status: 400 });
     }
-    if (!/^[a-zA-Z0-9_]+$/.test(username)) {
-        return NextResponse.json({ error: 'Username chỉ được chứa chữ, số và _' }, { status: 400 });
-    }
-
-    // Validate password
-    if (!password || typeof password !== 'string' || password.length < 8) {
-        return NextResponse.json({ error: 'Mật khẩu phải ít nhất 8 ký tự' }, { status: 400 });
-    }
-
-    // Validate email (optional)
-    if (email && typeof email === 'string' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-        return NextResponse.json({ error: 'Email không hợp lệ' }, { status: 400 });
-    }
+    const { username, password, email } = parsed.data;
 
     // Check duplicate username
     const existing = await prisma.user.findUnique({ where: { username } });

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { resolveToBuffer } from '@/lib/blob-storage';
 import { requireAuth } from '@/lib/api-auth';
 import { checkRateLimit } from '@/lib/rate-limiter';
+import { generateSeoSchema } from '@/lib/validators';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -16,10 +17,12 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429, headers: { 'Retry-After': String(Math.ceil(rl.retryAfterMs / 1000)) } });
     }
     try {
-        const { imageUrl, productContext } = await req.json();
-        if (!imageUrl) {
-            return NextResponse.json({ error: 'imageUrl is required' }, { status: 400 });
+        const body = await req.json();
+        const validated = generateSeoSchema.safeParse(body);
+        if (!validated.success) {
+            return NextResponse.json({ error: validated.error.issues[0]?.message || 'Invalid input' }, { status: 400 });
         }
+        const { imageUrl, productContext } = validated.data;
 
         const apiKey = process.env.GEMINI_API_KEY;
         const model = process.env.GEMINI_MODEL || 'gemini-3.1-flash-image-preview';

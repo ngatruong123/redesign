@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getAuthUsername } from '@/auth';
 import { requireAuth } from '@/lib/api-auth';
+import { updateWorkspaceSchema } from '@/lib/validators';
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
     const authError = await requireAuth();
@@ -41,11 +42,15 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         if (!workspace) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
         const body = await request.json();
+        const parsed = updateWorkspaceSchema.safeParse(body);
+        if (!parsed.success) {
+            return NextResponse.json({ error: parsed.error.issues[0]?.message || 'Invalid input' }, { status: 400 });
+        }
         const updated = await prisma.workspace.update({
             where: { id },
             data: {
-                name: body.name ?? workspace.name,
-                data: body.data !== undefined ? (typeof body.data === 'string' ? body.data : JSON.stringify(body.data)) : workspace.data,
+                name: parsed.data.name ?? workspace.name,
+                data: parsed.data.data !== undefined ? (typeof parsed.data.data === 'string' ? parsed.data.data : JSON.stringify(parsed.data.data)) : workspace.data,
             },
         });
         return NextResponse.json(updated);

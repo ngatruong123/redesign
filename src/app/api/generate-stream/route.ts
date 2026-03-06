@@ -6,6 +6,7 @@ import { storeFile, resolveToBuffer } from '@/lib/blob-storage';
 import { parallelLimit } from '@/lib/concurrency';
 import { requireAuth } from '@/lib/api-auth';
 import { checkRateLimit } from '@/lib/rate-limiter';
+import { generateStreamSchema } from '@/lib/validators';
 
 export async function POST(request: NextRequest) {
     const authError = await requireAuth();
@@ -18,7 +19,11 @@ export async function POST(request: NextRequest) {
     }
     try {
         const body = await request.json();
-        const { sourceImageUrl, sourceImageUrls, styles, additionalPrompt, imageSize, aspectRatio } = body;
+        const parsed = generateStreamSchema.safeParse(body);
+        if (!parsed.success) {
+            return NextResponse.json({ error: parsed.error.issues[0]?.message || 'Invalid input' }, { status: 400 });
+        }
+        const { sourceImageUrl, sourceImageUrls, styles, additionalPrompt, imageSize, aspectRatio } = parsed.data;
 
         // Normalize to array: [{id, url}]
         let sources: { id: string; url: string }[];

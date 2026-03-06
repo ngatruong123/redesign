@@ -5,12 +5,17 @@ import { storeFile, resolveToBuffer } from '@/lib/blob-storage';
 import { requireAuth } from '@/lib/api-auth';
 import { hexToRgb, deltaE } from '@/lib/color-science';
 import { createGradientBuffer } from '@/lib/gradient';
+import { removeBgSchema } from '@/lib/validators';
 
 export async function POST(request: NextRequest) {
     const authError = await requireAuth();
     if (authError) return authError;
     try {
         const body = await request.json();
+        const parsed = removeBgSchema.safeParse(body);
+        if (!parsed.success) {
+            return NextResponse.json({ error: parsed.error.issues[0]?.message || 'Invalid input' }, { status: 400 });
+        }
         const {
             imageUrl,
             mode = 'transparent',
