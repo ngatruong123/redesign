@@ -35,7 +35,7 @@ export default function BatchPreviewModal({
                     const overlayData = { x: ov.x, y: ov.y, width: ov.width, height: ov.height, rotation: ov.rotation, cropTop: ov.cropTop, cropRight: ov.cropRight, cropBottom: ov.cropBottom, cropLeft: ov.cropLeft };
                     if (t.mask) {
                         result.push({
-                            key: `${t.id}__${v.id}`,
+                            key: `${t.id}__overlay__${v.id}`,
                             template: t,
                             variation: v,
                             overlayMask: undefined,
@@ -43,7 +43,7 @@ export default function BatchPreviewModal({
                         });
                     } else {
                         result.push({
-                            key: `${t.id}__${v.id}`,
+                            key: `${t.id}__overlay__${v.id}`,
                             template: t,
                             variation: v,
                             overlayMask: {
@@ -63,7 +63,7 @@ export default function BatchPreviewModal({
                 for (const v of selectedVariations) {
                     if (t.designOverlay && v.id === t.designOverlay.variationId) continue;
                     result.push({
-                        key: `${t.id}__${v.id}`,
+                        key: `${t.id}__mask__${v.id}`,
                         template: t,
                         variation: v,
                         overlayMask: undefined,

@@ -35,6 +35,7 @@ export function useMockupGeneration() {
             if (hasOverlayVar) n += 1;
         }
         if (t.mask) {
+            // Don't double-count: skip the overlay variation since it's already counted above
             n += selectedVariations.filter(v => !(t.designOverlay && v.id === t.designOverlay.variationId)).length;
         }
         return count + n;
@@ -56,7 +57,8 @@ export function useMockupGeneration() {
             if (t.designOverlay) {
                 const ov = t.designOverlay;
                 const overlayVariation = variations.find(v => v.id === ov.variationId);
-                if (overlayVariation) {
+                const overlayKey = `${t.id}__overlay__${ov.variationId}`;
+                if (overlayVariation && !(excludedKeys && excludedKeys.has(overlayKey))) {
                     const overlayData = {
                         x: ov.x, y: ov.y, width: ov.width, height: ov.height, rotation: ov.rotation,
                         cropTop: ov.cropTop, cropRight: ov.cropRight, cropBottom: ov.cropBottom, cropLeft: ov.cropLeft,
@@ -106,7 +108,7 @@ export function useMockupGeneration() {
                 const maskVariations = selectedVariations
                     .filter((v) => {
                         if (t.designOverlay && v.id === t.designOverlay.variationId) return false;
-                        if (excludedKeys && excludedKeys.has(`${t.id}__${v.id}`)) return false;
+                        if (excludedKeys && excludedKeys.has(`${t.id}__mask__${v.id}`)) return false;
                         return true;
                     });
                 for (const v of maskVariations) {
