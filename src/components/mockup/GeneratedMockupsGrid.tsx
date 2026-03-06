@@ -99,6 +99,13 @@ export default function GeneratedMockupsGrid({
 
     const isMultiDesign = groups.length > 1;
 
+    // Temporary debug — remove after fixing
+    const debugInfo = generatedMockups.slice(0, 3).map(m => {
+        const varId = m.variationId || '?';
+        const idx = varId.lastIndexOf('_');
+        return `var=${varId.slice(0,12)}… idx=${idx} parsed=${idx > 0 ? varId.slice(0, idx).slice(0,8) : 'NONE'} srcId=${m.sourceDesignId?.slice(0,8) || 'none'}`;
+    });
+
     const toggleMockupSelection = (id: string) => {
         setSelectedMockupIds((prev) => {
             const next = new Set(prev);
@@ -250,6 +257,11 @@ export default function GeneratedMockupsGrid({
 
     return (
         <div className="generated-mockups-section">
+            {/* DEBUG — remove after fixing */}
+            <pre style={{ fontSize: 10, color: '#ff0', background: '#333', padding: 8, margin: 8, whiteSpace: 'pre-wrap' }}>
+                groups={groups.length} isMulti={String(isMultiDesign)}{'\n'}
+                {debugInfo.join('\n')}
+            </pre>
             <div className="generated-header">
                 <h3 style={{ display: 'flex', alignItems: 'center', gap: 6 }}>{Icons.image} Mockups ({generatedMockups.length})</h3>
                 <div className="generated-header-actions">
