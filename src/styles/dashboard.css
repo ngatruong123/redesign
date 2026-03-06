@@ -1,0 +1,173 @@
+/* Dashboard Layout */
+
+.dash-shell {
+    display: flex;
+    min-height: 100vh;
+    background: var(--bg, #0a0a14);
+}
+
+.dash-sidebar {
+    width: 240px;
+    background: var(--surface-1, #0d0d1a);
+    border-right: 1px solid var(--border, #222);
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+}
+
+.dash-sidebar-header {
+    padding: 20px 16px;
+    border-bottom: 1px solid var(--border, #222);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 700;
+    font-size: 15px;
+}
+
+.dash-sidebar-nav {
+    flex: 1;
+    padding: 12px 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.dash-nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    font-size: 14px;
+    color: rgba(255, 255, 255, 0.6);
+    text-decoration: none;
+    transition: all 0.15s;
+    border: none;
+    background: none;
+    cursor: pointer;
+    width: 100%;
+    text-align: left;
+}
+
+.dash-nav-item:hover {
+    background: rgba(255, 255, 255, 0.05);
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.dash-nav-item--active {
+    background: rgba(124, 58, 237, 0.15);
+    color: var(--accent, #a78bfa);
+}
+
+.dash-sidebar-footer {
+    padding: 16px;
+    border-top: 1px solid var(--border, #222);
+}
+
+.dash-main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.dash-topbar {
+    height: 56px;
+    border-bottom: 1px solid var(--border, #222);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 24px;
+    flex-shrink: 0;
+}
+
+.dash-topbar h1 {
+    font-size: 18px;
+    font-weight: 600;
+    margin: 0;
+}
+
+.dash-content {
+    flex: 1;
+    padding: 24px;
+    overflow: auto;
+}
+
+/* Dashboard cards */
+.dash-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+    margin-bottom: 32px;
+}
+
+.dash-card {
+    background: var(--surface-1, #0d0d1a);
+    border: 1px solid var(--border, #222);
+    border-radius: 12px;
+    padding: 20px;
+}
+
+.dash-card-label {
+    font-size: 13px;
+    opacity: 0.6;
+    margin-bottom: 8px;
+}
+
+.dash-card-value {
+    font-size: 28px;
+    font-weight: 700;
+}
+
+.dash-card-sub {
+    font-size: 12px;
+    opacity: 0.5;
+    margin-top: 4px;
+}
+
+/* Dashboard sections */
+.dash-section {
+    margin-bottom: 32px;
+}
+
+.dash-section h2 {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 16px;
+}
+
+.dash-empty {
+    text-align: center;
+    padding: 48px 24px;
+    opacity: 0.5;
+}
+
+/* Settings */
+.dash-form-group {
+    margin-bottom: 20px;
+}
+
+.dash-form-label {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.dash-form-input {
+    width: 100%;
+    max-width: 400px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    font-size: 14px;
+    background: var(--surface-2, #1a1a2e);
+    color: inherit;
+    border: 1px solid var(--border, #333);
+}
+
+.dash-form-hint {
+    font-size: 12px;
+    opacity: 0.5;
+    margin-top: 4px;
+}
