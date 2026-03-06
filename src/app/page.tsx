@@ -10,14 +10,16 @@ import ErrorBoundary from '@/components/ErrorBoundary';
 const VariationGrid = dynamic(() => import('@/components/VariationGrid'), { ssr: false });
 const MockupEditor = dynamic(() => import('@/components/MockupEditor'), { ssr: false });
 const VideoGenerator = dynamic(() => import('@/components/VideoGenerator'), { ssr: false });
-import { Sparkles, LogOut, Plus, X, Folder, UploadCloud, Layers, Film } from '@/components/ui-icons';
+const SettingsPanel = dynamic(() => import('@/components/SettingsPanel'), { ssr: false });
+import { Sparkles, LogOut, Plus, X, Folder, UploadCloud, Layers, Film, Settings } from '@/components/ui-icons';
 import type { WorkflowStep } from '@/types';
 
-const NAV_ITEMS: { id: WorkflowStep; icon: typeof UploadCloud; label: string }[] = [
+const NAV_ITEMS: { id: WorkflowStep; icon: typeof UploadCloud; label: string; bottom?: boolean }[] = [
     { id: 'upload', icon: UploadCloud, label: 'Upload' },
     { id: 'variations', icon: Sparkles, label: 'Biến thể' },
     { id: 'mockup', icon: Layers, label: 'Mockup' },
     { id: 'video', icon: Film, label: 'Video' },
+    { id: 'settings', icon: Settings, label: 'Cài đặt', bottom: true },
 ];
 
 function UserMenu() {
@@ -141,6 +143,7 @@ export default function Home() {
         if (stepId === 'variations') return sourceDesigns.length > 0;
         if (stepId === 'mockup') return true;
         if (stepId === 'video') return true;
+        if (stepId === 'settings') return true;
         return false;
     };
 
@@ -152,7 +155,7 @@ export default function Home() {
                     <Sparkles size={16} />
                 </div>
                 <nav className="app-sidebar-nav">
-                    {NAV_ITEMS.map((item) => {
+                    {NAV_ITEMS.filter(i => !i.bottom).map((item) => {
                         const Icon = item.icon;
                         const active = currentStep === item.id;
                         const enabled = canNavigate(item.id);
@@ -163,6 +166,21 @@ export default function Home() {
                                 onClick={() => enabled && setStep(item.id)}
                                 title={item.label}
                                 disabled={!enabled}
+                            >
+                                <Icon size={18} />
+                            </button>
+                        );
+                    })}
+                    <div className="app-sidebar-spacer" />
+                    {NAV_ITEMS.filter(i => i.bottom).map((item) => {
+                        const Icon = item.icon;
+                        const active = currentStep === item.id;
+                        return (
+                            <button
+                                key={item.id}
+                                className={`app-sidebar-item ${active ? 'active' : ''}`}
+                                onClick={() => setStep(item.id)}
+                                title={item.label}
                             >
                                 <Icon size={18} />
                             </button>
@@ -193,6 +211,7 @@ export default function Home() {
                     {currentStep === 'variations' && <ErrorBoundary><VariationGrid /></ErrorBoundary>}
                     {currentStep === 'mockup' && <ErrorBoundary><MockupEditor /></ErrorBoundary>}
                     {currentStep === 'video' && <VideoGenerator />}
+                    {currentStep === 'settings' && <SettingsPanel />}
                 </main>
             </div>
         </div>

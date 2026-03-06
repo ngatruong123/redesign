@@ -3,6 +3,7 @@ import { resolveToBuffer } from '@/lib/blob-storage';
 import { requireAuth } from '@/lib/api-auth';
 import { checkRateLimit } from '@/lib/rate-limiter';
 import { generateSeoSchema } from '@/lib/validators';
+import { getUserApiKey } from '@/lib/get-user-api-key';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -24,7 +25,8 @@ export async function POST(req: NextRequest) {
         }
         const { imageUrl, productContext } = validated.data;
 
-        const apiKey = process.env.GEMINI_API_KEY;
+        const userApiKey = await getUserApiKey('gemini_api_key');
+        const apiKey = userApiKey || process.env.GEMINI_API_KEY;
         const model = process.env.GEMINI_MODEL || 'gemini-3.1-flash-image-preview';
 
         if (!apiKey) {

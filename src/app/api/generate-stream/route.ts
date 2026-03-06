@@ -7,6 +7,7 @@ import { parallelLimit } from '@/lib/concurrency';
 import { requireAuth } from '@/lib/api-auth';
 import { checkRateLimit } from '@/lib/rate-limiter';
 import { generateStreamSchema } from '@/lib/validators';
+import { getUserApiKey } from '@/lib/get-user-api-key';
 
 export async function POST(request: NextRequest) {
     const authError = await requireAuth();
@@ -40,7 +41,8 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Too many source images (max 10)' }, { status: 400 });
         }
 
-        const provider = createAIProvider(process.env.AI_PROVIDER || 'mock');
+        const userApiKey = await getUserApiKey('gemini_api_key') ?? undefined;
+        const provider = createAIProvider(process.env.AI_PROVIDER || 'mock', userApiKey);
 
         // Pre-fetch all source images
         const sourceBuffers = new Map<string, string>();

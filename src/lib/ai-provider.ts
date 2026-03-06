@@ -48,12 +48,12 @@ export class AIProviderChain implements AIProvider {
     }
 }
 
-function createSingleProvider(provider: string): AIProvider {
+function createSingleProvider(provider: string, apiKey?: string): AIProvider {
     switch (provider) {
         case 'gemini':
-            return new GeminiProvider();
+            return new GeminiProvider(apiKey);
         case 'banana-pro':
-            return new GeminiProvider(); // Banana Pro = Nano Banana Pro = Gemini
+            return new GeminiProvider(apiKey);
         case 'mock':
             return new MockProvider();
         default:
@@ -61,13 +61,13 @@ function createSingleProvider(provider: string): AIProvider {
     }
 }
 
-export function createAIProvider(provider: string): AIProvider {
+export function createAIProvider(provider: string, apiKey?: string): AIProvider {
     // Support comma-separated providers for fallback chain
     const providers = provider.split(',').map(p => p.trim()).filter(Boolean);
     if (providers.length > 1) {
-        return new AIProviderChain(providers.map(p => createSingleProvider(p)));
+        return new AIProviderChain(providers.map(p => createSingleProvider(p, apiKey)));
     }
-    return createSingleProvider(providers[0] || 'mock');
+    return createSingleProvider(providers[0] || 'mock', apiKey);
 }
 
 /**
@@ -80,8 +80,8 @@ class GeminiProvider implements AIProvider {
     private model: string;
     private baseUrl: string;
 
-    constructor() {
-        this.apiKey = process.env.GEMINI_API_KEY || '';
+    constructor(apiKey?: string) {
+        this.apiKey = apiKey || process.env.GEMINI_API_KEY || '';
         this.model = process.env.GEMINI_MODEL || 'gemini-3.1-flash-image-preview';
         this.baseUrl = 'https://generativelanguage.googleapis.com/v1beta';
     }

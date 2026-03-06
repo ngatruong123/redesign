@@ -42,6 +42,10 @@
   gap: 4px;
 }
 
+.app-sidebar-spacer {
+  flex: 1;
+}
+
 .app-sidebar-item {
   width: 38px;
   height: 38px;
@@ -54,6 +58,7 @@
   border: 1px solid transparent;
   cursor: pointer;
   transition: var(--transition);
+  text-decoration: none;
 }
 
 .app-sidebar-item:hover:not(:disabled) {

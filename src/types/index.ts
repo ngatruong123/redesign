@@ -93,7 +93,7 @@ export interface GeneratedMockup {
     seo?: EtsySEO;
 }
 
-export type WorkflowStep = 'upload' | 'variations' | 'mockup' | 'video';
+export type WorkflowStep = 'upload' | 'variations' | 'mockup' | 'video' | 'settings';
 
 export interface VideoGeneration {
     id: string;

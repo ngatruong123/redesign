@@ -4,6 +4,7 @@ import { buildMockupPrompt } from '@/lib/prompt-engine';
 import { resolveToBuffer, storeFile } from '@/lib/blob-storage';
 import { v4 as uuidv4 } from 'uuid';
 import { requireAuth } from '@/lib/api-auth';
+import { getUserApiKey } from '@/lib/get-user-api-key';
 
 export async function POST(request: NextRequest) {
     const authError = await requireAuth();
@@ -18,8 +19,9 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'variations[] is required' }, { status: 400 });
     }
 
+    const userApiKey = await getUserApiKey('gemini_api_key') ?? undefined;
     const providerName = process.env.AI_PROVIDER || 'mock';
-    const provider = createAIProvider(providerName);
+    const provider = createAIProvider(providerName, userApiKey);
 
     const results = [];
 

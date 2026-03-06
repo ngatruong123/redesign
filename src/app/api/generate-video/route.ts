@@ -3,8 +3,7 @@ import { GoogleGenAI } from '@google/genai';
 import { resolveToBuffer } from '@/lib/blob-storage';
 import { requireAuth } from '@/lib/api-auth';
 import { checkRateLimit } from '@/lib/rate-limiter';
-
-const API_KEY = process.env.GOOGLE_AI_API_KEY || process.env.GEMINI_API_KEY;
+import { getUserApiKey } from '@/lib/get-user-api-key';
 
 export async function POST(req: NextRequest) {
     const authError = await requireAuth();
@@ -16,6 +15,8 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429, headers: { 'Retry-After': String(Math.ceil(rl.retryAfterMs / 1000)) } });
     }
     try {
+        const userApiKey = await getUserApiKey('gemini_api_key');
+        const API_KEY = userApiKey || process.env.GOOGLE_AI_API_KEY || process.env.GEMINI_API_KEY;
         if (!API_KEY) {
             return NextResponse.json({ error: 'GOOGLE_AI_API_KEY not configured' }, { status: 500 });
         }

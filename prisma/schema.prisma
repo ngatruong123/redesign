@@ -31,6 +31,7 @@ model User {
   workspaces Workspace[]
   apiKeys    ApiKey[]
   auditLogs  AuditLog[]
+  settings   UserSetting[]
 }
 
 model Workspace {
@@ -76,6 +77,18 @@ model AuditLog {
 
   @@index([userId])
   @@index([entity, entityId])
+}
+
+model UserSetting {
+  id        String   @id @default(cuid())
+  key       String
+  value     String
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, key])
+  @@index([userId])
 }
 
 model ApiKey {

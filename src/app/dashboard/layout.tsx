@@ -4,12 +4,12 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useSyncExternalStore } from 'react';
-import { Sparkles, Layers, LogOut } from '@/components/ui-icons';
+import { LogOut } from '@/components/ui-icons';
 
 const NAV = [
-    { href: '/dashboard', label: 'Tổng quan', icon: '📊' },
-    { href: '/dashboard/templates', label: 'Templates', icon: '🖼️' },
-    { href: '/dashboard/settings', label: 'Cài đặt', icon: '⚙️' },
+    { href: '/dashboard', label: 'Tổng quan' },
+    { href: '/dashboard/templates', label: 'Templates' },
+    { href: '/dashboard/settings', label: 'Cài đặt' },
 ];
 
 function useUsername() {
@@ -41,7 +41,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             )}
             <aside className={`dash-sidebar ${sidebarOpen ? 'dash-sidebar--open' : ''}`}>
                 <div className="dash-sidebar-header">
-                    <Sparkles size={16} />
                     Design Tool
                     <button
                         className="dash-menu-toggle"
@@ -59,13 +58,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                             className={`dash-nav-item ${pathname === item.href ? 'dash-nav-item--active' : ''}`}
                             onClick={() => setSidebarOpen(false)}
                         >
-                            <span>{item.icon}</span>
                             {item.label}
                         </Link>
                     ))}
                     <div style={{ flex: 1 }} />
                     <Link href="/" className="dash-nav-item">
-                        <Layers size={16} />
                         Editor
                     </Link>
                 </nav>
