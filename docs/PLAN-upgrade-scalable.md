@@ -14,7 +14,7 @@
 | **DB Engine** | PostgreSQL (via `@prisma/adapter-pg`) | ✅ Đã migrate từ SQLite |
 | **API Routes** | 17 route groups | ⚠️ Cần tổ chức, chưa dùng Zod hết |
 | **MockupEditor** | 874 LOC, đã tách 7 sub-components + 4 hooks | ⚠️ Vẫn lớn, cần phân rã thêm |
-| **VariationGrid** | 383 LOC | ⚠️ Cần phân rã |
+| **VariationGrid** | 165 LOC + hook 210 LOC | ✅ Đã tách useVariationGeneration |
 | **Store** | 5 files (đã tách sync/migration) | ✅ |
 | **Lib modules** | 19 modules | ✅ perspective-core đã shared |
 | **Tests** | 8 unit + 4 API test files | ⚠️ Thiếu E2E |
@@ -52,39 +52,23 @@
 
 #### Task 1.1: ~~Fix IDOR trong Workspace POST~~ ✅ DONE
 
-#### Task 1.2: Rate limit `generate-video` route
-- **File**: `src/app/api/generate-video/route.ts`
-- **Status**: ❌ Chưa có rate limit (các route khác đã có)
-- **OUTPUT**: Thêm `checkRateLimit('ai:' + ip, 10, 60_000)`
+#### Task 1.2: ~~Rate limit `generate-video` route~~ ✅ DONE
 
 #### Task 1.3: ~~Fix rate limiter setInterval leak~~ ✅ DONE
 
-#### Task 1.4: Xoá `generate/route.ts` deprecated
-- **File**: `src/app/api/generate/route.ts`
-- **Status**: Đã deprecated nhưng vẫn tồn tại
-- **OUTPUT**: Xoá file, verify frontend chỉ gọi `/api/generate-stream`
+#### Task 1.4: ~~Xoá `generate/route.ts` deprecated~~ ✅ DONE
 
-#### Task 1.5: Zod validation cho tất cả routes
-- **Files**: `src/lib/validators.ts` + tất cả route groups
-- **Status**: Chỉ workspace + auth routes dùng Zod
-- **OUTPUT**: Tất cả routes import schema từ `validators.ts` và dùng `.parse()`
+#### Task 1.5: ~~Zod validation cho tất cả routes~~ ✅ DONE
 
 ---
 
 ### Phase 2: Backend Restructuring (2-3 ngày) — P1
 
-#### Task 2.1: Nâng cấp `createApiHandler` wrapper
-- **File**: `src/lib/api-handler.ts`
-- **Status**: Đã có `withAuth`, cần mở rộng thêm validation + rate limit
-- **OUTPUT**: `createApiHandler({ schema, rateLimit, requireAuth })` wrapper
+#### Task 2.1: ~~Nâng cấp `createApiHandler` wrapper~~ ✅ DONE
 
-#### Task 2.2: Giảm `remove-bg/route.ts` xuống < 150 LOC
-- **Status**: 229 LOC (đã giảm từ 304, nhưng còn nhiều)
-- **OUTPUT**: Tách thêm logic xử lý ảnh ra lib modules
+#### Task 2.2: ~~Giảm `remove-bg/route.ts`~~ ✅ DONE (79 LOC, tách bg-compose.ts)
 
-#### Task 2.3: Migrate template storage → Database
-- **File**: `src/app/api/templates/route.ts`
-- **OUTPUT**: Templates lưu trong Asset model (`type: TEMPLATE`)
+#### Task 2.3: ~~Migrate template storage → Database~~ ✅ DONE
 
 ---
 
@@ -114,14 +98,7 @@ src/hooks/
 
 - **Cần làm**: Tách phần canvas rendering, drag/drop, batch generate logic ra `MockupCanvas.tsx`
 
-#### Task 3.2: Phân rã VariationGrid (383 LOC → sub-components)
-
-```
-src/components/variation/
-├── VariationGrid.tsx           ← orchestrator (~150 LOC)
-├── VariationCard.tsx            ← NEW: single card
-├── VariationGenerateForm.tsx    ← NEW: prompt + style form
-```
+#### Task 3.2: ~~Phân rã VariationGrid~~ ✅ DONE (165 LOC + useVariationGeneration hook)
 
 #### Task 3.3: Multi-page Dashboard Layout
 
@@ -140,10 +117,7 @@ src/app/
 │   └── editor/[workspaceId]/page.tsx  ← MOVE current wizard
 ```
 
-#### Task 3.4: Fix workspace switching
-- **File**: `src/store/workspace-store.ts`
-- **Status**: Vẫn dùng `window.location.reload()` (line 76, 93)
-- **OUTPUT**: Invalidate Zustand stores + re-fetch thay vì reload
+#### Task 3.4: ~~Fix workspace switching~~ ✅ DONE (switchWorkflowToWorkspace)
 
 #### Task 3.5: CSS cleanup — Inline styles → Stylesheets
 - Nhiều components dùng inline `style={{}}`
@@ -195,9 +169,9 @@ tests/e2e/
 
 | Phase | Effort | Priority | Status |
 |-------|--------|----------|--------|
-| Phase 1: Security & Cleanup | 1-2 ngày | P0 | ~80% done |
-| Phase 2: Backend | 2-3 ngày | P1 | ~30% done |
-| Phase 3: Frontend | 5-10 ngày | P2 | ~40% done |
+| Phase 1: Security & Cleanup | 1-2 ngày | P0 | ✅ 100% done |
+| Phase 2: Backend | 2-3 ngày | P1 | ✅ 100% done |
+| Phase 3: Frontend | 5-10 ngày | P2 | ~60% done |
 | Phase 4: Testing & CI | 3-5 ngày | P3 | 0% |
 | Phase 5: Advanced | Ongoing | P4 | 0% |
 
