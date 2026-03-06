@@ -56,7 +56,11 @@ export async function checkCredentials(username: string, password: string): Prom
     if (!AUTH_PASS) return false;
     if (username !== AUTH_USER) return false;
 
-    return await bcrypt.compare(password, AUTH_PASS);
+    // AUTH_PASS can be plaintext or bcrypt hash
+    if (AUTH_PASS.startsWith('$2a$') || AUTH_PASS.startsWith('$2b$')) {
+        return await bcrypt.compare(password, AUTH_PASS);
+    }
+    return password === AUTH_PASS;
 }
 
 export function authCookieOptions(secure?: boolean) {
