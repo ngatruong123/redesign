@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { useWorkflowStore } from '@/store/workflow-store';
+import { switchWorkflowToWorkspace } from '@/store/workflow-store';
 import { getActiveUser } from '@/store/workflow-sync';
 
 export interface Workspace {
@@ -65,32 +65,14 @@ export const useWorkspaceStore = create<WorkspaceState>()(
                     ...(active === id ? { activeId: 'default' } : {}),
                 }));
                 if (active === id) {
-                    try {
-                        const raw = localStorage.getItem('design-tool-workspace');
-                        if (raw) {
-                            const parsed = JSON.parse(raw);
-                            parsed.state.activeId = 'default';
-                            localStorage.setItem('design-tool-workspace', JSON.stringify(parsed));
-                        }
-                    } catch { /* ignore */ }
-                    window.location.reload();
+                    switchWorkflowToWorkspace('default');
                 }
             },
 
             switchWorkspace: (id) => {
                 if (id === get().activeId) return;
                 set({ activeId: id });
-                // Manually persist activeId to localStorage before reload,
-                // because zustand persist writes asynchronously and reload() may fire first
-                try {
-                    const raw = localStorage.getItem('design-tool-workspace');
-                    if (raw) {
-                        const parsed = JSON.parse(raw);
-                        parsed.state.activeId = id;
-                        localStorage.setItem('design-tool-workspace', JSON.stringify(parsed));
-                    }
-                } catch { /* ignore */ }
-                window.location.reload();
+                switchWorkflowToWorkspace(id);
             },
 
             syncFromServer: async () => {

@@ -252,6 +252,66 @@ export const useWorkflowStore = create<WorkflowState>()(
     )
 );
 
+/**
+ * Switch workflow store to a different workspace without page reload.
+ * Reads persisted data from the new workspace's localStorage key and sets it.
+ */
+export function switchWorkflowToWorkspace(newWsId: string) {
+    _initialLoadDone = false;
+    const user = getActiveUser();
+    const key = `design-tool-${user}-ws-${newWsId}`;
+    let restored = false;
+
+    try {
+        const raw = localStorage.getItem(key);
+        if (raw) {
+            const parsed = JSON.parse(raw);
+            if (parsed?.state) {
+                useWorkflowStore.setState({
+                    ...initialState,
+                    ...parsed.state,
+                    isGenerating: false,
+                    isCompositing: false,
+                    error: null,
+                    generatedMockups: [],
+                });
+                restored = true;
+            }
+        }
+    } catch { /* ignore */ }
+
+    if (!restored) {
+        useWorkflowStore.setState({ ...initialState });
+    }
+
+    // Load from server if empty
+    const state = useWorkflowStore.getState();
+    const isEmpty = !state.sourceDesigns?.length && !state.variations?.length && !state.mockupTemplates?.length;
+    const loads: Promise<void>[] = [];
+
+    if (isEmpty) {
+        loads.push(loadWorkflowFromServer(newWsId, (data) => useWorkflowStore.setState(data)));
+    }
+    if (!state.mockupTemplates?.length) {
+        loads.push(
+            fetch(`/api/templates?workspace=${encodeURIComponent(newWsId)}`)
+                .then((res) => res.ok ? res.json() : [])
+                .then((templates) => {
+                    if (Array.isArray(templates) && templates.length > 0) {
+                        useWorkflowStore.setState({ mockupTemplates: templates });
+                    }
+                })
+                .catch(() => {})
+        );
+    }
+
+    if (loads.length > 0) {
+        Promise.all(loads).finally(() => { markInitialLoadDone(); });
+    } else {
+        markInitialLoadDone();
+    }
+}
+
 // Subscribe to state changes and sync workflow data to server (debounced)
 if (typeof window !== 'undefined') {
     useWorkflowStore.subscribe(
