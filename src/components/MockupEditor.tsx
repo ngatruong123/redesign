@@ -36,7 +36,7 @@ function defaultEdgeCurves(quad: Point[]): [Point, Point, Point, Point] {
 
 export default function MockupEditor() {
     const {
-        variations, mockupTemplates,
+        variations, mockupTemplates, sourceDesigns,
         addMockupTemplate, removeMockupTemplate, updateMockupTemplate,
         setVariations, toggleVariationSelection, updateVariation,
         setStep, isCompositing,
@@ -506,6 +506,7 @@ export default function MockupEditor() {
                 <BatchPreviewModal
                     mockupTemplates={mockupTemplates}
                     selectedVariations={gen.selectedVariations}
+                    sourceDesigns={sourceDesigns}
                     onClose={() => gen.setShowBatchPreview(false)}
                     onGenerate={(excluded) => gen.handleGenerateMockups(excluded)}
                 />

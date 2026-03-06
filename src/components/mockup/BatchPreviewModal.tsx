@@ -1,12 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import BatchPreviewCanvas from '../BatchPreviewCanvas';
-import type { MockupTemplate, GeneratedVariation, MockupMask } from '@/types';
+import type { MockupTemplate, GeneratedVariation, MockupMask, DesignFile } from '@/types';
 
 interface BatchPreviewModalProps {
     mockupTemplates: MockupTemplate[];
     selectedVariations: GeneratedVariation[];
+    sourceDesigns: DesignFile[];
     onClose: () => void;
     onGenerate: (excludedKeys: Set<string>) => void;
 }
@@ -14,6 +15,7 @@ interface BatchPreviewModalProps {
 export default function BatchPreviewModal({
     mockupTemplates,
     selectedVariations,
+    sourceDesigns,
     onClose,
     onGenerate,
 }: BatchPreviewModalProps) {
@@ -74,6 +76,33 @@ export default function BatchPreviewModal({
             return result;
         });
 
+    // Resolve design ID from variation
+    const resolveDesignIdFromVariation = (v: GeneratedVariation) => {
+        if (v.sourceDesignId) return v.sourceDesignId;
+        const idx = v.id.lastIndexOf('_');
+        if (idx > 0) return v.id.slice(0, idx);
+        return '__unknown__';
+    };
+
+    // Group combos by source design
+    const comboGroups = useMemo(() => {
+        const map = new Map<string, { design: DesignFile | undefined; combos: Combo[] }>();
+        for (const combo of combos) {
+            const designId = resolveDesignIdFromVariation(combo.variation);
+            if (!map.has(designId)) {
+                map.set(designId, {
+                    design: sourceDesigns.find(d => d.id === designId),
+                    combos: [],
+                });
+            }
+            map.get(designId)!.combos.push(combo);
+        }
+        return Array.from(map.values());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [combos, sourceDesigns]);
+
+    const isMultiDesign = comboGroups.length > 1;
+
     const activeCount = combos.filter(c => !batchExcluded.has(c.key)).length;
 
     const toggleBatchItem = (key: string) => {
@@ -84,7 +113,53 @@ export default function BatchPreviewModal({
         });
     };
 
+    const toggleGroup = (groupCombos: Combo[]) => {
+        setBatchExcluded(prev => {
+            const next = new Set(prev);
+            const allExcluded = groupCombos.every(c => next.has(c.key));
+            if (allExcluded) {
+                groupCombos.forEach(c => next.delete(c.key));
+            } else {
+                groupCombos.forEach(c => next.add(c.key));
+            }
+            return next;
+        });
+    };
+
     const enlargedCombo = enlargedKey ? combos.find(c => c.key === enlargedKey) : null;
+
+    const renderComboItem = ({ key, template, variation, overlayMask, overlay }: Combo) => {
+        const isChecked = !batchExcluded.has(key);
+        return (
+            <div
+                key={key}
+                className={`batch-preview-item ${isChecked ? 'checked' : ''}`}
+                onClick={() => toggleBatchItem(key)}
+                onContextMenu={(e) => { e.preventDefault(); setEnlargedKey(key); }}
+                onDoubleClick={(e) => { e.stopPropagation(); setEnlargedKey(key); }}
+            >
+                {isChecked && <div className="batch-preview-check">✓</div>}
+                <div style={{ position: 'relative' }}>
+                    <BatchPreviewCanvas
+                        templateImageUrl={template.imageUrl}
+                        designImageUrl={overlay ? (template.designOverlay?.imageUrl ?? variation.imageUrl) : overlayMask ? (template.designOverlay?.imageUrl ?? variation.imageUrl) : variation.imageUrl}
+                        mask={overlayMask ?? template.mask!}
+                        overlay={overlay}
+                    />
+                    <button
+                        className="batch-preview-enlarge-btn"
+                        onClick={(e) => { e.stopPropagation(); setEnlargedKey(key); }}
+                        title="Xem to"
+                    >
+                        ⤢
+                    </button>
+                </div>
+                <div className="batch-preview-item-label">
+                    {template.name} × {variation.styleName}
+                </div>
+            </div>
+        );
+    };
 
     return (
         <div className="batch-preview-overlay" onClick={onClose}>
@@ -96,40 +171,35 @@ export default function BatchPreviewModal({
                 <p className="batch-modal-subtitle">
                     Click phải / giữ để xem to. Click trái để chọn/bỏ chọn.
                 </p>
-                <div className="batch-preview-grid">
-                    {combos.map(({ key, template, variation, overlayMask, overlay }) => {
-                        const isChecked = !batchExcluded.has(key);
+                {isMultiDesign ? (
+                    comboGroups.map(({ design, combos: groupCombos }) => {
+                        const groupActiveCount = groupCombos.filter(c => !batchExcluded.has(c.key)).length;
                         return (
-                            <div
-                                key={key}
-                                className={`batch-preview-item ${isChecked ? 'checked' : ''}`}
-                                onClick={() => toggleBatchItem(key)}
-                                onContextMenu={(e) => { e.preventDefault(); setEnlargedKey(key); }}
-                                onDoubleClick={(e) => { e.stopPropagation(); setEnlargedKey(key); }}
-                            >
-                                {isChecked && <div className="batch-preview-check">✓</div>}
-                                <div style={{ position: 'relative' }}>
-                                    <BatchPreviewCanvas
-                                        templateImageUrl={template.imageUrl}
-                                        designImageUrl={overlay ? (template.designOverlay?.imageUrl ?? variation.imageUrl) : overlayMask ? (template.designOverlay?.imageUrl ?? variation.imageUrl) : variation.imageUrl}
-                                        mask={overlayMask ?? template.mask!}
-                                        overlay={overlay}
-                                    />
+                            <div key={design?.id || '__unknown__'} className="variation-group">
+                                <div className="variation-group-header">
+                                    {design?.url && (
+                                        <img src={design.url} alt={design.name} className="variation-group-thumb" />
+                                    )}
+                                    <span>{design?.name || 'Unknown'} ({groupActiveCount}/{groupCombos.length})</span>
                                     <button
-                                        className="batch-preview-enlarge-btn"
-                                        onClick={(e) => { e.stopPropagation(); setEnlargedKey(key); }}
-                                        title="Xem to"
+                                        className="btn-ghost-sm"
+                                        style={{ marginLeft: 'auto' }}
+                                        onClick={() => toggleGroup(groupCombos)}
                                     >
-                                        ⤢
+                                        {groupCombos.every(c => batchExcluded.has(c.key)) ? 'Chọn nhóm' : 'Bỏ chọn nhóm'}
                                     </button>
                                 </div>
-                                <div className="batch-preview-item-label">
-                                    {template.name} × {variation.styleName}
+                                <div className="batch-preview-grid">
+                                    {groupCombos.map(renderComboItem)}
                                 </div>
                             </div>
                         );
-                    })}
-                </div>
+                    })
+                ) : (
+                    <div className="batch-preview-grid">
+                        {combos.map(renderComboItem)}
+                    </div>
+                )}
                 <div className="batch-modal-footer">
                     <button className="btn-secondary" onClick={onClose}>Huỷ</button>
                     <button

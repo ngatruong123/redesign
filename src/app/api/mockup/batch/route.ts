@@ -30,6 +30,8 @@ interface BatchItem {
     variationId?: string;
     templateName: string;
     variationName: string;
+    sourceDesignId?: string;
+    sourceDesignName?: string;
 }
 
 const VALID_BLEND_MODES = ['normal', 'multiply', 'overlay', 'screen', 'soft-light'] as const;
@@ -185,6 +187,8 @@ export async function POST(request: NextRequest) {
                     variationId: item.variationId,
                     templateName: item.templateName,
                     variationName: item.variationName,
+                    sourceDesignId: item.sourceDesignId,
+                    sourceDesignName: item.sourceDesignName,
                 });
             } catch (err) {
                 console.error(`Batch item failed:`, err);
@@ -195,6 +199,8 @@ export async function POST(request: NextRequest) {
                     variationId: item.variationId,
                     templateName: item.templateName,
                     variationName: item.variationName,
+                    sourceDesignId: item.sourceDesignId,
+                    sourceDesignName: item.sourceDesignName,
                     error: err instanceof Error ? err.message : 'Failed',
                 });
             }

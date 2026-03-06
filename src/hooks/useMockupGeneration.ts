@@ -51,6 +51,29 @@ export function useMockupGeneration() {
         setError(null);
         setGeneratedMockups([]);
 
+        const getSourceDesign = (v: GeneratedVariation) => {
+            const designs = useWorkflowStore.getState().sourceDesigns;
+            // Try direct field on variation
+            if (v.sourceDesignId) {
+                const sd = designs.find(d => d.id === v.sourceDesignId);
+                if (sd) return { sourceDesignId: sd.id, sourceDesignName: sd.name };
+                // sourceDesigns may be lost — use the ID directly
+                return { sourceDesignId: v.sourceDesignId, sourceDesignName: v.sourceDesignId.slice(0, 8) };
+            }
+            // Fallback: variation ID = "{designId}_{styleId}" — extract prefix
+            const underscoreIdx = v.id.lastIndexOf('_');
+            if (underscoreIdx > 0) {
+                const designIdCandidate = v.id.slice(0, underscoreIdx);
+                const sd = designs.find(d => d.id === designIdCandidate);
+                return { sourceDesignId: designIdCandidate, sourceDesignName: sd?.name || designIdCandidate.slice(0, 8) };
+            }
+            // Last resort: single design
+            if (designs.length === 1) {
+                return { sourceDesignId: designs[0].id, sourceDesignName: designs[0].name };
+            }
+            return { sourceDesignId: undefined, sourceDesignName: undefined };
+        };
+
         const items = readyTemplates.flatMap((t) => {
             const result: Array<Record<string, unknown>> = [];
 
@@ -63,6 +86,7 @@ export function useMockupGeneration() {
                         x: ov.x, y: ov.y, width: ov.width, height: ov.height, rotation: ov.rotation,
                         cropTop: ov.cropTop, cropRight: ov.cropRight, cropBottom: ov.cropBottom, cropLeft: ov.cropLeft,
                     };
+                    const srcInfo = getSourceDesign(overlayVariation);
                     if (t.mask) {
                         result.push({
                             mockupImagePath: t.imageUrl,
@@ -73,6 +97,7 @@ export function useMockupGeneration() {
                             variationId: ov.variationId,
                             templateName: t.name,
                             variationName: overlayVariation.styleName,
+                            ...srcInfo,
                         });
                     } else {
                         const cT = (ov.cropTop ?? 0) / 100;
@@ -99,6 +124,7 @@ export function useMockupGeneration() {
                             variationId: ov.variationId,
                             templateName: t.name,
                             variationName: overlayVariation.styleName,
+                            ...srcInfo,
                         });
                     }
                 }
@@ -112,6 +138,7 @@ export function useMockupGeneration() {
                         return true;
                     });
                 for (const v of maskVariations) {
+                    const srcInfo = getSourceDesign(v);
                     result.push({
                         mockupImagePath: t.imageUrl,
                         designImagePath: v.imageUrl,
@@ -120,6 +147,7 @@ export function useMockupGeneration() {
                         variationId: v.id,
                         templateName: t.name,
                         variationName: v.styleName,
+                        ...srcInfo,
                     });
                 }
             }
@@ -137,7 +165,15 @@ export function useMockupGeneration() {
             });
             const data = await res.json();
             if (!res.ok) throw new Error(data.error);
-            setGeneratedMockups(data.results);
+            // Enrich results with sourceDesign info from the items we sent
+            const itemsByKey = new Map(items.map(it => [`${it.templateId}__${it.variationId}`, it]));
+            const enriched = data.results.map((r: GeneratedMockup) => {
+                if (r.sourceDesignId) return r;
+                const key = `${r.templateId}__${r.variationId}`;
+                const item = itemsByKey.get(key);
+                return item ? { ...r, sourceDesignId: item.sourceDesignId, sourceDesignName: item.sourceDesignName } : r;
+            });
+            setGeneratedMockups(enriched);
             addToast('success', `Đã tạo ${data.results.length} mockup!`);
         } catch (err) {
             const msg = err instanceof Error ? err.message : 'Tạo mockup thất bại';

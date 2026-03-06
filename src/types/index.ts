@@ -91,6 +91,8 @@ export interface GeneratedMockup {
     imageUrl: string;
     error?: string;
     seo?: EtsySEO;
+    sourceDesignId?: string;
+    sourceDesignName?: string;
 }
 
 export type WorkflowStep = 'upload' | 'variations' | 'mockup' | 'video' | 'settings';
