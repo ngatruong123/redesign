@@ -43,7 +43,8 @@ export function syncWorkflowToServer(getState: () => any) {
             currentStep: state.currentStep,
             sourceDesigns: state.sourceDesigns.map(({ file: _file, ...rest }: { file?: unknown; [k: string]: unknown }) => rest),
             variations: state.variations,
-            // Templates synced separately via /api/templates (not duplicated here)
+            // Include templates as backup (authoritative source is Asset TEMPLATE via /api/templates)
+            mockupTemplates: state.mockupTemplates,
         };
         ensureWorkspaceExists(wsId).then(() => {
             fetch(`/api/workspaces/${encodeURIComponent(wsId)}`, {

@@ -22,29 +22,25 @@ export async function GET(request: NextRequest) {
         });
         if (!workspace) return NextResponse.json([]);
 
-        // Find the TEMPLATE asset for this workspace
+        // Find the TEMPLATE asset, merge legacy templates from workspace.data
         let asset = await prisma.asset.findFirst({
             where: { workspaceId: workspace.id, type: 'TEMPLATE' },
         });
 
-        // Auto-migrate: if no Asset TEMPLATE exists, check workspace.data for legacy templates
+        // One-time migration: if no Asset TEMPLATE yet, create from workspace.data
         if (!asset) {
-            const wsData = workspace.data
-                ? (typeof workspace.data === 'string' ? JSON.parse(workspace.data) : workspace.data) as Record<string, unknown>
-                : null;
-            const legacyTemplates = wsData?.mockupTemplates;
-            if (Array.isArray(legacyTemplates) && legacyTemplates.length > 0) {
-                asset = await prisma.asset.create({
-                    data: {
-                        type: 'TEMPLATE',
-                        filename: 'templates.json',
-                        url: '',
-                        workspaceId: workspace.id,
-                        metadata: { templates: legacyTemplates },
-                    },
-                });
-                console.log(`[GET /api/templates] Migrated ${legacyTemplates.length} templates from workspace.data for ws=${workspaceId}`);
-            }
+            try {
+                const wsData = workspace.data
+                    ? (typeof workspace.data === 'string' ? JSON.parse(workspace.data) : workspace.data) as Record<string, unknown>
+                    : null;
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const legacy = wsData?.mockupTemplates as any[] | undefined;
+                if (Array.isArray(legacy) && legacy.length > 0) {
+                    asset = await prisma.asset.create({
+                        data: { type: 'TEMPLATE', filename: 'templates.json', url: '', workspaceId: workspace.id, metadata: { templates: legacy } },
+                    });
+                }
+            } catch { /* ignore */ }
         }
 
         if (!asset?.metadata) return NextResponse.json([]);

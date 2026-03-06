@@ -19,18 +19,19 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
         });
         if (!workspace) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
-        // Include templates from Asset TEMPLATE (or migrate from workspace.data)
+        // Include templates from Asset TEMPLATE, merging legacy data from workspace.data
         let asset = await prisma.asset.findFirst({
             where: { workspaceId: workspace.id, type: 'TEMPLATE' },
         });
 
-        // Auto-migrate: if no Asset TEMPLATE, check workspace.data for legacy templates
+        // One-time migration: if no Asset TEMPLATE yet, create from workspace.data
         if (!asset) {
             try {
                 const wsData = workspace.data
                     ? (typeof workspace.data === 'string' ? JSON.parse(workspace.data) : workspace.data) as Record<string, unknown>
                     : null;
-                const legacy = wsData?.mockupTemplates;
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const legacy = wsData?.mockupTemplates as any[] | undefined;
                 if (Array.isArray(legacy) && legacy.length > 0) {
                     asset = await prisma.asset.create({
                         data: {
@@ -41,7 +42,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
                             metadata: { templates: legacy },
                         },
                     });
-                    console.log(`[GET workspace] Migrated ${legacy.length} templates from data field, ws=${id}`);
+                    console.log(`[GET workspace] Migrated ${legacy.length} legacy templates, ws=${id}`);
                 }
             } catch { /* ignore parse errors */ }
         }
