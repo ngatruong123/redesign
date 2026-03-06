@@ -131,7 +131,7 @@ export async function POST(request: NextRequest) {
                     }
                     tmpCtx.restore();
                 } else {
-                    drawPerspective(tmpCtx, designImg, quad, mask.edgeCurves, 32, fitMode);
+                    drawPerspective(tmpCtx, designImg, quad, mask.edgeCurves, 64, fitMode);
                 }
 
                 // 4. Set blend mode and opacity
