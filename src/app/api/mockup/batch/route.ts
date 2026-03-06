@@ -92,9 +92,15 @@ export async function POST(request: NextRequest) {
                 const opacity = typeof mask.opacity === 'number' ? mask.opacity / 100 : 1;
 
                 // 3. Render warped design onto a temp canvas
-                const tmpCanvas = createCanvas(mockupImg.width, mockupImg.height);
-                const tmpCtx = tmpCanvas.getContext('2d');
+                // Use 2x supersampling for perspective warp to eliminate triangle seam lines.
+                // The seams are caused by anti-aliasing at triangle clip boundaries —
+                // rendering at 2x then downscaling averages them out completely.
                 const fitMode: FitMode = mask.fitMode === 'fill' ? 'fill' : 'contain';
+                const useSupersample = !item.overlay; // only perspective warp needs it
+                const SS = useSupersample ? 2 : 1;
+
+                const tmpCanvas = createCanvas(mockupImg.width * SS, mockupImg.height * SS);
+                const tmpCtx = tmpCanvas.getContext('2d');
 
                 if (item.overlay) {
                     // Overlay mode: draw design directly at overlay position/size (no perspective warp)
@@ -131,7 +137,12 @@ export async function POST(request: NextRequest) {
                     }
                     tmpCtx.restore();
                 } else {
-                    drawPerspective(tmpCtx, designImg, quad, mask.edgeCurves, 64, fitMode);
+                    // Scale quad points to 2x for supersampled canvas
+                    const ssQuad = quad.map(p => ({ x: p.x * SS, y: p.y * SS })) as [Point, Point, Point, Point];
+                    const ssEdgeCurves = mask.edgeCurves
+                        ? mask.edgeCurves.map(p => ({ x: p.x * SS, y: p.y * SS })) as [Point, Point, Point, Point]
+                        : undefined;
+                    drawPerspective(tmpCtx, designImg, ssQuad, ssEdgeCurves, 64, fitMode);
                 }
 
                 // 4. Set blend mode and opacity
@@ -151,7 +162,8 @@ export async function POST(request: NextRequest) {
                     ctx.shadowColor = mask.shadow.color || 'rgba(0,0,0,0.5)';
                 }
 
-                ctx.drawImage(tmpCanvas, 0, 0);
+                // Draw supersampled canvas back at 1x — downscaling eliminates seam artifacts
+                ctx.drawImage(tmpCanvas, 0, 0, tmpCanvas.width, tmpCanvas.height, 0, 0, mockupImg.width, mockupImg.height);
 
                 // Reset
                 ctx.shadowBlur = 0;
