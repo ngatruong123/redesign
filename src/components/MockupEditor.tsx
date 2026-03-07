@@ -23,7 +23,7 @@ import GeneratedMockupsGrid from './mockup/GeneratedMockupsGrid';
 import BatchPreviewModal from './mockup/BatchPreviewModal';
 import DesignOverlay from './mockup/DesignOverlay';
 import MockupAIPanel from './mockup/MockupAIPanel';
-import type { DesignOverlayState } from '@/types';
+import type { DesignOverlayState, GeneratedVariation } from '@/types';
 
 function mid(a: Point, b: Point): Point {
     return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
@@ -290,9 +290,10 @@ export default function MockupEditor() {
                 const res = await fetch('/api/upload', { method: 'POST', body: formData });
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.error);
-                const newVariation = {
+                const newVariation: GeneratedVariation = {
                     id: crypto.randomUUID(), styleId: 'custom', styleName: file.name.replace(/\.[^.]+$/, ''),
                     imageUrl: data.url, selected: true, loading: false,
+                    sourceDesignId: sourceDesigns.length === 1 ? sourceDesigns[0].id : undefined,
                 };
                 setVariations([...variations, newVariation]);
                 createOverlayFromVariation(newVariation.id, data.url);

@@ -32,6 +32,7 @@ export default function VariationsPanel({
         if (imageFiles.length === 0) return;
         setUploadingDesigns(true);
 
+        const designs = useWorkflowStore.getState().sourceDesigns;
         const uploads = imageFiles.map(async (file) => {
             const formData = new FormData();
             formData.append('file', file);
@@ -45,6 +46,7 @@ export default function VariationsPanel({
                 imageUrl: data.url,
                 selected: true,
                 loading: false,
+                sourceDesignId: designs.length === 1 ? designs[0].id : undefined,
             } satisfies GeneratedVariation;
         });
 

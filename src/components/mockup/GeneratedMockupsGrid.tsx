@@ -66,7 +66,6 @@ export default function GeneratedMockupsGrid({
     // Resolve designId from mockup or variation ID
     const resolveDesignId = useCallback((m: GeneratedMockup) => {
         if (m.sourceDesignId) return m.sourceDesignId;
-        // Look up variation
         const varId = m.variationId;
         if (varId) {
             const v = variations.find(v => v.id === varId);
@@ -74,9 +73,16 @@ export default function GeneratedMockupsGrid({
             // Parse from variation ID format "{designId}_{styleId}"
             const idx = varId.lastIndexOf('_');
             if (idx > 0) return varId.slice(0, idx);
+            // Match via sourceDesigns by checking other variations with same styleId
+            if (v) {
+                const allVars = variations.filter(ov => ov.sourceDesignId && ov.styleId === v.styleId);
+                if (allVars.length > 0) return allVars[0].sourceDesignId;
+            }
         }
+        // Single design fallback
+        if (sourceDesigns.length === 1) return sourceDesigns[0].id;
         return undefined;
-    }, [variations]);
+    }, [variations, sourceDesigns]);
 
     const groups = useMemo<MockupGroup[]>(() => {
         const map = new Map<string, MockupGroup>();

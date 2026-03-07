@@ -53,23 +53,32 @@ export function useMockupGeneration() {
 
         const getSourceDesign = (v: GeneratedVariation) => {
             const designs = useWorkflowStore.getState().sourceDesigns;
-            // Try direct field on variation
+            // 1. Direct field on variation
             if (v.sourceDesignId) {
                 const sd = designs.find(d => d.id === v.sourceDesignId);
                 if (sd) return { sourceDesignId: sd.id, sourceDesignName: sd.name };
-                // sourceDesigns may be lost — use the ID directly
                 return { sourceDesignId: v.sourceDesignId, sourceDesignName: v.sourceDesignId.slice(0, 8) };
             }
-            // Fallback: variation ID = "{designId}_{styleId}" — extract prefix
+            // 2. Variation ID = "{designId}_{styleId}" — extract prefix
             const underscoreIdx = v.id.lastIndexOf('_');
             if (underscoreIdx > 0) {
                 const designIdCandidate = v.id.slice(0, underscoreIdx);
                 const sd = designs.find(d => d.id === designIdCandidate);
-                return { sourceDesignId: designIdCandidate, sourceDesignName: sd?.name || designIdCandidate.slice(0, 8) };
+                if (sd) return { sourceDesignId: sd.id, sourceDesignName: sd.name };
+                return { sourceDesignId: designIdCandidate, sourceDesignName: designIdCandidate.slice(0, 8) };
             }
-            // Last resort: single design
+            // 3. Single design — assign to it
             if (designs.length === 1) {
                 return { sourceDesignId: designs[0].id, sourceDesignName: designs[0].name };
+            }
+            // 4. Multiple designs but can't determine — try matching via all variations
+            // Find which design this variation's image most likely belongs to
+            // by checking other variations with known sourceDesignId
+            const allVariations = useWorkflowStore.getState().variations;
+            const knownVar = allVariations.find(ov => ov.sourceDesignId && ov.styleId === v.styleId);
+            if (knownVar?.sourceDesignId) {
+                const sd = designs.find(d => d.id === knownVar.sourceDesignId);
+                if (sd) return { sourceDesignId: sd.id, sourceDesignName: sd.name };
             }
             return { sourceDesignId: undefined, sourceDesignName: undefined };
         };
