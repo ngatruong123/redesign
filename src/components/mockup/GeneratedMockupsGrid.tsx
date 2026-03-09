@@ -116,9 +116,11 @@ export default function GeneratedMockupsGrid({
                 const isNameKey = key.startsWith('name:');
                 const displayId = isNameKey ? key.slice(5) : key;
                 const sd = isNameKey ? undefined : sourceDesigns.find(d => d.id === key);
+                // Try to get inferred name from designGroupMap via variation
+                const inferred = m.variationId ? designGroupMap.get(m.variationId) : undefined;
                 map.set(key, {
                     sourceDesignId: key,
-                    sourceDesignName: m.sourceDesignName || sd?.name || displayId.slice(0, 8),
+                    sourceDesignName: m.sourceDesignName || sd?.name || inferred?.groupName || displayId.slice(0, 8),
                     sourceDesignUrl: sd?.url,
                     mockups: [],
                 });
