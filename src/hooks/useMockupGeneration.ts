@@ -203,19 +203,51 @@ export function useMockupGeneration() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ items }),
             });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error);
-            // Enrich results with sourceDesign info from the items we sent
+
+            if (!res.ok) {
+                const data = await res.json().catch(() => ({ error: 'Tạo mockup thất bại' }));
+                throw new Error(data.error);
+            }
+
+            // SSE streaming response - read results as they arrive
             const itemsByKey = new Map(items.map(it => [`${it.templateId}__${it.variationId}`, it]));
-            const enriched = data.results.map((r: GeneratedMockup) => {
-                if (r.sourceDesignId) return r;
-                const key = `${r.templateId}__${r.variationId}`;
-                const item = itemsByKey.get(key);
-                return item ? { ...r, sourceDesignId: item.sourceDesignId, sourceDesignName: item.sourceDesignName } : r;
-            });
-            console.log('[generateMockups] enriched sample srcId:', enriched[0]?.sourceDesignId, 'srcName:', enriched[0]?.sourceDesignName);
-            setGeneratedMockups(enriched);
-            addToast('success', `Đã tạo ${data.results.length} mockup!`);
+            const reader = res.body!.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+            let count = 0;
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                buffer += decoder.decode(value, { stream: true });
+
+                const lines = buffer.split('\n');
+                buffer = lines.pop() || '';
+
+                for (const line of lines) {
+                    if (!line.startsWith('data: ')) continue;
+                    const payload = line.slice(6).trim();
+                    if (payload === '[DONE]') continue;
+
+                    try {
+                        const r = JSON.parse(payload) as GeneratedMockup;
+                        // Enrich with sourceDesign info
+                        if (!r.sourceDesignId) {
+                            const key = `${r.templateId}__${r.variationId}`;
+                            const item = itemsByKey.get(key);
+                            if (item) {
+                                r.sourceDesignId = item.sourceDesignId as string;
+                                r.sourceDesignName = item.sourceDesignName as string;
+                            }
+                        }
+                        count++;
+                        const current = useWorkflowStore.getState().generatedMockups;
+                        setGeneratedMockups([...current, r]);
+                    } catch { /* skip malformed */ }
+                }
+            }
+
+            addToast('success', `Đã tạo ${count} mockup!`);
         } catch (err) {
             const msg = err instanceof Error ? err.message : 'Tạo mockup thất bại';
             setError(msg);
@@ -292,14 +324,36 @@ export function useMockupGeneration() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ items: [item] }),
             });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error);
 
-            const newMockup = data.results[0];
+            if (!res.ok) {
+                const data = await res.json().catch(() => ({ error: 'Tạo lại mockup thất bại' }));
+                throw new Error(data.error);
+            }
+
+            // Read SSE stream for single item
+            const reader = res.body!.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+            let newMockup: GeneratedMockup | null = null;
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop() || '';
+                for (const line of lines) {
+                    if (!line.startsWith('data: ')) continue;
+                    const payload = line.slice(6).trim();
+                    if (payload === '[DONE]') continue;
+                    try { newMockup = JSON.parse(payload); } catch { /* skip */ }
+                }
+            }
+
             if (newMockup) {
                 const currentMockups = useWorkflowStore.getState().generatedMockups;
                 const updated = currentMockups.map(m =>
-                    m.id === editingMockupId ? { ...newMockup, id: editingMockupId, sourceDesignId, sourceDesignName } : m
+                    m.id === editingMockupId ? { ...newMockup!, id: editingMockupId, sourceDesignId, sourceDesignName } : m
                 );
                 setGeneratedMockups(updated);
                 addToast('success', 'Đã tạo lại mockup!');

@@ -5,6 +5,7 @@ import sharp from 'sharp';
 import { resolveToBuffer, storeFile } from '@/lib/blob-storage';
 import { drawPerspective, rectToQuad, type FitMode } from '@/lib/perspective';
 import { requireAuth } from '@/lib/api-auth';
+import { parallelLimit } from '@/lib/concurrency';
 
 interface Point { x: number; y: number; }
 
@@ -36,6 +37,116 @@ interface BatchItem {
 
 const VALID_BLEND_MODES = ['normal', 'multiply', 'overlay', 'screen', 'soft-light'] as const;
 
+async function processItem(item: BatchItem) {
+    let mockupBuffer = await resolveToBuffer(item.mockupImagePath);
+    const designBuffer = await resolveToBuffer(item.designImagePath);
+
+    const bgBlur = item.mask.backgroundBlur;
+    if (bgBlur && bgBlur > 0) {
+        mockupBuffer = await sharp(mockupBuffer).blur(Math.max(0.3, bgBlur)).toBuffer();
+    }
+
+    const mockupImg = await loadImage(mockupBuffer);
+    const designImg = await loadImage(designBuffer);
+
+    const canvas = createCanvas(mockupImg.width, mockupImg.height);
+    const ctx = canvas.getContext('2d');
+
+    ctx.drawImage(mockupImg, 0, 0);
+
+    const mask = item.mask;
+    const mode = mask.mode || 'rect';
+    let quad: [Point, Point, Point, Point];
+
+    if (mode === 'quad' && mask.quad) {
+        quad = mask.quad;
+    } else {
+        quad = rectToQuad(mask.x, mask.y, mask.width, mask.height, mask.rotation || 0);
+    }
+
+    const blendMode = mask.blendMode && VALID_BLEND_MODES.includes(mask.blendMode as typeof VALID_BLEND_MODES[number])
+        ? mask.blendMode : 'normal';
+    const opacity = typeof mask.opacity === 'number' ? mask.opacity / 100 : 1;
+
+    const fitMode: FitMode = mask.fitMode === 'fill' ? 'fill' : 'contain';
+    const useSupersample = !item.overlay;
+    const SS = useSupersample ? 2 : 1;
+
+    const tmpCanvas = createCanvas(mockupImg.width * SS, mockupImg.height * SS);
+    const tmpCtx = tmpCanvas.getContext('2d');
+
+    if (item.overlay) {
+        const ov = item.overlay;
+        const cropT = (ov.cropTop ?? 0) / 100;
+        const cropR = (ov.cropRight ?? 0) / 100;
+        const cropB = (ov.cropBottom ?? 0) / 100;
+        const cropL = (ov.cropLeft ?? 0) / 100;
+
+        const sx = cropL * designImg.width;
+        const sy = cropT * designImg.height;
+        const sw = designImg.width * (1 - cropL - cropR);
+        const sh = designImg.height * (1 - cropT - cropB);
+
+        const dx = ov.x + ov.width * cropL;
+        const dy = ov.y + ov.height * cropT;
+        const dw = ov.width * (1 - cropL - cropR);
+        const dh = ov.height * (1 - cropT - cropB);
+
+        tmpCtx.save();
+        if (ov.rotation) {
+            const cx = ov.x + ov.width / 2;
+            const cy = ov.y + ov.height / 2;
+            tmpCtx.translate(cx, cy);
+            tmpCtx.rotate((ov.rotation * Math.PI) / 180);
+            tmpCtx.drawImage(designImg, sx, sy, sw, sh, dx - cx, dy - cy, dw, dh);
+        } else {
+            tmpCtx.drawImage(designImg, sx, sy, sw, sh, dx, dy, dw, dh);
+        }
+        tmpCtx.restore();
+    } else {
+        const ssQuad = quad.map(p => ({ x: p.x * SS, y: p.y * SS })) as [Point, Point, Point, Point];
+        const ssEdgeCurves = mask.edgeCurves
+            ? mask.edgeCurves.map(p => ({ x: p.x * SS, y: p.y * SS })) as [Point, Point, Point, Point]
+            : undefined;
+        drawPerspective(tmpCtx, designImg, ssQuad, ssEdgeCurves, 64, fitMode);
+    }
+
+    const compositeMap: Record<string, GlobalCompositeOperation> = {
+        'normal': 'source-over', 'multiply': 'multiply', 'overlay': 'overlay',
+        'screen': 'screen', 'soft-light': 'soft-light',
+    };
+    ctx.globalCompositeOperation = compositeMap[blendMode] || 'source-over';
+    ctx.globalAlpha = opacity;
+
+    if (mask.shadow && mask.shadow.blur > 0) {
+        ctx.shadowBlur = mask.shadow.blur;
+        ctx.shadowColor = mask.shadow.color || 'rgba(0,0,0,0.5)';
+    }
+
+    ctx.drawImage(tmpCanvas, 0, 0, tmpCanvas.width, tmpCanvas.height, 0, 0, mockupImg.width, mockupImg.height);
+
+    ctx.shadowBlur = 0;
+    ctx.shadowColor = 'transparent';
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1;
+
+    const resultBuffer = canvas.toBuffer('image/png');
+    const id = uuidv4();
+    const filename = `${id}.png`;
+    const { url } = await storeFile('mockups', filename, Buffer.from(resultBuffer));
+
+    return {
+        id,
+        imageUrl: url,
+        templateId: item.templateId,
+        variationId: item.variationId,
+        templateName: item.templateName,
+        variationName: item.variationName,
+        sourceDesignId: item.sourceDesignId,
+        sourceDesignName: item.sourceDesignName,
+    };
+}
+
 export async function POST(request: NextRequest) {
     const authError = await requireAuth();
     if (authError) return authError;
@@ -51,163 +162,48 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Too many items (max 50)' }, { status: 400 });
         }
 
-        const results = [];
+        // Use SSE streaming to avoid timeout on large batches
+        const encoder = new TextEncoder();
+        const stream = new ReadableStream({
+            async start(controller) {
+                await parallelLimit(
+                    items,
+                    async (item) => {
+                        try {
+                            const result = await processItem(item);
+                            controller.enqueue(encoder.encode(`data: ${JSON.stringify(result)}\n\n`));
+                            return result;
+                        } catch (err) {
+                            console.error(`Batch item failed:`, err);
+                            const errorResult = {
+                                id: uuidv4(),
+                                imageUrl: '',
+                                templateId: item.templateId,
+                                variationId: item.variationId,
+                                templateName: item.templateName,
+                                variationName: item.variationName,
+                                sourceDesignId: item.sourceDesignId,
+                                sourceDesignName: item.sourceDesignName,
+                                error: err instanceof Error ? err.message : 'Failed',
+                            };
+                            controller.enqueue(encoder.encode(`data: ${JSON.stringify(errorResult)}\n\n`));
+                            return errorResult;
+                        }
+                    },
+                    3, // concurrency limit
+                );
 
-        for (const item of items) {
-            try {
-                let mockupBuffer = await resolveToBuffer(item.mockupImagePath);
-                const designBuffer = await resolveToBuffer(item.designImagePath);
+                controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+                controller.close();
+            },
+        });
 
-                // Apply background blur if specified
-                const bgBlur = item.mask.backgroundBlur;
-                if (bgBlur && bgBlur > 0) {
-                    // sharp.blur sigma must be >= 0.3; use value directly as sigma
-                    mockupBuffer = await sharp(mockupBuffer).blur(Math.max(0.3, bgBlur)).toBuffer();
-                }
-
-                const mockupImg = await loadImage(mockupBuffer);
-                const designImg = await loadImage(designBuffer);
-
-                const canvas = createCanvas(mockupImg.width, mockupImg.height);
-                const ctx = canvas.getContext('2d');
-
-                // 1. Draw mockup background
-                ctx.drawImage(mockupImg, 0, 0);
-
-                // 2. Determine quad
-                const mask = item.mask;
-                const mode = mask.mode || 'rect';
-                let quad: [Point, Point, Point, Point];
-
-                if (mode === 'quad' && mask.quad) {
-                    quad = mask.quad;
-                } else {
-                    quad = rectToQuad(
-                        mask.x, mask.y, mask.width, mask.height,
-                        mask.rotation || 0,
-                    );
-                }
-
-                const blendMode = mask.blendMode && VALID_BLEND_MODES.includes(mask.blendMode as typeof VALID_BLEND_MODES[number])
-                    ? mask.blendMode
-                    : 'normal';
-                const opacity = typeof mask.opacity === 'number' ? mask.opacity / 100 : 1;
-
-                // 3. Render warped design onto a temp canvas
-                // Use 2x supersampling for perspective warp to eliminate triangle seam lines.
-                // The seams are caused by anti-aliasing at triangle clip boundaries —
-                // rendering at 2x then downscaling averages them out completely.
-                const fitMode: FitMode = mask.fitMode === 'fill' ? 'fill' : 'contain';
-                const useSupersample = !item.overlay; // only perspective warp needs it
-                const SS = useSupersample ? 2 : 1;
-
-                const tmpCanvas = createCanvas(mockupImg.width * SS, mockupImg.height * SS);
-                const tmpCtx = tmpCanvas.getContext('2d');
-
-                if (item.overlay) {
-                    // Overlay mode: draw design directly at overlay position/size (no perspective warp)
-                    const ov = item.overlay;
-
-                    // Calculate crop insets
-                    const cropT = (ov.cropTop ?? 0) / 100;
-                    const cropR = (ov.cropRight ?? 0) / 100;
-                    const cropB = (ov.cropBottom ?? 0) / 100;
-                    const cropL = (ov.cropLeft ?? 0) / 100;
-
-                    // Source rect in the design image (crop applied)
-                    const sx = cropL * designImg.width;
-                    const sy = cropT * designImg.height;
-                    const sw = designImg.width * (1 - cropL - cropR);
-                    const sh = designImg.height * (1 - cropT - cropB);
-
-                    // Destination rect on the mockup (crop adjusts visible area)
-                    const dx = ov.x + ov.width * cropL;
-                    const dy = ov.y + ov.height * cropT;
-                    const dw = ov.width * (1 - cropL - cropR);
-                    const dh = ov.height * (1 - cropT - cropB);
-
-                    // Draw design directly onto tmp canvas at overlay position
-                    tmpCtx.save();
-                    if (ov.rotation) {
-                        const cx = ov.x + ov.width / 2;
-                        const cy = ov.y + ov.height / 2;
-                        tmpCtx.translate(cx, cy);
-                        tmpCtx.rotate((ov.rotation * Math.PI) / 180);
-                        tmpCtx.drawImage(designImg, sx, sy, sw, sh, dx - cx, dy - cy, dw, dh);
-                    } else {
-                        tmpCtx.drawImage(designImg, sx, sy, sw, sh, dx, dy, dw, dh);
-                    }
-                    tmpCtx.restore();
-                } else {
-                    // Scale quad points to 2x for supersampled canvas
-                    const ssQuad = quad.map(p => ({ x: p.x * SS, y: p.y * SS })) as [Point, Point, Point, Point];
-                    const ssEdgeCurves = mask.edgeCurves
-                        ? mask.edgeCurves.map(p => ({ x: p.x * SS, y: p.y * SS })) as [Point, Point, Point, Point]
-                        : undefined;
-                    drawPerspective(tmpCtx, designImg, ssQuad, ssEdgeCurves, 64, fitMode);
-                }
-
-                // 4. Set blend mode and opacity
-                const compositeMap: Record<string, GlobalCompositeOperation> = {
-                    'normal': 'source-over',
-                    'multiply': 'multiply',
-                    'overlay': 'overlay',
-                    'screen': 'screen',
-                    'soft-light': 'soft-light',
-                };
-                ctx.globalCompositeOperation = compositeMap[blendMode] || 'source-over';
-                ctx.globalAlpha = opacity;
-
-                // 5. Draw with shadow applied to the design shape
-                if (mask.shadow && mask.shadow.blur > 0) {
-                    ctx.shadowBlur = mask.shadow.blur;
-                    ctx.shadowColor = mask.shadow.color || 'rgba(0,0,0,0.5)';
-                }
-
-                // Draw supersampled canvas back at 1x — downscaling eliminates seam artifacts
-                ctx.drawImage(tmpCanvas, 0, 0, tmpCanvas.width, tmpCanvas.height, 0, 0, mockupImg.width, mockupImg.height);
-
-                // Reset
-                ctx.shadowBlur = 0;
-                ctx.shadowColor = 'transparent';
-                ctx.globalCompositeOperation = 'source-over';
-                ctx.globalAlpha = 1;
-
-                const resultBuffer = canvas.toBuffer('image/png');
-                const id = uuidv4();
-
-                // Store to file and return URL path
-                const filename = `${id}.png`;
-                const { url } = await storeFile('mockups', filename, Buffer.from(resultBuffer));
-
-                results.push({
-                    id,
-                    imageUrl: url,
-                    templateId: item.templateId,
-                    variationId: item.variationId,
-                    templateName: item.templateName,
-                    variationName: item.variationName,
-                    sourceDesignId: item.sourceDesignId,
-                    sourceDesignName: item.sourceDesignName,
-                });
-            } catch (err) {
-                console.error(`Batch item failed:`, err);
-                results.push({
-                    id: uuidv4(),
-                    imageUrl: '',
-                    templateId: item.templateId,
-                    variationId: item.variationId,
-                    templateName: item.templateName,
-                    variationName: item.variationName,
-                    sourceDesignId: item.sourceDesignId,
-                    sourceDesignName: item.sourceDesignName,
-                    error: err instanceof Error ? err.message : 'Failed',
-                });
-            }
-        }
-
-        return NextResponse.json({
-            results,
+        return new Response(stream, {
+            headers: {
+                'Content-Type': 'text/event-stream',
+                'Cache-Control': 'no-cache',
+                'Connection': 'keep-alive',
+            },
         });
     } catch (error) {
         console.error('Batch error:', error);
