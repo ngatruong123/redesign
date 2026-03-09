@@ -190,7 +190,8 @@ export async function POST(request: NextRequest) {
                             return errorResult;
                         }
                     },
-                    3, // concurrency limit
+                    // Lower concurrency for large batches to avoid OOM (each mockup uses ~2 large canvases)
+                    items.length > 20 ? 1 : 2,
                 );
 
                 controller.enqueue(encoder.encode('data: [DONE]\n\n'));
