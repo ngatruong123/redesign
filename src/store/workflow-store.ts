@@ -203,33 +203,31 @@ export const useWorkflowStore = create<WorkflowState>()(
                 }
 
                 // Validate persisted image URLs still exist on server
-                if (typeof window !== 'undefined') {
-                    const urlToCheck =
-                        state.sourceDesigns[0]?.url ||
-                        state.variations.find((v) => v.imageUrl)?.imageUrl ||
-                        state.generatedMockups.find((m) => m.imageUrl)?.imageUrl;
+                // Wait for server load to complete first, and only clear on definitive 404 (not network errors)
+                if (typeof window !== 'undefined' && pendingLoads.length > 0) {
+                    Promise.all(pendingLoads).then(() => {
+                        const currentState = useWorkflowStore.getState();
+                        const urlToCheck =
+                            currentState.sourceDesigns[0]?.url ||
+                            currentState.variations.find((v) => v.imageUrl)?.imageUrl;
 
-                    if (urlToCheck) {
-                        fetch(urlToCheck, { method: 'HEAD' })
-                            .then((res) => {
-                                if (!res.ok) {
-                                    useWorkflowStore.setState({
-                                        currentStep: 'upload',
-                                        sourceDesigns: [],
-                                        variations: [],
-                                        generatedMockups: [],
-                                    });
-                                }
-                            })
-                            .catch(() => {
-                                useWorkflowStore.setState({
-                                    currentStep: 'upload',
-                                    sourceDesigns: [],
-                                    variations: [],
-                                    generatedMockups: [],
+                        if (urlToCheck) {
+                            fetch(urlToCheck, { method: 'HEAD' })
+                                .then((res) => {
+                                    if (res.status === 404) {
+                                        useWorkflowStore.setState({
+                                            currentStep: 'upload',
+                                            sourceDesigns: [],
+                                            variations: [],
+                                            generatedMockups: [],
+                                        });
+                                    }
+                                })
+                                .catch(() => {
+                                    // Network error — don't clear data, might be transient
                                 });
-                            });
-                    }
+                        }
+                    });
                 }
             },
         }

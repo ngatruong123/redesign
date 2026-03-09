@@ -81,6 +81,7 @@ export default function BatchPreviewModal({
         if (v.sourceDesignId) return v.sourceDesignId;
         const idx = v.id.lastIndexOf('_');
         if (idx > 0) return v.id.slice(0, idx);
+        if (sourceDesigns.length === 1) return sourceDesigns[0].id;
         return '__unknown__';
     };
 

@@ -218,6 +218,10 @@ export function useMockupGeneration() {
 
         setIsRegeneratingSingle(true);
 
+        // Preserve sourceDesign info from the original mockup
+        const sourceDesignId = mockup.sourceDesignId || variation.sourceDesignId;
+        const sourceDesignName = mockup.sourceDesignName || variation.sourceDesignName;
+
         const item: Record<string, unknown> = {
             mockupImagePath: template.imageUrl,
             designImagePath: variation.imageUrl,
@@ -225,6 +229,8 @@ export function useMockupGeneration() {
             variationId: variation.id,
             templateName: template.name,
             variationName: variation.styleName,
+            sourceDesignId,
+            sourceDesignName,
         };
 
         if (template.designOverlay && template.designOverlay.variationId === variation.id) {
@@ -258,7 +264,7 @@ export function useMockupGeneration() {
             if (newMockup) {
                 const currentMockups = useWorkflowStore.getState().generatedMockups;
                 const updated = currentMockups.map(m =>
-                    m.id === editingMockupId ? { ...newMockup, id: editingMockupId } : m
+                    m.id === editingMockupId ? { ...newMockup, id: editingMockupId, sourceDesignId, sourceDesignName } : m
                 );
                 setGeneratedMockups(updated);
                 addToast('success', 'Đã tạo lại mockup!');
