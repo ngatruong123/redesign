@@ -254,19 +254,8 @@ export default function GeneratedMockupsGrid({
         </div>
     );
 
-    // DEBUG — visible on page, remove after fixing
-    const _dbg = generatedMockups.length > 0 ? (() => {
-        const sample = generatedMockups.slice(0, 2);
-        const varSample = sample.map(m => {
-            const v = variations.find(v => v.id === m.variationId);
-            return `m.srcId=${m.sourceDesignId?.slice(0,8)||'NONE'} m.srcName=${m.sourceDesignName||'NONE'} v.srcDesId=${v?.sourceDesignId?.slice(0,8)||'NONE'} v.srcName=${v?.sourceDesignName||'NONE'}`;
-        });
-        return `groups=${groups.length} designs=${sourceDesigns.length}\n${varSample.join('\n')}\ngrpNames=[${groups.map(g=>`${g.sourceDesignName}(${g.mockups.length})`).join(', ')}]`;
-    })() : '';
-
     return (
         <div className="generated-mockups-section">
-            {_dbg && <pre style={{fontSize:11,color:'#0f0',background:'#111',padding:8,margin:8,whiteSpace:'pre-wrap',border:'1px solid #0f0'}}>{_dbg}</pre>}
             <div className="generated-header">
                 <h3 style={{ display: 'flex', alignItems: 'center', gap: 6 }}>{Icons.image} Mockups ({generatedMockups.length})</h3>
                 <div className="generated-header-actions">
