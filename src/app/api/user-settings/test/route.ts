@@ -6,14 +6,19 @@ import { decrypt } from '@/lib/crypto';
 async function getKeyFromDb(settingKey: string): Promise<string | null> {
     try {
         const username = await getAuthUsername();
+        console.log(`[test] getKeyFromDb(${settingKey}): username=${username}`);
         if (!username) return null;
         const user = await prisma.user.findUnique({ where: { username }, select: { id: true } });
+        console.log(`[test] getKeyFromDb(${settingKey}): userId=${user?.id}`);
         if (!user) return null;
         const setting = await prisma.userSetting.findUnique({
             where: { userId_key: { userId: user.id, key: settingKey } },
         });
+        console.log(`[test] getKeyFromDb(${settingKey}): setting found=${!!setting}, valueLen=${setting?.value?.length}`);
         if (!setting) return null;
-        return decrypt(setting.value);
+        const decrypted = decrypt(setting.value);
+        console.log(`[test] getKeyFromDb(${settingKey}): decrypted OK, len=${decrypted.length}`);
+        return decrypted;
     } catch (err) {
         console.error(`[test] getKeyFromDb(${settingKey}) failed:`, err instanceof Error ? err.message : err);
         return null;
