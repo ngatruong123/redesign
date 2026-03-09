@@ -163,6 +163,10 @@ export function useMockupGeneration() {
 
         if (items.length === 0) return;
 
+        console.log('[generateMockups] items:', items.length,
+            'sample srcId:', items[0]?.sourceDesignId, 'srcName:', items[0]?.sourceDesignName,
+            'designs:', useWorkflowStore.getState().sourceDesigns.length);
+
         try {
             const res = await fetch('/api/mockup/batch', {
                 method: 'POST',
@@ -179,6 +183,7 @@ export function useMockupGeneration() {
                 const item = itemsByKey.get(key);
                 return item ? { ...r, sourceDesignId: item.sourceDesignId, sourceDesignName: item.sourceDesignName } : r;
             });
+            console.log('[generateMockups] enriched sample srcId:', enriched[0]?.sourceDesignId, 'srcName:', enriched[0]?.sourceDesignName);
             setGeneratedMockups(enriched);
             addToast('success', `Đã tạo ${data.results.length} mockup!`);
         } catch (err) {

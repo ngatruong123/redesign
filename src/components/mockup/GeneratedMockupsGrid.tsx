@@ -63,9 +63,11 @@ export default function GeneratedMockupsGrid({
 
     const variations = useWorkflowStore((s) => s.variations);
 
-    // Resolve designId from mockup or variation ID
-    const resolveDesignId = useCallback((m: GeneratedMockup) => {
+    // Resolve a grouping key from mockup — prefers sourceDesignId, falls back to sourceDesignName
+    const resolveGroupKey = useCallback((m: GeneratedMockup): string => {
+        // 1. Direct sourceDesignId on the mockup
         if (m.sourceDesignId) return m.sourceDesignId;
+        // 2. Lookup via variation
         const varId = m.variationId;
         if (varId) {
             const v = variations.find(v => v.id === varId);
@@ -73,35 +75,41 @@ export default function GeneratedMockupsGrid({
             // Parse from variation ID format "{designId}_{styleId}"
             const idx = varId.lastIndexOf('_');
             if (idx > 0) return varId.slice(0, idx);
-            // Match via sourceDesigns by checking other variations with same styleId
+            // Match via sibling variations with same styleId
             if (v) {
-                const allVars = variations.filter(ov => ov.sourceDesignId && ov.styleId === v.styleId);
-                if (allVars.length > 0) return allVars[0].sourceDesignId;
+                const sibling = variations.find(ov => ov.sourceDesignId && ov.styleId === v.styleId);
+                if (sibling?.sourceDesignId) return sibling.sourceDesignId;
             }
         }
-        // Single design fallback
+        // 3. Use sourceDesignName as grouping key (name-based grouping)
+        if (m.sourceDesignName) return `name:${m.sourceDesignName}`;
+        // 4. Single design fallback
         if (sourceDesigns.length === 1) return sourceDesigns[0].id;
-        return undefined;
+        return '__unknown__';
     }, [variations, sourceDesigns]);
 
     const groups = useMemo<MockupGroup[]>(() => {
         const map = new Map<string, MockupGroup>();
         for (const m of generatedMockups) {
-            const designId = resolveDesignId(m);
-            const key = designId || '__unknown__';
+            const key = resolveGroupKey(m);
             if (!map.has(key)) {
-                const sd = sourceDesigns.find(d => d.id === designId);
+                const isNameKey = key.startsWith('name:');
+                const displayId = isNameKey ? key.slice(5) : key;
+                const sd = isNameKey ? undefined : sourceDesigns.find(d => d.id === key);
                 map.set(key, {
                     sourceDesignId: key,
-                    sourceDesignName: m.sourceDesignName || sd?.name || key.slice(0, 8),
+                    sourceDesignName: m.sourceDesignName || sd?.name || displayId.slice(0, 8),
                     sourceDesignUrl: sd?.url,
                     mockups: [],
                 });
             }
             map.get(key)!.mockups.push(m);
         }
-        return Array.from(map.values());
-    }, [generatedMockups, sourceDesigns, resolveDesignId]);
+        const result = Array.from(map.values());
+        console.log('[MockupsGrid] groups:', result.length, 'keys:', Array.from(map.keys()),
+            'first mockup srcId:', generatedMockups[0]?.sourceDesignId, 'srcName:', generatedMockups[0]?.sourceDesignName);
+        return result;
+    }, [generatedMockups, sourceDesigns, resolveGroupKey]);
 
     const isMultiDesign = groups.length > 1;
 
@@ -145,7 +153,7 @@ export default function GeneratedMockupsGrid({
             let failed = 0;
 
             // Check if multiple source designs
-            const designIds = new Set(toDownload.map(m => resolveDesignId(m)).filter(Boolean));
+            const designIds = new Set(toDownload.map(m => resolveGroupKey(m)).filter(Boolean));
             const useFolder = designIds.size > 1;
 
             for (const mockup of toDownload) {
@@ -161,7 +169,7 @@ export default function GeneratedMockupsGrid({
                     if (blob.size === 0) { failed++; continue; }
                     const filename = makeSafeFilename(mockup.templateName, mockup.variationName).replace('.png', `_${mockup.id.slice(0, 8)}.png`);
                     if (useFolder) {
-                        const dId = resolveDesignId(mockup);
+                        const dId = resolveGroupKey(mockup);
                         const group = groups.find(g => g.sourceDesignId === dId);
                         const folderName = (mockup.sourceDesignName || group?.sourceDesignName || 'Unknown').replace(/[^a-zA-Z0-9._-\s]/g, '_').trim();
                         zip.file(`${folderName}/${filename}`, blob);
