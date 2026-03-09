@@ -209,12 +209,12 @@ export function useMockupGeneration() {
                 throw new Error(data.error);
             }
 
-            // SSE streaming response - read results as they arrive
+            // SSE streaming - collect all results then update state once
             const itemsByKey = new Map(items.map(it => [`${it.templateId}__${it.variationId}`, it]));
             const reader = res.body!.getReader();
             const decoder = new TextDecoder();
             let buffer = '';
-            let count = 0;
+            const allResults: GeneratedMockup[] = [];
 
             while (true) {
                 const { done, value } = await reader.read();
@@ -231,7 +231,6 @@ export function useMockupGeneration() {
 
                     try {
                         const r = JSON.parse(payload) as GeneratedMockup;
-                        // Enrich with sourceDesign info
                         if (!r.sourceDesignId) {
                             const key = `${r.templateId}__${r.variationId}`;
                             const item = itemsByKey.get(key);
@@ -240,14 +239,13 @@ export function useMockupGeneration() {
                                 r.sourceDesignName = item.sourceDesignName as string;
                             }
                         }
-                        count++;
-                        const current = useWorkflowStore.getState().generatedMockups;
-                        setGeneratedMockups([...current, r]);
+                        allResults.push(r);
                     } catch { /* skip malformed */ }
                 }
             }
 
-            addToast('success', `Đã tạo ${count} mockup!`);
+            setGeneratedMockups(allResults);
+            addToast('success', `Đã tạo ${allResults.length} mockup!`);
         } catch (err) {
             const msg = err instanceof Error ? err.message : 'Tạo mockup thất bại';
             setError(msg);
