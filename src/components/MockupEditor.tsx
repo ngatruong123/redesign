@@ -294,6 +294,7 @@ export default function MockupEditor() {
                     id: crypto.randomUUID(), styleId: 'custom', styleName: file.name.replace(/\.[^.]+$/, ''),
                     imageUrl: data.url, selected: true, loading: false,
                     sourceDesignId: sourceDesigns.length === 1 ? sourceDesigns[0].id : undefined,
+                    sourceDesignName: sourceDesigns.length === 1 ? sourceDesigns[0].name : undefined,
                 };
                 setVariations([...variations, newVariation]);
                 createOverlayFromVariation(newVariation.id, data.url);

@@ -47,6 +47,7 @@ export default function VariationsPanel({
                 selected: true,
                 loading: false,
                 sourceDesignId: designs.length === 1 ? designs[0].id : undefined,
+                sourceDesignName: designs.length === 1 ? designs[0].name : undefined,
             } satisfies GeneratedVariation;
         });
 

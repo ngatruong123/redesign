@@ -259,9 +259,9 @@ export default function GeneratedMockupsGrid({
         const sample = generatedMockups.slice(0, 2);
         const varSample = sample.map(m => {
             const v = variations.find(v => v.id === m.variationId);
-            return `m.srcId=${m.sourceDesignId?.slice(0,8)||'NONE'} m.varId=${m.variationId?.slice(0,8)||'?'} v.srcDesId=${v?.sourceDesignId?.slice(0,8)||'NONE'} v.id=${v?.id?.slice(0,12)||'?'}`;
+            return `m.srcId=${m.sourceDesignId?.slice(0,8)||'NONE'} m.srcName=${m.sourceDesignName||'NONE'} v.srcDesId=${v?.sourceDesignId?.slice(0,8)||'NONE'} v.srcName=${v?.sourceDesignName||'NONE'}`;
         });
-        return `groups=${groups.length} designs=${sourceDesigns.length} desIds=[${sourceDesigns.map(d=>d.id.slice(0,8)).join(',')}]\n${varSample.join('\n')}`;
+        return `groups=${groups.length} designs=${sourceDesigns.length}\n${varSample.join('\n')}\ngrpNames=[${groups.map(g=>`${g.sourceDesignName}(${g.mockups.length})`).join(', ')}]`;
     })() : '';
 
     return (

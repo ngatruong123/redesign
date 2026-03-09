@@ -57,6 +57,7 @@ export function useVariationGeneration() {
                 selected: false,
                 loading: true,
                 sourceDesignId: design.id,
+                sourceDesignName: design.name,
             }))
         );
         setVariations(placeholders);
@@ -106,10 +107,12 @@ export function useVariationGeneration() {
                         doneCount++;
                         setStreamProgress({ done: doneCount, total: totalCount });
                         const compositeId = `${variation.sourceDesignId}_${variation.styleId}`;
+                        const srcDesign = sourceDesigns.find(d => d.id === variation.sourceDesignId);
                         updateVariation(compositeId, {
                             imageUrl: variation.imageUrl,
                             loading: false,
                             sourceDesignId: variation.sourceDesignId,
+                            sourceDesignName: srcDesign?.name || variation.sourceDesignId?.slice(0, 8),
                         });
                     } catch {
                         // skip malformed SSE

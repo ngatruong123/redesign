@@ -22,6 +22,7 @@ export interface GeneratedVariation {
     selected: boolean;
     loading: boolean;
     sourceDesignId?: string;
+    sourceDesignName?: string;
 }
 
 export interface DesignOverlayState {
