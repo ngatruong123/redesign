@@ -41,7 +41,7 @@ export default function VariationsPanel({
             if (!res.ok) throw new Error(data.error);
             return {
                 id: uuidv4(),
-                styleId: 'custom',
+                styleId: 'uploaded-design',
                 styleName: file.name.replace(/\.[^.]+$/, ''),
                 imageUrl: data.url,
                 selected: true,

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createAIProvider } from '@/lib/ai-provider';
+import { createAIProvider, type AIImageOptions } from '@/lib/ai-provider';
 import { DEFAULT_STYLE_PRESETS, buildVariationPrompt } from '@/lib/prompt-engine';
 import { v4 as uuidv4 } from 'uuid';
 import { storeFile, resolveToBuffer } from '@/lib/blob-storage';
@@ -25,6 +25,10 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: parsed.error.issues[0]?.message || 'Invalid input' }, { status: 400 });
         }
         const { sourceImageUrl, sourceImageUrls, styles, additionalPrompt, imageSize, aspectRatio } = parsed.data;
+        const bodyProvider = body.provider as string | undefined;
+        const renderingSpeed = body.renderingSpeed as string | undefined;
+        const styleType = body.styleType as string | undefined;
+        const imageWeight = body.imageWeight as number | undefined;
 
         // Normalize to array: [{id, url}]
         let sources: { id: string; url: string }[];
@@ -41,8 +45,15 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Too many source images (max 10)' }, { status: 400 });
         }
 
-        const userApiKey = await getUserApiKey('gemini_api_key') ?? undefined;
-        const provider = createAIProvider(process.env.AI_PROVIDER || 'mock', userApiKey);
+        // Provider priority: request body > user DB setting > env
+        const userProvider = await getUserApiKey('ai_provider').catch(() => null);
+        const providerName = bodyProvider || userProvider || process.env.AI_PROVIDER || 'mock';
+        const apiKeyName = providerName.startsWith('ideogram') ? 'ideogram_api_key' : 'gemini_api_key';
+        const dbApiKey = await getUserApiKey(apiKeyName).catch(() => null);
+        const envKey = providerName.startsWith('ideogram') ? process.env.IDEOGRAM_API_KEY : process.env.GEMINI_API_KEY;
+        const finalApiKey = dbApiKey || envKey || undefined;
+        console.log(`[generate-stream] provider=${providerName}, hasDbKey=${!!dbApiKey}, hasEnvKey=${!!envKey}, finalKeyLen=${finalApiKey?.length || 0}`);
+        const provider = createAIProvider(providerName, finalApiKey);
 
         // Pre-fetch all source images
         const sourceBuffers = new Map<string, string>();
@@ -87,6 +98,9 @@ export async function POST(request: NextRequest) {
                             const resultBase64 = await provider.generateVariation(sourceBase64, prompt, {
                                 imageSize: imageSize || '2K',
                                 aspectRatio: aspectRatio || '1:1',
+                                renderingSpeed: renderingSpeed as AIImageOptions['renderingSpeed'],
+                                styleType: styleType as AIImageOptions['styleType'],
+                                imageWeight,
                             });
 
                             const isSvg = resultBase64.startsWith('PHN2Zy');

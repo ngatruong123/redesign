@@ -19,7 +19,12 @@ export async function getUserApiKey(settingKey: string = 'gemini_api_key'): Prom
         });
         if (!setting) return null;
 
-        return decrypt(setting.value);
+        // Non-sensitive keys (like ai_provider) are stored as plain text
+        const SENSITIVE_KEYS = ['gemini_api_key', 'ideogram_api_key'];
+        if (SENSITIVE_KEYS.includes(settingKey)) {
+            return decrypt(setting.value);
+        }
+        return setting.value;
     } catch (err) {
         console.warn(`[getUserApiKey] Failed to get ${settingKey}:`, err);
         return null;

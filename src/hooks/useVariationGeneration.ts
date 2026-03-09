@@ -20,6 +20,11 @@ export function useVariationGeneration() {
     const [streamProgress, setStreamProgress] = useState<{ done: number; total: number } | null>(null);
     const [imageSize, setImageSize] = useState<'1K' | '2K' | '4K'>('2K');
     const [aspectRatio, setAspectRatio] = useState<'1:1' | '3:4' | '4:3' | '9:16' | '16:9'>('1:1');
+    // Ideogram-specific options
+    const [renderingSpeed, setRenderingSpeed] = useState<string>('TURBO');
+    const [styleType, setStyleType] = useState<string>('AUTO');
+    const [imageWeight, setImageWeight] = useState<number>(50);
+
     const [originalUrls, setOriginalUrls] = useState<Record<string, string>>({});
     const [bgRemoved, setBgRemoved] = useState<Set<string>>(new Set());
     const [bgProcessing, setBgProcessing] = useState<Set<string>>(new Set());
@@ -75,6 +80,10 @@ export function useVariationGeneration() {
                     additionalPrompt,
                     imageSize,
                     aspectRatio,
+                    provider: localStorage.getItem('ai_provider') || undefined,
+                    renderingSpeed,
+                    styleType,
+                    imageWeight,
                 }),
             });
 
@@ -151,6 +160,10 @@ export function useVariationGeneration() {
                     sourceImageUrls: [{ id: sourceDesign.id, url: sourceDesign.url }],
                     styles: [style],
                     additionalPrompt: style.id.startsWith('custom-') ? '' : additionalPrompt,
+                    provider: localStorage.getItem('ai_provider') || undefined,
+                    renderingSpeed,
+                    styleType,
+                    imageWeight,
                 }),
             });
 
@@ -238,6 +251,13 @@ export function useVariationGeneration() {
         setImageSize,
         aspectRatio,
         setAspectRatio,
+        // Ideogram-specific
+        renderingSpeed,
+        setRenderingSpeed,
+        styleType,
+        setStyleType,
+        imageWeight,
+        setImageWeight,
         // Generation
         streamProgress,
         handleGenerate,

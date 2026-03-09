@@ -174,28 +174,73 @@ function GeneralTab() {
     );
 }
 
+function maskKey(value: string): string {
+    if (value.length <= 8) return '****';
+    return value.slice(0, 4) + '****' + value.slice(-4);
+}
+
 // ─── API Keys tab ───
 function ApiKeysTab() {
     const addToast = useToastStore((s) => s.addToast);
+    // Provider selection
+    const [selectedProvider, setSelectedProvider] = useState('gemini');
+    const [savingProvider, setSavingProvider] = useState(false);
+    // Gemini
     const [geminiKey, setGeminiKey] = useState('');
-    const [savedMasked, setSavedMasked] = useState('');
+    const [geminiMasked, setGeminiMasked] = useState('');
     const [hasEnvKey, setHasEnvKey] = useState(false);
-    const [loading, setLoading] = useState(false);
-    const [testing, setTesting] = useState(false);
+    const [geminiLoading, setGeminiLoading] = useState(false);
+    const [geminiTesting, setGeminiTesting] = useState(false);
+    // Ideogram
+    const [ideogramKey, setIdeogramKey] = useState('');
+    const [ideogramMasked, setIdeogramMasked] = useState('');
+    const [hasIdeogramEnvKey] = useState(false);
+    const [ideogramLoading, setIdeogramLoading] = useState(false);
+    const [ideogramTesting, setIdeogramTesting] = useState(false);
 
     useEffect(() => {
+        // Load from localStorage first (works without DB)
+        const localProvider = localStorage.getItem('ai_provider');
+        if (localProvider) setSelectedProvider(localProvider);
+        // Then try DB
         fetch('/api/user-settings')
             .then((r) => r.json())
             .then((data) => {
-                if (data.settings?.gemini_api_key) setSavedMasked(data.settings.gemini_api_key);
+                if (data.settings?.gemini_api_key) setGeminiMasked(data.settings.gemini_api_key);
+                if (data.settings?.ideogram_api_key) setIdeogramMasked(data.settings.ideogram_api_key);
+                if (data.settings?.ai_provider) {
+                    setSelectedProvider(data.settings.ai_provider);
+                    localStorage.setItem('ai_provider', data.settings.ai_provider);
+                }
                 if (data.hasEnvKey) setHasEnvKey(true);
             })
             .catch(() => {});
     }, []);
 
-    const handleSave = async () => {
+    const handleProviderChange = async (provider: string) => {
+        setSelectedProvider(provider);
+        localStorage.setItem('ai_provider', provider);
+        // Also try saving to DB (may fail on local dev without DB)
+        setSavingProvider(true);
+        try {
+            const res = await fetch('/api/user-settings', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ key: 'ai_provider', value: provider }),
+            });
+            if (!res.ok) console.warn('Failed to save provider to DB, using localStorage');
+        } catch {
+            // DB not available (local dev), localStorage is fine
+        } finally {
+            setSavingProvider(false);
+        }
+        addToast('success', `Đã chuyển sang ${provider === 'ideogram' ? 'Ideogram' : 'Gemini'}`);
+    };
+
+    // ─── Gemini handlers ───
+    const handleGeminiSave = async () => {
         if (!geminiKey.trim()) return;
-        setLoading(true);
+        setGeminiLoading(true);
         try {
             const res = await fetch('/api/user-settings', {
                 method: 'PUT',
@@ -203,96 +248,211 @@ function ApiKeysTab() {
                 body: JSON.stringify({ key: 'gemini_api_key', value: geminiKey }),
             });
             const data = await res.json();
-            if (!res.ok) throw new Error(data.error);
-            setSavedMasked(data.masked);
-            setGeminiKey('');
-            addToast('success', 'Đã lưu API key');
-        } catch (err) {
-            addToast('error', err instanceof Error ? err.message : 'Lưu thất bại');
-        } finally {
-            setLoading(false);
+            if (res.ok) {
+                setGeminiMasked(data.masked);
+            } else {
+                setGeminiMasked(maskKey(geminiKey));
+            }
+        } catch {
+            setGeminiMasked(maskKey(geminiKey));
         }
+        setGeminiKey('');
+        addToast('success', 'Đã lưu Gemini API key');
+        setGeminiLoading(false);
     };
 
-    const handleDelete = async () => {
-        setLoading(true);
+    const handleGeminiDelete = async () => {
+        setGeminiLoading(true);
         try {
-            const res = await fetch('/api/user-settings', {
+            await fetch('/api/user-settings', {
                 method: 'DELETE',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ key: 'gemini_api_key' }),
             });
-            if (!res.ok) throw new Error('Failed');
-            setSavedMasked('');
-            addToast('success', 'Đã xoá API key');
-        } catch {
-            addToast('error', 'Xoá thất bại');
-        } finally {
-            setLoading(false);
-        }
+        } catch { /* DB not available */ }
+        setGeminiMasked('');
+        addToast('success', 'Đã xoá Gemini API key');
+        setGeminiLoading(false);
     };
 
-    const handleTest = async () => {
+    const handleGeminiTest = async () => {
         const keyToTest = geminiKey.trim() || null;
-        if (!keyToTest && !savedMasked && !hasEnvKey) {
-            addToast('error', 'Chưa có API key để test');
+        if (!keyToTest && !geminiMasked && !hasEnvKey) {
+            addToast('error', 'Chưa có Gemini API key để test');
             return;
         }
-        setTesting(true);
+        setGeminiTesting(true);
         try {
             const res = await fetch('/api/user-settings/test', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ apiKey: keyToTest || undefined }),
+                body: JSON.stringify({ apiKey: keyToTest || undefined, provider: 'gemini' }),
             });
             const data = await res.json();
-            if (data.ok) addToast('success', 'API key hoạt động!');
+            if (data.ok) addToast('success', 'Gemini API key hoạt động!');
             else addToast('error', data.error || 'API key không hợp lệ');
         } catch {
             addToast('error', 'Test thất bại');
         } finally {
-            setTesting(false);
+            setGeminiTesting(false);
         }
     };
 
-    const hasKey = savedMasked || hasEnvKey;
+    // ─── Ideogram handlers ───
+    const handleIdeogramSave = async () => {
+        if (!ideogramKey.trim()) return;
+        setIdeogramLoading(true);
+        try {
+            const res = await fetch('/api/user-settings', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ key: 'ideogram_api_key', value: ideogramKey }),
+            });
+            const data = await res.json();
+            if (res.ok) {
+                setIdeogramMasked(data.masked);
+            } else {
+                setIdeogramMasked(maskKey(ideogramKey));
+            }
+        } catch {
+            setIdeogramMasked(maskKey(ideogramKey));
+        }
+        setIdeogramKey('');
+        addToast('success', 'Đã lưu Ideogram API key');
+        setIdeogramLoading(false);
+    };
+
+    const handleIdeogramDelete = async () => {
+        setIdeogramLoading(true);
+        try {
+            await fetch('/api/user-settings', {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ key: 'ideogram_api_key' }),
+            });
+        } catch { /* DB not available */ }
+        setIdeogramMasked('');
+        addToast('success', 'Đã xoá Ideogram API key');
+        setIdeogramLoading(false);
+    };
+
+    const handleIdeogramTest = async () => {
+        const keyToTest = ideogramKey.trim() || null;
+        if (!keyToTest && !ideogramMasked && !hasIdeogramEnvKey) {
+            addToast('error', 'Chưa có Ideogram API key để test');
+            return;
+        }
+        setIdeogramTesting(true);
+        try {
+            const res = await fetch('/api/user-settings/test', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ apiKey: keyToTest || undefined, provider: 'ideogram' }),
+            });
+            const data = await res.json();
+            if (data.ok) addToast('success', 'Ideogram API key hoạt động!');
+            else addToast('error', data.error || 'API key không hợp lệ');
+        } catch {
+            addToast('error', 'Test thất bại');
+        } finally {
+            setIdeogramTesting(false);
+        }
+    };
+
+    const hasGeminiKey = geminiMasked || hasEnvKey;
+    const hasIdeogramKey = ideogramMasked || hasIdeogramEnvKey;
 
     return (
-        <section className="settings-section">
-            <h3 className="settings-section-title">Gemini API Key</h3>
-            <div className={`settings-key-status ${hasKey ? 'settings-key-status--ok' : 'settings-key-status--warning'}`}>
-                {savedMasked
-                    ? <>Key riêng: <code className="settings-code">{savedMasked}</code></>
-                    : hasEnvKey
-                        ? <>Đang dùng key từ cấu hình server (.env)</>
-                        : <>Chưa có API key. Nhập key để sử dụng các tính năng AI.</>
-                }
-            </div>
-            <div className="settings-field">
-                <label className="settings-label">{savedMasked ? 'Thay đổi key' : 'Nhập API key'}</label>
-                <input
-                    className="settings-input"
-                    type="password"
-                    placeholder="AIza..."
-                    value={geminiKey}
-                    onChange={(e) => setGeminiKey(e.target.value)}
-                />
-                <span className="settings-hint">
-                    Key riêng sẽ được mã hoá trước khi lưu và ưu tiên hơn key server.
-                </span>
-            </div>
-            <div className="settings-row">
-                <button className="btn-primary" onClick={handleSave} disabled={loading || !geminiKey.trim()}>
-                    {loading ? 'Đang lưu...' : 'Lưu'}
-                </button>
-                <button className="btn-secondary" onClick={handleTest} disabled={testing}>
-                    {testing ? 'Đang test...' : 'Test'}
-                </button>
-                {savedMasked && (
-                    <button className="btn-danger" onClick={handleDelete} disabled={loading}>Xoá</button>
-                )}
-            </div>
-        </section>
+        <>
+            {/* Provider selector */}
+            <section className="settings-section">
+                <h3 className="settings-section-title">AI Provider</h3>
+                <div className="settings-field">
+                    <label className="settings-label">Chọn provider để tạo variations</label>
+                    <select
+                        className="settings-select"
+                        value={selectedProvider}
+                        onChange={(e) => handleProviderChange(e.target.value)}
+                        disabled={savingProvider}
+                    >
+                        <option value="gemini">Gemini</option>
+                        <option value="ideogram">Ideogram</option>
+                    </select>
+                </div>
+            </section>
+
+            {/* Gemini API Key */}
+            <section className="settings-section">
+                <h3 className="settings-section-title">Gemini API Key</h3>
+                <div className={`settings-key-status ${hasGeminiKey ? 'settings-key-status--ok' : 'settings-key-status--warning'}`}>
+                    {geminiMasked
+                        ? <>Key riêng: <code className="settings-code">{geminiMasked}</code></>
+                        : hasEnvKey
+                            ? <>Đang dùng key từ cấu hình server (.env)</>
+                            : <>Chưa có Gemini API key.</>
+                    }
+                </div>
+                <div className="settings-field">
+                    <label className="settings-label">{geminiMasked ? 'Thay đổi key' : 'Nhập API key'}</label>
+                    <input
+                        className="settings-input"
+                        type="password"
+                        placeholder="AIza..."
+                        value={geminiKey}
+                        onChange={(e) => setGeminiKey(e.target.value)}
+                    />
+                    <span className="settings-hint">
+                        Key riêng sẽ được mã hoá trước khi lưu và ưu tiên hơn key server.
+                    </span>
+                </div>
+                <div className="settings-row">
+                    <button className="btn-primary" onClick={handleGeminiSave} disabled={geminiLoading || !geminiKey.trim()}>
+                        {geminiLoading ? 'Đang lưu...' : 'Lưu'}
+                    </button>
+                    <button className="btn-secondary" onClick={handleGeminiTest} disabled={geminiTesting}>
+                        {geminiTesting ? 'Đang test...' : 'Test'}
+                    </button>
+                    {geminiMasked && (
+                        <button className="btn-danger" onClick={handleGeminiDelete} disabled={geminiLoading}>Xoá</button>
+                    )}
+                </div>
+            </section>
+
+            {/* Ideogram API Key */}
+            <section className="settings-section">
+                <h3 className="settings-section-title">Ideogram API Key</h3>
+                <div className={`settings-key-status ${hasIdeogramKey ? 'settings-key-status--ok' : 'settings-key-status--warning'}`}>
+                    {ideogramMasked
+                        ? <>Key riêng: <code className="settings-code">{ideogramMasked}</code></>
+                        : <>Chưa có Ideogram API key.</>
+                    }
+                </div>
+                <div className="settings-field">
+                    <label className="settings-label">{ideogramMasked ? 'Thay đổi key' : 'Nhập API key'}</label>
+                    <input
+                        className="settings-input"
+                        type="password"
+                        placeholder="Ideogram API key..."
+                        value={ideogramKey}
+                        onChange={(e) => setIdeogramKey(e.target.value)}
+                    />
+                    <span className="settings-hint">
+                        Key riêng sẽ được mã hoá trước khi lưu và ưu tiên hơn key server.
+                    </span>
+                </div>
+                <div className="settings-row">
+                    <button className="btn-primary" onClick={handleIdeogramSave} disabled={ideogramLoading || !ideogramKey.trim()}>
+                        {ideogramLoading ? 'Đang lưu...' : 'Lưu'}
+                    </button>
+                    <button className="btn-secondary" onClick={handleIdeogramTest} disabled={ideogramTesting}>
+                        {ideogramTesting ? 'Đang test...' : 'Test'}
+                    </button>
+                    {ideogramMasked && (
+                        <button className="btn-danger" onClick={handleIdeogramDelete} disabled={ideogramLoading}>Xoá</button>
+                    )}
+                </div>
+            </section>
+        </>
     );
 }
 

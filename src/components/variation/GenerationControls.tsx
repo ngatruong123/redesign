@@ -13,6 +13,14 @@ interface GenerationControlsProps {
     onImageSizeChange: (size: '1K' | '2K' | '4K') => void;
     aspectRatio: '1:1' | '3:4' | '4:3' | '9:16' | '16:9';
     onAspectRatioChange: (ratio: '1:1' | '3:4' | '4:3' | '9:16' | '16:9') => void;
+    // Ideogram-specific
+    provider?: string;
+    renderingSpeed?: string;
+    onRenderingSpeedChange?: (speed: string) => void;
+    styleType?: string;
+    onStyleTypeChange?: (style: string) => void;
+    imageWeight?: number;
+    onImageWeightChange?: (weight: number) => void;
 }
 
 export default function GenerationControls({
@@ -26,8 +34,16 @@ export default function GenerationControls({
     onImageSizeChange,
     aspectRatio,
     onAspectRatioChange,
+    provider,
+    renderingSpeed,
+    onRenderingSpeedChange,
+    styleType,
+    onStyleTypeChange,
+    imageWeight,
+    onImageWeightChange,
 }: GenerationControlsProps) {
     const [showAdvanced, setShowAdvanced] = useState(false);
+    const isIdeogram = provider === 'ideogram';
 
     return (
         <div className="prompt-section">
@@ -80,14 +96,19 @@ export default function GenerationControls({
 
             {showAdvanced && (
                 <div className="ai-options-grid" style={{ marginTop: 8 }}>
-                    <div className="ai-option-group">
-                        <label>Độ phân giải</label>
-                        <div className="ai-option-chips">
-                            {([['1K', '1K'], ['2K', '2K'], ['4K', '4K']] as const).map(([val, label]) => (
-                                <button key={val} className={`ai-chip ${imageSize === val ? 'active' : ''}`} onClick={() => onImageSizeChange(val)}>{label}</button>
-                            ))}
+                    {/* Gemini: image size */}
+                    {!isIdeogram && (
+                        <div className="ai-option-group">
+                            <label>Độ phân giải</label>
+                            <div className="ai-option-chips">
+                                {([['1K', '1K'], ['2K', '2K'], ['4K', '4K']] as const).map(([val, label]) => (
+                                    <button key={val} className={`ai-chip ${imageSize === val ? 'active' : ''}`} onClick={() => onImageSizeChange(val)}>{label}</button>
+                                ))}
+                            </div>
                         </div>
-                    </div>
+                    )}
+
+                    {/* Common: aspect ratio */}
                     <div className="ai-option-group">
                         <label>Tỷ lệ khung hình</label>
                         <div className="ai-option-chips">
@@ -96,6 +117,50 @@ export default function GenerationControls({
                             ))}
                         </div>
                     </div>
+
+                    {/* Ideogram: rendering speed */}
+                    {isIdeogram && onRenderingSpeedChange && (
+                        <div className="ai-option-group">
+                            <label>Tốc độ render</label>
+                            <div className="ai-option-chips">
+                                {(['FLASH', 'TURBO', 'DEFAULT', 'QUALITY'] as const).map((val) => (
+                                    <button key={val} className={`ai-chip ${renderingSpeed === val ? 'active' : ''}`} onClick={() => onRenderingSpeedChange(val)}>{val}</button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Ideogram: style type */}
+                    {isIdeogram && onStyleTypeChange && (
+                        <div className="ai-option-group">
+                            <label>Phong cách</label>
+                            <div className="ai-option-chips">
+                                {([['AUTO', 'Auto'], ['GENERAL', 'General'], ['REALISTIC', 'Realistic'], ['DESIGN', 'Design'], ['FICTION', 'Fiction'], ['ANIME', 'Anime']] as const).map(([val, label]) => (
+                                    <button key={val} className={`ai-chip ${styleType === val ? 'active' : ''}`} onClick={() => onStyleTypeChange(val)}>{label}</button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Ideogram: image weight */}
+                    {isIdeogram && onImageWeightChange && (
+                        <div className="ai-option-group">
+                            <label>Độ giữ ảnh gốc: {imageWeight ?? 50}%</label>
+                            <input
+                                type="range"
+                                min={0}
+                                max={100}
+                                step={5}
+                                value={imageWeight ?? 50}
+                                onChange={(e) => onImageWeightChange(Number(e.target.value))}
+                                style={{ width: '100%' }}
+                            />
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', opacity: 0.6 }}>
+                                <span>Sáng tạo hơn</span>
+                                <span>Giữ nguyên hơn</span>
+                            </div>
+                        </div>
+                    )}
                 </div>
             )}
         </div>

@@ -19,9 +19,15 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'variations[] is required' }, { status: 400 });
     }
 
-    const userApiKey = await getUserApiKey('gemini_api_key') ?? undefined;
-    const providerName = process.env.AI_PROVIDER || 'mock';
-    const provider = createAIProvider(providerName, userApiKey);
+    // Provider priority: request body > user DB setting > env
+    const bodyProvider = body.provider as string | undefined;
+    const userProvider = await getUserApiKey('ai_provider').catch(() => null);
+    const providerName = bodyProvider || userProvider || process.env.AI_PROVIDER || 'mock';
+    const apiKeyName = providerName.startsWith('ideogram') ? 'ideogram_api_key' : 'gemini_api_key';
+    const dbApiKey = await getUserApiKey(apiKeyName).catch(() => null);
+    const envKey = providerName.startsWith('ideogram') ? process.env.IDEOGRAM_API_KEY : process.env.GEMINI_API_KEY;
+    const finalApiKey = dbApiKey || envKey || undefined;
+    const provider = createAIProvider(providerName, finalApiKey);
 
     const results = [];
 

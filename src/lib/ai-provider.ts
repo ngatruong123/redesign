@@ -1,6 +1,10 @@
 export interface AIImageOptions {
     imageSize?: '512px' | '1K' | '2K' | '4K';
     aspectRatio?: '1:1' | '1:4' | '2:3' | '3:2' | '3:4' | '4:3' | '4:5' | '5:4' | '9:16' | '16:9' | '21:9';
+    // Ideogram-specific
+    renderingSpeed?: 'FLASH' | 'TURBO' | 'DEFAULT' | 'QUALITY';
+    styleType?: 'AUTO' | 'GENERAL' | 'REALISTIC' | 'DESIGN' | 'FICTION' | 'ANIME';
+    imageWeight?: number; // 0-100
 }
 
 export interface AIProvider {
@@ -54,6 +58,8 @@ function createSingleProvider(provider: string, apiKey?: string): AIProvider {
             return new GeminiProvider(apiKey);
         case 'banana-pro':
             return new GeminiProvider(apiKey);
+        case 'ideogram':
+            return new IdeogramProvider(apiKey);
         case 'mock':
             return new MockProvider();
         default:
@@ -218,6 +224,80 @@ class GeminiProvider implements AIProvider {
         }
 
         throw new Error('No image data found in Gemini response');
+    }
+}
+
+/**
+ * Ideogram V3 image generation via Remix API.
+ * POST https://api.ideogram.ai/v1/ideogram-v3/remix (multipart/form-data)
+ */
+class IdeogramProvider implements AIProvider {
+    private apiKey: string;
+
+    constructor(apiKey?: string) {
+        this.apiKey = apiKey || process.env.IDEOGRAM_API_KEY || '';
+    }
+
+    private mapAspectRatio(ratio?: string): string {
+        if (!ratio) return '1x1';
+        // Convert "1:1" → "1x1", "16:9" → "16x9", etc.
+        return ratio.replace(':', 'x');
+    }
+
+    private async callRemixApi(imageBase64: string, prompt: string, options?: AIImageOptions): Promise<string> {
+        if (!this.apiKey) {
+            throw new Error('IDEOGRAM_API_KEY is not set. Add it in Settings or .env.local');
+        }
+
+        const imageBuffer = Buffer.from(imageBase64, 'base64');
+        const blob = new Blob([imageBuffer], { type: 'image/png' });
+
+        const formData = new FormData();
+        formData.append('image', blob, 'input.png');
+        formData.append('prompt', prompt);
+        formData.append('image_weight', String(options?.imageWeight ?? 50));
+        formData.append('rendering_speed', options?.renderingSpeed || 'TURBO');
+        formData.append('style_type', options?.styleType || 'AUTO');
+        formData.append('aspect_ratio', this.mapAspectRatio(options?.aspectRatio));
+        formData.append('num_images', '1');
+        formData.append('magic_prompt', 'AUTO');
+
+        console.log(`[IdeogramProvider] Prompt (first 200 chars): ${prompt.slice(0, 200)}`);
+
+        const response = await fetch('https://api.ideogram.ai/v1/ideogram-v3/remix', {
+            method: 'POST',
+            headers: {
+                'Api-Key': this.apiKey,
+            },
+            body: formData,
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Ideogram API error (${response.status}): ${errorText}`);
+        }
+
+        const data = await response.json();
+        const imageUrl = data?.data?.[0]?.url;
+        if (!imageUrl) {
+            throw new Error('No image URL in Ideogram response');
+        }
+
+        // Fetch the generated image and convert to base64
+        const imgResponse = await fetch(imageUrl);
+        if (!imgResponse.ok) {
+            throw new Error('Failed to fetch generated image from Ideogram');
+        }
+        const imgBuffer = Buffer.from(await imgResponse.arrayBuffer());
+        return imgBuffer.toString('base64');
+    }
+
+    async generateVariation(sourceImageBase64: string, prompt: string, options?: AIImageOptions): Promise<string> {
+        return this.callRemixApi(sourceImageBase64, prompt, options);
+    }
+
+    async generateMockup(templateImageBase64: string, _designImageBase64: string, prompt: string, options?: AIImageOptions): Promise<string> {
+        return this.callRemixApi(templateImageBase64, prompt, options);
     }
 }
 

@@ -23,9 +23,14 @@ export default function VariationGrid() {
         selectedStyles, setSelectedStyles, toggleStyle,
         additionalPrompt, setAdditionalPrompt,
         imageSize, setImageSize, aspectRatio, setAspectRatio,
+        renderingSpeed, setRenderingSpeed,
+        styleType, setStyleType,
+        imageWeight, setImageWeight,
         streamProgress, handleGenerate, handleRegenerate,
         bgRemoved, bgProcessing, handleToggleBg,
     } = useVariationGeneration();
+
+    const currentProvider = typeof window !== 'undefined' ? localStorage.getItem('ai_provider') || 'gemini' : 'gemini';
 
     const [lightboxImage, setLightboxImage] = useState<{ url: string; alt: string } | null>(null);
     const [removeBgTarget, setRemoveBgTarget] = useState<{ id: string; imageUrl: string } | null>(null);
@@ -34,7 +39,9 @@ export default function VariationGrid() {
         setRemoveBgTarget({ id: variationId, imageUrl });
     }, []);
 
-    const selectedCount = variations.filter((v) => v.selected).length;
+    // Filter out non-variation entries (uploaded designs from mockup step, or entries without styleId)
+    const actualVariations = variations.filter((v) => v.styleId && v.styleId !== 'uploaded-design' && v.styleId !== 'custom');
+    const selectedCount = actualVariations.filter((v) => v.selected).length;
 
     return (
         <div className="variation-container">
@@ -69,10 +76,17 @@ export default function VariationGrid() {
                 onImageSizeChange={setImageSize}
                 aspectRatio={aspectRatio}
                 onAspectRatioChange={setAspectRatio}
+                provider={currentProvider}
+                renderingSpeed={renderingSpeed}
+                onRenderingSpeedChange={setRenderingSpeed}
+                styleType={styleType}
+                onStyleTypeChange={setStyleType}
+                imageWeight={imageWeight}
+                onImageWeightChange={setImageWeight}
             />
 
             {/* Variation grid */}
-            {variations.length > 0 && (
+            {actualVariations.length > 0 && (
                 <>
                     <div className="variation-header">
                         <div className="variation-header-left">
@@ -87,7 +101,7 @@ export default function VariationGrid() {
 
                     {/* Group variations by source design */}
                     {sourceDesigns.map((design) => {
-                        const group = variations.filter((v) => v.sourceDesignId === design.id);
+                        const group = actualVariations.filter((v) => v.sourceDesignId === design.id);
                         if (group.length === 0) return null;
                         return (
                             <div key={design.id} className="variation-group">
@@ -117,7 +131,7 @@ export default function VariationGrid() {
                     })}
                     {/* Fallback for variations without sourceDesignId */}
                     {(() => {
-                        const ungrouped = variations.filter((v) => !v.sourceDesignId || !sourceDesigns.find((d) => d.id === v.sourceDesignId));
+                        const ungrouped = actualVariations.filter((v) => !v.sourceDesignId || !sourceDesigns.find((d) => d.id === v.sourceDesignId));
                         if (ungrouped.length === 0) return null;
                         return (
                             <div className="variation-grid">
@@ -151,7 +165,7 @@ export default function VariationGrid() {
                 </>
             )}
 
-            {variations.length === 0 && !isGenerating && (
+            {actualVariations.length === 0 && !isGenerating && (
                 <div className="variation-empty">
                     <div className="empty-icon">✨</div>
                     <h3>Chọn style và bấm Tạo biến thể</h3>

@@ -66,6 +66,7 @@ export default function MockupAIPanel({ selectedVariations, totalMockupCount, is
                     prompt: combinedPrompt,
                     imageSize: aiImageSize,
                     aspectRatio: aiAspectRatio,
+                    provider: localStorage.getItem('ai_provider') || undefined,
                 }),
             });
             const data = await res.json();
