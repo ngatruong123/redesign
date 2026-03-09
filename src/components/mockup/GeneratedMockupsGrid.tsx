@@ -63,7 +63,29 @@ export default function GeneratedMockupsGrid({
 
     const variations = useWorkflowStore((s) => s.variations);
 
-    // Resolve a grouping key from mockup — prefers sourceDesignId, falls back to sourceDesignName
+    // Build design-group inference map from variations (same styleId = different designs)
+    const designGroupMap = useMemo(() => {
+        const map = new Map<string, { groupId: string; groupName: string }>();
+        const byStyle = new Map<string, typeof variations>();
+        for (const v of variations) {
+            if (!byStyle.has(v.styleId)) byStyle.set(v.styleId, []);
+            byStyle.get(v.styleId)!.push(v);
+        }
+        for (const [, group] of byStyle) {
+            for (let i = 0; i < group.length; i++) {
+                const v = group[i];
+                if (!map.has(v.id)) {
+                    map.set(v.id, {
+                        groupId: v.sourceDesignId || `design-group-${i}`,
+                        groupName: v.sourceDesignName || `Design ${i + 1}`,
+                    });
+                }
+            }
+        }
+        return map;
+    }, [variations]);
+
+    // Resolve a grouping key from mockup — prefers sourceDesignId, falls back to inference
     const resolveGroupKey = useCallback((m: GeneratedMockup): string => {
         // 1. Direct sourceDesignId on the mockup
         if (m.sourceDesignId) return m.sourceDesignId;
@@ -75,18 +97,16 @@ export default function GeneratedMockupsGrid({
             // Parse from variation ID format "{designId}_{styleId}"
             const idx = varId.lastIndexOf('_');
             if (idx > 0) return varId.slice(0, idx);
-            // Match via sibling variations with same styleId
-            if (v) {
-                const sibling = variations.find(ov => ov.sourceDesignId && ov.styleId === v.styleId);
-                if (sibling?.sourceDesignId) return sibling.sourceDesignId;
-            }
+            // Infer from variation position within style groups
+            const inferred = designGroupMap.get(varId);
+            if (inferred) return inferred.groupId;
         }
-        // 3. Use sourceDesignName as grouping key (name-based grouping)
+        // 3. Use sourceDesignName as grouping key
         if (m.sourceDesignName) return `name:${m.sourceDesignName}`;
         // 4. Single design fallback
         if (sourceDesigns.length === 1) return sourceDesigns[0].id;
         return '__unknown__';
-    }, [variations, sourceDesigns]);
+    }, [variations, sourceDesigns, designGroupMap]);
 
     const groups = useMemo<MockupGroup[]>(() => {
         const map = new Map<string, MockupGroup>();

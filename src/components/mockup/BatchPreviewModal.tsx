@@ -77,10 +77,34 @@ export default function BatchPreviewModal({
         });
 
     // Resolve design ID from variation
+    // Build design-group inference map from variations
+    const designGroupMap = useMemo(() => {
+        const map = new Map<string, { groupId: string; groupName: string }>();
+        const byStyle = new Map<string, GeneratedVariation[]>();
+        for (const v of selectedVariations) {
+            if (!byStyle.has(v.styleId)) byStyle.set(v.styleId, []);
+            byStyle.get(v.styleId)!.push(v);
+        }
+        for (const [, group] of byStyle) {
+            for (let i = 0; i < group.length; i++) {
+                const v = group[i];
+                if (!map.has(v.id)) {
+                    map.set(v.id, {
+                        groupId: v.sourceDesignId || `design-group-${i}`,
+                        groupName: v.sourceDesignName || `Design ${i + 1}`,
+                    });
+                }
+            }
+        }
+        return map;
+    }, [selectedVariations]);
+
     const resolveDesignIdFromVariation = (v: GeneratedVariation) => {
         if (v.sourceDesignId) return v.sourceDesignId;
         const idx = v.id.lastIndexOf('_');
         if (idx > 0) return v.id.slice(0, idx);
+        const inferred = designGroupMap.get(v.id);
+        if (inferred) return inferred.groupId;
         if (v.sourceDesignName) return `name:${v.sourceDesignName}`;
         if (sourceDesigns.length === 1) return sourceDesigns[0].id;
         return '__unknown__';

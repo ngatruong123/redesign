@@ -51,6 +51,31 @@ export function useMockupGeneration() {
         setError(null);
         setGeneratedMockups([]);
 
+        // Build a design-group map from variations: variations sharing the same styleId
+        // but different IDs belong to different source designs. Group by position within each style.
+        const allVars = useWorkflowStore.getState().variations;
+        const designGroupMap = new Map<string, { groupId: string; groupName: string }>();
+        {
+            // Group variations by styleId, preserving order
+            const byStyle = new Map<string, GeneratedVariation[]>();
+            for (const av of allVars) {
+                if (!byStyle.has(av.styleId)) byStyle.set(av.styleId, []);
+                byStyle.get(av.styleId)!.push(av);
+            }
+            // For each variation, its index within its style group = its design index
+            for (const [, group] of byStyle) {
+                for (let i = 0; i < group.length; i++) {
+                    const av = group[i];
+                    if (!designGroupMap.has(av.id)) {
+                        designGroupMap.set(av.id, {
+                            groupId: av.sourceDesignId || `design-group-${i}`,
+                            groupName: av.sourceDesignName || `Design ${i + 1}`,
+                        });
+                    }
+                }
+            }
+        }
+
         const getSourceDesign = (v: GeneratedVariation) => {
             // 1. Variation has sourceDesignId + sourceDesignName (best case)
             if (v.sourceDesignId) {
@@ -76,6 +101,11 @@ export function useMockupGeneration() {
             const designs = useWorkflowStore.getState().sourceDesigns;
             if (designs.length === 1) {
                 return { sourceDesignId: designs[0].id, sourceDesignName: designs[0].name };
+            }
+            // 4. Infer from variation position within style groups
+            const inferred = designGroupMap.get(v.id);
+            if (inferred) {
+                return { sourceDesignId: inferred.groupId, sourceDesignName: inferred.groupName };
             }
             return { sourceDesignId: undefined, sourceDesignName: undefined };
         };
