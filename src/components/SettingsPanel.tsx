@@ -248,17 +248,15 @@ function ApiKeysTab() {
                 body: JSON.stringify({ key: 'gemini_api_key', value: geminiKey }),
             });
             const data = await res.json();
-            if (res.ok) {
-                setGeminiMasked(data.masked);
-            } else {
-                setGeminiMasked(maskKey(geminiKey));
-            }
-        } catch {
-            setGeminiMasked(maskKey(geminiKey));
+            if (!res.ok) throw new Error(data.error || 'Lưu thất bại');
+            setGeminiMasked(data.masked);
+            setGeminiKey('');
+            addToast('success', 'Đã lưu Gemini API key');
+        } catch (err) {
+            addToast('error', err instanceof Error ? err.message : 'Lưu thất bại');
+        } finally {
+            setGeminiLoading(false);
         }
-        setGeminiKey('');
-        addToast('success', 'Đã lưu Gemini API key');
-        setGeminiLoading(false);
     };
 
     const handleGeminiDelete = async () => {
@@ -309,17 +307,15 @@ function ApiKeysTab() {
                 body: JSON.stringify({ key: 'ideogram_api_key', value: ideogramKey }),
             });
             const data = await res.json();
-            if (res.ok) {
-                setIdeogramMasked(data.masked);
-            } else {
-                setIdeogramMasked(maskKey(ideogramKey));
-            }
-        } catch {
-            setIdeogramMasked(maskKey(ideogramKey));
+            if (!res.ok) throw new Error(data.error || 'Lưu thất bại');
+            setIdeogramMasked(data.masked);
+            setIdeogramKey('');
+            addToast('success', 'Đã lưu Ideogram API key');
+        } catch (err) {
+            addToast('error', err instanceof Error ? err.message : 'Lưu thất bại');
+        } finally {
+            setIdeogramLoading(false);
         }
-        setIdeogramKey('');
-        addToast('success', 'Đã lưu Ideogram API key');
-        setIdeogramLoading(false);
     };
 
     const handleIdeogramDelete = async () => {
