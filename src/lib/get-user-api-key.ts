@@ -26,7 +26,7 @@ export async function getUserApiKey(settingKey: string = 'gemini_api_key'): Prom
         }
         return setting.value;
     } catch (err) {
-        console.warn(`[getUserApiKey] Failed to get ${settingKey}:`, err);
+        console.error(`[getUserApiKey] Failed to get ${settingKey}:`, err instanceof Error ? err.message : err);
         return null;
     }
 }

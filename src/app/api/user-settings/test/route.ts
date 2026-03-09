@@ -1,10 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth } from '@/lib/api-auth';
-import { getUserApiKey } from '@/lib/get-user-api-key';
+import { getAuthUsername } from '@/auth';
+import { prisma } from '@/lib/db';
+import { decrypt } from '@/lib/crypto';
+
+async function getKeyFromDb(settingKey: string): Promise<string | null> {
+    try {
+        const username = await getAuthUsername();
+        if (!username) return null;
+        const user = await prisma.user.findUnique({ where: { username }, select: { id: true } });
+        if (!user) return null;
+        const setting = await prisma.userSetting.findUnique({
+            where: { userId_key: { userId: user.id, key: settingKey } },
+        });
+        if (!setting) return null;
+        return decrypt(setting.value);
+    } catch (err) {
+        console.error(`[test] getKeyFromDb(${settingKey}) failed:`, err instanceof Error ? err.message : err);
+        return null;
+    }
+}
 
 export async function POST(req: NextRequest) {
-    const authError = await requireAuth();
-    if (authError) return authError;
+    const username = await getAuthUsername();
+    if (!username) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     try {
         const { apiKey: providedKey, provider: providerType } = await req.json();
@@ -20,7 +38,7 @@ export async function POST(req: NextRequest) {
 }
 
 async function testGeminiKey(providedKey?: string) {
-    const userKey = await getUserApiKey('gemini_api_key');
+    const userKey = await getKeyFromDb('gemini_api_key');
     const apiKey = providedKey || userKey || process.env.GEMINI_API_KEY;
 
     if (!apiKey) {
@@ -51,7 +69,8 @@ async function testGeminiKey(providedKey?: string) {
 }
 
 async function testIdeogramKey(providedKey?: string) {
-    const userKey = await getUserApiKey('ideogram_api_key');
+    const userKey = await getKeyFromDb('ideogram_api_key');
+    console.log(`[test-ideogram] providedKey=${!!providedKey}, userKey=${!!userKey}, envKey=${!!process.env.IDEOGRAM_API_KEY}`);
     const apiKey = providedKey || userKey || process.env.IDEOGRAM_API_KEY;
 
     if (!apiKey) {
