@@ -101,6 +101,7 @@ export const removeBgSchema = z.object({
     gradientId: z.string().optional(),
     customBgUrl: z.string().optional(),
     edgeSmooth: z.boolean().optional(),
+    protectSubject: z.boolean().optional(),
     keyColor: z.string().optional(),
     tolerance: z.number().min(0).max(100).optional(),
     softEdge: z.number().min(0).max(100).optional(),

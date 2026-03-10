@@ -16,6 +16,7 @@ export default function RemoveBgPanel({ imageUrl, onResult, onClose }: RemoveBgP
     const [tolerance, setTolerance] = useState(30);
     const [softEdge, setSoftEdge] = useState(15);
     const [edgeSmooth, setEdgeSmooth] = useState(false);
+    const [protectSubject, setProtectSubject] = useState(true);
     const [processing, setProcessing] = useState(false);
     const [resultUrl, setResultUrl] = useState<string | null>(null);
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -136,6 +137,7 @@ export default function RemoveBgPanel({ imageUrl, onResult, onClose }: RemoveBgP
                     tolerance,
                     softEdge,
                     edgeSmooth,
+                    protectSubject,
                 }),
             });
             const data = await res.json();
@@ -308,6 +310,12 @@ export default function RemoveBgPanel({ imageUrl, onResult, onClose }: RemoveBgP
                                 <input type="checkbox" checked={edgeSmooth}
                                     onChange={(e) => { setEdgeSmooth(e.target.checked); setResultUrl(null); }} />
                                 <span>Làm mịn viền</span>
+                            </label>
+
+                            <label className="colorkey-toggle">
+                                <input type="checkbox" checked={protectSubject}
+                                    onChange={(e) => { setProtectSubject(e.target.checked); setResultUrl(null); }} />
+                                <span>Bảo vệ sản phẩm (AI)</span>
                             </label>
 
                             {resultUrl && (
