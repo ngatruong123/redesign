@@ -68,9 +68,22 @@ export async function POST(request: NextRequest) {
         const imgW = meta.width || 1024;
         const imgH = meta.height || 1024;
 
-        // Color key modes
-        const protectSubject = body.protectSubject === true;
+        // --- Colorkey helper ---
+        function applyColorkey(px: Uint8Array, target: { r: number; g: number; b: number }, tol: number, soft: number) {
+            const th = tol * 0.5, sz = soft * 0.5;
+            for (let i = 0; i < px.length; i += 4) {
+                if (px[i + 3] === 0) continue; // already transparent, skip
+                const d = deltaE(px[i], px[i + 1], px[i + 2], target.r, target.g, target.b);
+                if (d <= th) {
+                    px[i + 3] = 0;
+                } else if (sz > 0 && d <= th + sz) {
+                    const t = (d - th) / sz;
+                    px[i + 3] = Math.min(px[i + 3], Math.round(t * t * (3 - 2 * t) * px[i + 3]));
+                }
+            }
+        }
 
+        // --- Mode: colorkey (basic color removal) ---
         if (mode === 'colorkey') {
             const target = hexToRgb(keyColor || '#00ff00');
             const tol = Math.max(0, Math.min(100, Number(toleranceRaw) || 30));
@@ -78,71 +91,60 @@ export async function POST(request: NextRequest) {
             const { data, info } = await sharp(fileBuffer).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
             const px = new Uint8Array(data.buffer, data.byteOffset, data.length);
 
-            // If protectSubject is enabled, get AI mask to protect the subject area
-            let subjectMask: Uint8Array | null = null;
-            if (protectSubject) {
-                try {
-                    const pngInput = await sharp(fileBuffer).png().toBuffer();
-                    const aiResult = await removeBackgroundRembg(pngInput);
-                    // Extract alpha channel from AI result as subject mask
-                    const aiRaw = await sharp(aiResult)
-                        .resize(info.width, info.height)
-                        .ensureAlpha()
-                        .raw()
-                        .toBuffer();
-                    const aiPx = new Uint8Array(aiRaw.buffer, aiRaw.byteOffset, aiRaw.length);
-                    subjectMask = new Uint8Array(info.width * info.height);
-                    for (let i = 0; i < subjectMask.length; i++) {
-                        subjectMask[i] = aiPx[i * 4 + 3]; // alpha channel = subject confidence
-                    }
-                } catch (err) {
-                    console.error('AI mask failed, falling back to basic colorkey:', err);
-                }
-            }
+            applyColorkey(px, target, tol, soft);
 
-            const th = tol * 0.5, sz = soft * 0.5;
-            for (let i = 0; i < px.length; i += 4) {
-                const pixelIdx = i / 4;
-                const d = deltaE(px[i], px[i + 1], px[i + 2], target.r, target.g, target.b);
-
-                if (subjectMask) {
-                    const maskVal = subjectMask[pixelIdx]; // 0=background, 255=subject
-                    // Color strongly matches key → remove regardless of mask
-                    // Color doesn't match key → protect if in subject
-                    if (d <= th) {
-                        // Strong color match: remove, but reduce effect inside subject edges
-                        // Deep inside subject (mask=255) with exact color match → still remove
-                        // At subject edge (mask~128) → partial removal
-                        const protection = maskVal > 200 ? 0 : maskVal / 200;
-                        px[i + 3] = Math.round(protection * px[i + 3]);
-                    } else if (sz > 0 && d <= th + sz) {
-                        const t = (d - th) / sz;
-                        const colorAlpha = Math.round(t * t * (3 - 2 * t) * px[i + 3]);
-                        // In subject area: blend between color removal and full protection
-                        // Higher mask = more protection for non-matching colors
-                        const protection = Math.min(1, maskVal / 255);
-                        const subjectAlpha = Math.round(protection * px[i + 3]);
-                        px[i + 3] = Math.min(px[i + 3], Math.max(colorAlpha, subjectAlpha));
-                    }
-                } else {
-                    // No AI mask: basic colorkey
-                    if (d <= th) px[i + 3] = 0;
-                    else if (sz > 0 && d <= th + sz) {
-                        const t = (d - th) / sz;
-                        px[i + 3] = Math.min(px[i + 3], Math.round(t * t * (3 - 2 * t) * px[i + 3]));
-                    }
-                }
-            }
             let out = await sharp(Buffer.from(px.buffer), { raw: { width: info.width, height: info.height, channels: 4 } }).png().toBuffer();
             if (edgeSmooth) out = await sharp(out).blur(1.5).png().toBuffer();
             const { url } = await storeFile('variations', `${uuidv4()}.png`, out);
             return NextResponse.json({ url });
         }
 
-        // Background removal via rembg (AI model)
+        // --- Mode: ai+colorkey (AI removes outer bg, then colorkey cleans inner bg) ---
+        if (mode === 'ai-colorkey') {
+            let aiBuffer: Buffer;
+            try {
+                const pngInput = await sharp(fileBuffer).png().toBuffer();
+                aiBuffer = await removeBackgroundRembg(pngInput);
+            } catch (err) {
+                console.error('AI removal failed:', err);
+                return NextResponse.json({ error: 'AI tách nền thất bại.' }, { status: 500 });
+            }
+
+            // Now apply colorkey on the AI result to remove remaining bg inside product
+            const target = hexToRgb(keyColor || '#00ff00');
+            const tol = Math.max(0, Math.min(100, Number(toleranceRaw) || 30));
+            const soft = Math.max(0, Math.min(50, Number(softEdgeRaw) || 15));
+
+            // Use original image pixels but with AI alpha as starting point
+            // This preserves original colors while using AI's edge detection
+            const aiMeta = await sharp(aiBuffer).metadata();
+            const origResized = await sharp(fileBuffer)
+                .resize(aiMeta.width, aiMeta.height)
+                .ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+            const aiRaw = await sharp(aiBuffer).ensureAlpha().raw().toBuffer();
+
+            const px = new Uint8Array(origResized.data.buffer, origResized.data.byteOffset, origResized.data.length);
+            const aiPx = new Uint8Array(aiRaw.buffer, aiRaw.byteOffset, aiRaw.length);
+
+            // Copy AI alpha channel to original pixels (AI's edge detection)
+            for (let i = 0; i < px.length; i += 4) {
+                px[i + 3] = aiPx[i + 3];
+            }
+
+            // Apply colorkey on remaining opaque pixels (inner backgrounds AI missed)
+            applyColorkey(px, target, tol, soft);
+
+            let out = await sharp(Buffer.from(px.buffer), {
+                raw: { width: origResized.info.width, height: origResized.info.height, channels: 4 }
+            }).png().toBuffer();
+            if (edgeSmooth) out = await sharp(out).blur(1.5).png().toBuffer();
+            const { url } = await storeFile('variations', `${uuidv4()}.png`, out);
+            return NextResponse.json({ url });
+        }
+
+        // --- Mode: transparent / color / gradient / custom (AI removal) ---
         let subjectBuffer: Buffer;
         try {
-            // Ensure input is PNG for rembg
             const pngInput = await sharp(fileBuffer).png().toBuffer();
             subjectBuffer = await removeBackgroundRembg(pngInput);
             if (edgeSmooth) subjectBuffer = await sharp(subjectBuffer).blur(1.5).png().toBuffer();
@@ -151,7 +153,6 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Tách nền thất bại. Vui lòng thử lại.' }, { status: 500 });
         }
 
-        // Compose final output
         const outputBuffer = await composeBg(subjectBuffer, fileBuffer, imgW, imgH, mode, { bgColor, gradientId, customBgUrl });
         const { url } = await storeFile('variations', `${uuidv4()}.png`, outputBuffer);
         return NextResponse.json({ url });

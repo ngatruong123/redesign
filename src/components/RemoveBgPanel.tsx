@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 
-type RemoveBgMode = 'ai' | 'colorkey';
+type RemoveBgMode = 'ai' | 'colorkey' | 'ai-colorkey';
 
 interface RemoveBgPanelProps {
     imageUrl: string;
@@ -16,7 +16,6 @@ export default function RemoveBgPanel({ imageUrl, onResult, onClose }: RemoveBgP
     const [tolerance, setTolerance] = useState(30);
     const [softEdge, setSoftEdge] = useState(15);
     const [edgeSmooth, setEdgeSmooth] = useState(false);
-    const [protectSubject, setProtectSubject] = useState(true);
     const [processing, setProcessing] = useState(false);
     const [resultUrl, setResultUrl] = useState<string | null>(null);
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -28,7 +27,7 @@ export default function RemoveBgPanel({ imageUrl, onResult, onClose }: RemoveBgP
 
     // Draw source image on canvas (re-run when switching to colorkey mode)
     useEffect(() => {
-        if (activeMode !== 'colorkey') return;
+        if (activeMode !== 'colorkey' && activeMode !== 'ai-colorkey') return;
         const canvas = canvasRef.current;
         if (!canvas) return;
         const ctx = canvas.getContext('2d');
@@ -132,12 +131,11 @@ export default function RemoveBgPanel({ imageUrl, onResult, onClose }: RemoveBgP
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     imageUrl,
-                    mode: 'colorkey',
+                    mode: activeMode, // 'colorkey' or 'ai-colorkey'
                     keyColor,
                     tolerance,
                     softEdge,
                     edgeSmooth,
-                    protectSubject,
                 }),
             });
             const data = await res.json();
@@ -151,6 +149,7 @@ export default function RemoveBgPanel({ imageUrl, onResult, onClose }: RemoveBgP
     }, [imageUrl, keyColor, tolerance, softEdge, edgeSmooth]);
 
     const handleApply = activeMode === 'ai' ? handleApplyAI : handleApplyColorkey;
+    const needsColorPicker = activeMode === 'colorkey' || activeMode === 'ai-colorkey';
 
     const handleConfirm = () => {
         if (resultUrl) {
@@ -159,7 +158,7 @@ export default function RemoveBgPanel({ imageUrl, onResult, onClose }: RemoveBgP
         }
     };
 
-    const canApply = activeMode === 'ai' || !!keyColor;
+    const canApply = activeMode === 'ai' || (needsColorPicker && !!keyColor);
 
     return (
         <div className="removebg-panel-overlay" onClick={onClose}>
@@ -184,10 +183,15 @@ export default function RemoveBgPanel({ imageUrl, onResult, onClose }: RemoveBgP
                     >
                         Theo màu
                     </button>
+                    <button
+                        className={`removebg-tab ${activeMode === 'ai-colorkey' ? 'active' : ''}`}
+                        onClick={() => { setActiveMode('ai-colorkey'); setResultUrl(null); setErrorMsg(null); }}
+                    >
+                        AI + Màu
+                    </button>
                 </div>
 
                 {activeMode === 'ai' ? (
-                    /* AI Mode */
                     <div className="removebg-ai-layout">
                         <div className="removebg-ai-preview">
                             <div className="removebg-ai-before">
@@ -312,11 +316,11 @@ export default function RemoveBgPanel({ imageUrl, onResult, onClose }: RemoveBgP
                                 <span>Làm mịn viền</span>
                             </label>
 
-                            <label className="colorkey-toggle">
-                                <input type="checkbox" checked={protectSubject}
-                                    onChange={(e) => { setProtectSubject(e.target.checked); setResultUrl(null); }} />
-                                <span>Bảo vệ sản phẩm (AI)</span>
-                            </label>
+                            {activeMode === 'ai-colorkey' && (
+                                <div className="colorkey-ai-hint">
+                                    AI sẽ xoá nền ngoài, sau đó xoá thêm màu đã chọn bên trong sản phẩm
+                                </div>
+                            )}
 
                             {resultUrl && (
                                 <div className="colorkey-result-preview">

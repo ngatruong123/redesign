@@ -95,13 +95,12 @@ export const uploadSchema = z.object({
 // Remove BG
 export const removeBgSchema = z.object({
     imageUrl: z.string().min(1),
-    mode: z.enum(['transparent', 'color', 'gradient', 'custom', 'colorkey']).optional(),
+    mode: z.enum(['transparent', 'color', 'gradient', 'custom', 'colorkey', 'ai-colorkey']).optional(),
     method: z.enum(['auto', 'rembg', 'ai', 'color']).optional(),
     bgColor: z.string().optional(),
     gradientId: z.string().optional(),
     customBgUrl: z.string().optional(),
     edgeSmooth: z.boolean().optional(),
-    protectSubject: z.boolean().optional(),
     keyColor: z.string().optional(),
     tolerance: z.number().min(0).max(100).optional(),
     softEdge: z.number().min(0).max(100).optional(),

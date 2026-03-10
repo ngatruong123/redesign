@@ -802,3 +802,12 @@
   background-color: var(--bg-secondary, rgba(255,255,255,0.03));
 }
 
+.colorkey-ai-hint {
+  font-size: 0.8rem;
+  color: var(--accent, #00e68a);
+  background: rgba(0, 230, 138, 0.08);
+  padding: 8px 12px;
+  border-radius: 6px;
+  line-height: 1.4;
+}
+
