@@ -25,8 +25,9 @@ export default function RemoveBgPanel({ imageUrl, onResult, onClose }: RemoveBgP
     const [canvasReady, setCanvasReady] = useState(false);
     const [cursorColor, setCursorColor] = useState<string | null>(null);
 
-    // Draw source image on canvas
+    // Draw source image on canvas (re-run when switching to colorkey mode)
     useEffect(() => {
+        if (activeMode !== 'colorkey') return;
         const canvas = canvasRef.current;
         if (!canvas) return;
         const ctx = canvas.getContext('2d');
@@ -36,7 +37,6 @@ export default function RemoveBgPanel({ imageUrl, onResult, onClose }: RemoveBgP
         img.crossOrigin = 'anonymous';
         img.onload = () => {
             imgRef.current = img;
-            // Scale to fit max 500px while keeping aspect ratio
             const maxDim = 500;
             const scale = Math.min(maxDim / img.width, maxDim / img.height, 1);
             canvas.width = Math.round(img.width * scale);
@@ -44,8 +44,22 @@ export default function RemoveBgPanel({ imageUrl, onResult, onClose }: RemoveBgP
             ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
             setCanvasReady(true);
         };
+        img.onerror = () => {
+            // Retry without crossOrigin for same-origin images
+            const retry = new Image();
+            retry.onload = () => {
+                imgRef.current = retry;
+                const maxDim = 500;
+                const scale = Math.min(maxDim / retry.width, maxDim / retry.height, 1);
+                canvas.width = Math.round(retry.width * scale);
+                canvas.height = Math.round(retry.height * scale);
+                ctx.drawImage(retry, 0, 0, canvas.width, canvas.height);
+                setCanvasReady(true);
+            };
+            retry.src = imageUrl;
+        };
         img.src = imageUrl;
-    }, [imageUrl]);
+    }, [imageUrl, activeMode]);
 
     // Get pixel color at canvas position
     const getPixelColor = useCallback((clientX: number, clientY: number): string | null => {
