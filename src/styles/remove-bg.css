@@ -688,3 +688,117 @@
   }
 }
 
+/* --- Mode Tabs --- */
+.removebg-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 20px;
+  background: var(--bg-secondary, rgba(255,255,255,0.05));
+  border-radius: var(--radius-sm, 8px);
+  padding: 4px;
+}
+
+.removebg-tab {
+  flex: 1;
+  padding: 8px 16px;
+  border: none;
+  border-radius: var(--radius-sm, 6px);
+  background: transparent;
+  color: var(--text-secondary, #888);
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: var(--font);
+}
+
+.removebg-tab:hover {
+  color: var(--text-primary, #fff);
+}
+
+.removebg-tab.active {
+  background: var(--accent, #00e68a);
+  color: #000;
+  font-weight: 600;
+}
+
+/* --- AI Mode Layout --- */
+.removebg-ai-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.removebg-ai-preview {
+  display: flex;
+  align-items: stretch;
+  gap: 16px;
+}
+
+.removebg-ai-before,
+.removebg-ai-after {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.removebg-ai-before label,
+.removebg-ai-after label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary, #888);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.removebg-ai-before img {
+  width: 100%;
+  border-radius: 8px;
+  object-fit: contain;
+  max-height: 300px;
+  background: var(--bg-secondary, rgba(255,255,255,0.05));
+}
+
+.removebg-ai-result-img {
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.removebg-ai-result-img img {
+  width: 100%;
+  object-fit: contain;
+  max-height: 300px;
+  display: block;
+}
+
+.removebg-ai-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  border-radius: 8px;
+  color: var(--text-secondary, #888);
+  font-size: 0.85rem;
+}
+
+.removebg-ai-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  color: var(--text-secondary, #888);
+  flex-shrink: 0;
+}
+
+.checkerboard-bg {
+  background-image:
+    linear-gradient(45deg, rgba(255,255,255,0.05) 25%, transparent 25%),
+    linear-gradient(-45deg, rgba(255,255,255,0.05) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, rgba(255,255,255,0.05) 75%),
+    linear-gradient(-45deg, transparent 75%, rgba(255,255,255,0.05) 75%);
+  background-size: 16px 16px;
+  background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+  background-color: var(--bg-secondary, rgba(255,255,255,0.03));
+}
+

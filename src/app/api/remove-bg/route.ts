@@ -6,6 +6,33 @@ import { requireAuth } from '@/lib/api-auth';
 import { hexToRgb, deltaE } from '@/lib/color-science';
 import { composeBg } from '@/lib/bg-compose';
 import { removeBgSchema } from '@/lib/validators';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
+import { writeFile, unlink, readFile } from 'fs/promises';
+import path from 'path';
+import os from 'os';
+
+const execFileAsync = promisify(execFile);
+
+const REMBG_PATH = process.env.REMBG_PATH || '/home/ngatruong/.local/bin/rembg';
+const REMBG_MODEL = process.env.REMBG_MODEL || 'u2net';
+
+async function removeBackgroundRembg(inputBuffer: Buffer): Promise<Buffer> {
+    const tmpDir = os.tmpdir();
+    const id = uuidv4();
+    const inputPath = path.join(tmpDir, `rembg-in-${id}.png`);
+    const outputPath = path.join(tmpDir, `rembg-out-${id}.png`);
+
+    try {
+        await writeFile(inputPath, inputBuffer);
+        await execFileAsync(REMBG_PATH, ['i', '-m', REMBG_MODEL, inputPath, outputPath], { timeout: 60000 });
+        const result = await readFile(outputPath);
+        return result;
+    } finally {
+        await unlink(inputPath).catch(() => {});
+        await unlink(outputPath).catch(() => {});
+    }
+}
 
 export async function POST(request: NextRequest) {
     const authError = await requireAuth();
@@ -55,17 +82,16 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ url });
         }
 
-        // Background removal via @imgly
+        // Background removal via rembg (AI model)
         let subjectBuffer: Buffer;
         try {
-            const { removeBackground } = await import('@imgly/background-removal-node');
-            const blob = new Blob([new Uint8Array(fileBuffer)], { type: 'image/png' });
-            const resultBlob = await removeBackground(blob, { output: { format: 'image/png' as const, quality: 0.9 } });
-            subjectBuffer = Buffer.from(await resultBlob.arrayBuffer());
+            // Ensure input is PNG for rembg
+            const pngInput = await sharp(fileBuffer).png().toBuffer();
+            subjectBuffer = await removeBackgroundRembg(pngInput);
             if (edgeSmooth) subjectBuffer = await sharp(subjectBuffer).blur(1.5).png().toBuffer();
         } catch (err) {
             console.error('Background removal error:', err);
-            return NextResponse.json({ error: 'Background removal failed.' }, { status: 500 });
+            return NextResponse.json({ error: 'Tách nền thất bại. Vui lòng thử lại.' }, { status: 500 });
         }
 
         // Compose final output

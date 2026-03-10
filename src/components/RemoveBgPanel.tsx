@@ -2,6 +2,8 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 
+type RemoveBgMode = 'ai' | 'colorkey';
+
 interface RemoveBgPanelProps {
     imageUrl: string;
     onResult: (newUrl: string) => void;
@@ -9,6 +11,7 @@ interface RemoveBgPanelProps {
 }
 
 export default function RemoveBgPanel({ imageUrl, onResult, onClose }: RemoveBgPanelProps) {
+    const [activeMode, setActiveMode] = useState<RemoveBgMode>('ai');
     const [keyColor, setKeyColor] = useState<string | null>(null);
     const [tolerance, setTolerance] = useState(30);
     const [softEdge, setSoftEdge] = useState(15);
@@ -75,8 +78,34 @@ export default function RemoveBgPanel({ imageUrl, onResult, onClose }: RemoveBgP
         setCursorColor(null);
     }, []);
 
+    // Apply AI background removal
+    const handleApplyAI = useCallback(async () => {
+        setProcessing(true);
+        setResultUrl(null);
+        setErrorMsg(null);
+
+        try {
+            const res = await fetch('/api/remove-bg', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    imageUrl,
+                    mode: 'transparent',
+                    edgeSmooth,
+                }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error);
+            setResultUrl(data.url);
+        } catch (err) {
+            setErrorMsg(err instanceof Error ? err.message : 'Lỗi xử lý');
+        } finally {
+            setProcessing(false);
+        }
+    }, [imageUrl, edgeSmooth]);
+
     // Apply color key removal
-    const handleApply = useCallback(async () => {
+    const handleApplyColorkey = useCallback(async () => {
         if (!keyColor) return;
         setProcessing(true);
         setResultUrl(null);
@@ -105,6 +134,8 @@ export default function RemoveBgPanel({ imageUrl, onResult, onClose }: RemoveBgP
         }
     }, [imageUrl, keyColor, tolerance, softEdge, edgeSmooth]);
 
+    const handleApply = activeMode === 'ai' ? handleApplyAI : handleApplyColorkey;
+
     const handleConfirm = () => {
         if (resultUrl) {
             onResult(resultUrl);
@@ -112,137 +143,174 @@ export default function RemoveBgPanel({ imageUrl, onResult, onClose }: RemoveBgP
         }
     };
 
+    const canApply = activeMode === 'ai' || !!keyColor;
+
     return (
         <div className="removebg-panel-overlay" onClick={onClose}>
             <div className="removebg-panel removebg-panel-colorkey" onClick={(e) => e.stopPropagation()}>
                 {/* Header */}
                 <div className="removebg-panel-header">
-                    <h2>✂️ Xoá nền theo màu</h2>
+                    <h2>Xoá nền ảnh</h2>
                     <button className="btn-icon" onClick={onClose} title="Đóng">✕</button>
                 </div>
 
-                {/* Main content: 2-column layout */}
-                <div className="colorkey-layout">
-                    {/* Left: Eyedropper canvas */}
-                    <div className="colorkey-canvas-section">
-                        <div className="colorkey-canvas-header">
-                            <span className="colorkey-instruction">
-                                {keyColor ? 'Click để đổi màu cần xoá' : 'Click vào vùng nền cần xoá'}
-                            </span>
-                            {/* Live cursor color indicator */}
-                            {cursorColor && (
-                                <span className="colorkey-cursor-badge">
-                                    <span className="colorkey-cursor-dot" style={{ background: cursorColor }} />
-                                    <span className="colorkey-cursor-hex">{cursorColor}</span>
-                                </span>
-                            )}
-                        </div>
-                        <canvas
-                            ref={canvasRef}
-                            className="colorkey-canvas"
-                            onClick={handleCanvasClick}
-                            onMouseMove={handleCanvasMove}
-                            onMouseLeave={handleCanvasLeave}
-                        />
-                    </div>
+                {/* Mode tabs */}
+                <div className="removebg-tabs">
+                    <button
+                        className={`removebg-tab ${activeMode === 'ai' ? 'active' : ''}`}
+                        onClick={() => { setActiveMode('ai'); setResultUrl(null); setErrorMsg(null); }}
+                    >
+                        AI tự động
+                    </button>
+                    <button
+                        className={`removebg-tab ${activeMode === 'colorkey' ? 'active' : ''}`}
+                        onClick={() => { setActiveMode('colorkey'); setResultUrl(null); setErrorMsg(null); }}
+                    >
+                        Theo màu
+                    </button>
+                </div>
 
-                    {/* Right: Controls + Preview */}
-                    <div className="colorkey-controls-section">
-                        {/* Selected color */}
-                        <div className="colorkey-selected">
-                            <label>Màu đã chọn</label>
-                            {keyColor ? (
-                                <div className="colorkey-color-display">
-                                    <div className="colorkey-color-swatch" style={{ background: keyColor }} />
-                                    <input
-                                        type="color"
-                                        value={keyColor}
-                                        onChange={(e) => { setKeyColor(e.target.value); setResultUrl(null); }}
-                                        className="colorkey-color-input"
-                                    />
-                                    <input
-                                        type="text"
-                                        value={keyColor}
-                                        onChange={(e) => {
-                                            const v = e.target.value;
-                                            if (/^#[0-9a-fA-F]{6}$/.test(v)) { setKeyColor(v); setResultUrl(null); }
-                                        }}
-                                        className="colorkey-hex-input"
-                                        spellCheck={false}
-                                    />
-                                </div>
-                            ) : (
-                                <div className="colorkey-no-color">
-                                    <span>← Click vào ảnh để chọn màu</span>
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Tolerance slider */}
-                        <div className="colorkey-slider-group">
-                            <div className="colorkey-slider-header">
-                                <label>Tolerance</label>
-                                <span className="colorkey-slider-value">{tolerance}</span>
+                {activeMode === 'ai' ? (
+                    /* AI Mode */
+                    <div className="removebg-ai-layout">
+                        <div className="removebg-ai-preview">
+                            <div className="removebg-ai-before">
+                                <label>Ảnh gốc</label>
+                                <img src={imageUrl} alt="Original" />
                             </div>
-                            <input
-                                type="range"
-                                min={0}
-                                max={100}
-                                value={tolerance}
-                                onChange={(e) => { setTolerance(Number(e.target.value)); setResultUrl(null); }}
-                                className="colorkey-range"
-                            />
-                            <div className="colorkey-slider-labels">
-                                <span>Chính xác</span>
-                                <span>Rộng</span>
+                            <div className="removebg-ai-arrow">→</div>
+                            <div className="removebg-ai-after">
+                                <label>Kết quả</label>
+                                {resultUrl ? (
+                                    <div className="removebg-ai-result-img checkerboard-bg">
+                                        <img src={resultUrl} alt="Result" />
+                                    </div>
+                                ) : (
+                                    <div className="removebg-ai-placeholder checkerboard-bg">
+                                        {processing ? (
+                                            <><span className="spinner-sm" /> Đang xử lý...</>
+                                        ) : (
+                                            <span>Bấm &quot;Xoá nền&quot; để bắt đầu</span>
+                                        )}
+                                    </div>
+                                )}
                             </div>
                         </div>
 
-                        {/* Soft edge slider */}
-                        <div className="colorkey-slider-group">
-                            <div className="colorkey-slider-header">
-                                <label>Soft Edge</label>
-                                <span className="colorkey-slider-value">{softEdge}</span>
-                            </div>
-                            <input
-                                type="range"
-                                min={0}
-                                max={50}
-                                value={softEdge}
-                                onChange={(e) => { setSoftEdge(Number(e.target.value)); setResultUrl(null); }}
-                                className="colorkey-range"
-                            />
-                            <div className="colorkey-slider-labels">
-                                <span>Sắc nét</span>
-                                <span>Mềm mại</span>
-                            </div>
-                        </div>
-
-                        {/* Edge smooth toggle */}
                         <label className="colorkey-toggle">
                             <input
                                 type="checkbox"
                                 checked={edgeSmooth}
                                 onChange={(e) => { setEdgeSmooth(e.target.checked); setResultUrl(null); }}
                             />
-                            <span>Làm mịn viền (blur nhẹ)</span>
+                            <span>Làm mịn viền</span>
                         </label>
 
-                        {/* Result preview */}
-                        {resultUrl && (
-                            <div className="colorkey-result-preview">
-                                <label>Kết quả</label>
-                                <div className="colorkey-result-img">
-                                    <img src={resultUrl} alt="Result" />
-                                </div>
-                            </div>
-                        )}
-
                         {errorMsg && (
-                            <div className="colorkey-error">⚠️ {errorMsg}</div>
+                            <div className="colorkey-error">{errorMsg}</div>
                         )}
                     </div>
-                </div>
+                ) : (
+                    /* Colorkey Mode */
+                    <div className="colorkey-layout">
+                        <div className="colorkey-canvas-section">
+                            <div className="colorkey-canvas-header">
+                                <span className="colorkey-instruction">
+                                    {keyColor ? 'Click để đổi màu cần xoá' : 'Click vào vùng nền cần xoá'}
+                                </span>
+                                {cursorColor && (
+                                    <span className="colorkey-cursor-badge">
+                                        <span className="colorkey-cursor-dot" style={{ background: cursorColor }} />
+                                        <span className="colorkey-cursor-hex">{cursorColor}</span>
+                                    </span>
+                                )}
+                            </div>
+                            <canvas
+                                ref={canvasRef}
+                                className="colorkey-canvas"
+                                onClick={handleCanvasClick}
+                                onMouseMove={handleCanvasMove}
+                                onMouseLeave={handleCanvasLeave}
+                            />
+                        </div>
+
+                        <div className="colorkey-controls-section">
+                            <div className="colorkey-selected">
+                                <label>Màu đã chọn</label>
+                                {keyColor ? (
+                                    <div className="colorkey-color-display">
+                                        <div className="colorkey-color-swatch" style={{ background: keyColor }} />
+                                        <input
+                                            type="color"
+                                            value={keyColor}
+                                            onChange={(e) => { setKeyColor(e.target.value); setResultUrl(null); }}
+                                            className="colorkey-color-input"
+                                        />
+                                        <input
+                                            type="text"
+                                            value={keyColor}
+                                            onChange={(e) => {
+                                                const v = e.target.value;
+                                                if (/^#[0-9a-fA-F]{6}$/.test(v)) { setKeyColor(v); setResultUrl(null); }
+                                            }}
+                                            className="colorkey-hex-input"
+                                            spellCheck={false}
+                                        />
+                                    </div>
+                                ) : (
+                                    <div className="colorkey-no-color">
+                                        <span>Click vào ảnh để chọn màu</span>
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="colorkey-slider-group">
+                                <div className="colorkey-slider-header">
+                                    <label>Tolerance</label>
+                                    <span className="colorkey-slider-value">{tolerance}</span>
+                                </div>
+                                <input type="range" min={0} max={100} value={tolerance}
+                                    onChange={(e) => { setTolerance(Number(e.target.value)); setResultUrl(null); }}
+                                    className="colorkey-range" />
+                                <div className="colorkey-slider-labels">
+                                    <span>Chính xác</span><span>Rộng</span>
+                                </div>
+                            </div>
+
+                            <div className="colorkey-slider-group">
+                                <div className="colorkey-slider-header">
+                                    <label>Soft Edge</label>
+                                    <span className="colorkey-slider-value">{softEdge}</span>
+                                </div>
+                                <input type="range" min={0} max={50} value={softEdge}
+                                    onChange={(e) => { setSoftEdge(Number(e.target.value)); setResultUrl(null); }}
+                                    className="colorkey-range" />
+                                <div className="colorkey-slider-labels">
+                                    <span>Sắc nét</span><span>Mềm mại</span>
+                                </div>
+                            </div>
+
+                            <label className="colorkey-toggle">
+                                <input type="checkbox" checked={edgeSmooth}
+                                    onChange={(e) => { setEdgeSmooth(e.target.checked); setResultUrl(null); }} />
+                                <span>Làm mịn viền</span>
+                            </label>
+
+                            {resultUrl && (
+                                <div className="colorkey-result-preview">
+                                    <label>Kết quả</label>
+                                    <div className="colorkey-result-img checkerboard-bg">
+                                        <img src={resultUrl} alt="Result" />
+                                    </div>
+                                </div>
+                            )}
+
+                            {errorMsg && (
+                                <div className="colorkey-error">{errorMsg}</div>
+                            )}
+                        </div>
+                    </div>
+                )}
 
                 {/* Action buttons */}
                 <div className="removebg-actions">
@@ -251,23 +319,19 @@ export default function RemoveBgPanel({ imageUrl, onResult, onClose }: RemoveBgP
                         <button
                             className="btn-primary btn-lg"
                             onClick={resultUrl ? handleConfirm : handleApply}
-                            disabled={!keyColor || processing || (!canvasReady)}
+                            disabled={!canApply || processing}
                         >
                             {processing ? (
                                 <><span className="spinner-sm" /> Đang xử lý...</>
                             ) : resultUrl ? (
-                                '✅ Áp dụng'
+                                'Áp dụng'
                             ) : (
-                                '✂️ Xoá nền'
+                                'Xoá nền'
                             )}
                         </button>
                         {resultUrl && (
-                            <button
-                                className="btn-secondary"
-                                onClick={handleApply}
-                                disabled={processing}
-                            >
-                                🔄 Thử lại
+                            <button className="btn-secondary" onClick={handleApply} disabled={processing}>
+                                Thử lại
                             </button>
                         )}
                     </div>
