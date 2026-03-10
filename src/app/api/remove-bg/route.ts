@@ -68,30 +68,39 @@ export async function POST(request: NextRequest) {
         const imgW = meta.width || 1024;
         const imgH = meta.height || 1024;
 
-        // --- Colorkey helper ---
-        function applyColorkey(px: Uint8Array, target: { r: number; g: number; b: number }, tol: number, soft: number) {
+        // --- Colorkey helper (supports multiple target colors) ---
+        function applyColorkey(px: Uint8Array, targets: { r: number; g: number; b: number }[], tol: number, soft: number) {
             const th = tol * 0.5, sz = soft * 0.5;
             for (let i = 0; i < px.length; i += 4) {
-                if (px[i + 3] === 0) continue; // already transparent, skip
-                const d = deltaE(px[i], px[i + 1], px[i + 2], target.r, target.g, target.b);
-                if (d <= th) {
+                if (px[i + 3] === 0) continue;
+                // Find minimum distance across all target colors
+                let minD = Infinity;
+                for (const target of targets) {
+                    const d = deltaE(px[i], px[i + 1], px[i + 2], target.r, target.g, target.b);
+                    if (d < minD) minD = d;
+                }
+                if (minD <= th) {
                     px[i + 3] = 0;
-                } else if (sz > 0 && d <= th + sz) {
-                    const t = (d - th) / sz;
+                } else if (sz > 0 && minD <= th + sz) {
+                    const t = (minD - th) / sz;
                     px[i + 3] = Math.min(px[i + 3], Math.round(t * t * (3 - 2 * t) * px[i + 3]));
                 }
             }
         }
 
+        // Build target colors array
+        const rawKeyColors: string[] = Array.isArray(body.keyColors) ? body.keyColors : [];
+        const allKeyColors = rawKeyColors.length > 0 ? rawKeyColors : (keyColor ? [keyColor] : []);
+        const targets = allKeyColors.map((c: string) => hexToRgb(c || '#00ff00'));
+
         // --- Mode: colorkey (basic color removal) ---
         if (mode === 'colorkey') {
-            const target = hexToRgb(keyColor || '#00ff00');
             const tol = Math.max(0, Math.min(100, Number(toleranceRaw) || 30));
             const soft = Math.max(0, Math.min(50, Number(softEdgeRaw) || 15));
             const { data, info } = await sharp(fileBuffer).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
             const px = new Uint8Array(data.buffer, data.byteOffset, data.length);
 
-            applyColorkey(px, target, tol, soft);
+            applyColorkey(px, targets, tol, soft);
 
             let out = await sharp(Buffer.from(px.buffer), { raw: { width: info.width, height: info.height, channels: 4 } }).png().toBuffer();
             if (edgeSmooth) out = await sharp(out).blur(1.5).png().toBuffer();
@@ -111,7 +120,6 @@ export async function POST(request: NextRequest) {
             }
 
             // Now apply colorkey on the AI result to remove remaining bg inside product
-            const target = hexToRgb(keyColor || '#00ff00');
             const tol = Math.max(0, Math.min(100, Number(toleranceRaw) || 30));
             const soft = Math.max(0, Math.min(50, Number(softEdgeRaw) || 15));
 
@@ -132,7 +140,7 @@ export async function POST(request: NextRequest) {
             }
 
             // Apply colorkey on remaining opaque pixels (inner backgrounds AI missed)
-            applyColorkey(px, target, tol, soft);
+            applyColorkey(px, targets, tol, soft);
 
             let out = await sharp(Buffer.from(px.buffer), {
                 raw: { width: origResized.info.width, height: origResized.info.height, channels: 4 }

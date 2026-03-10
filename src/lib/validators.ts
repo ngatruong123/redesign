@@ -102,6 +102,7 @@ export const removeBgSchema = z.object({
     customBgUrl: z.string().optional(),
     edgeSmooth: z.boolean().optional(),
     keyColor: z.string().optional(),
+    keyColors: z.array(z.string()).max(20).optional(),
     tolerance: z.number().min(0).max(100).optional(),
     softEdge: z.number().min(0).max(100).optional(),
     color: z.string().optional(),

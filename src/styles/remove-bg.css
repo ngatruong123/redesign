@@ -802,6 +802,68 @@
   background-color: var(--bg-secondary, rgba(255,255,255,0.03));
 }
 
+/* Multi-color chips */
+.colorkey-colors-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.colorkey-color-chip {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px 3px 4px;
+  border-radius: 20px;
+  background: var(--bg-secondary, rgba(255,255,255,0.06));
+  border: 1px solid transparent;
+  cursor: pointer;
+  font-size: 0.75rem;
+  transition: all 0.15s;
+}
+
+.colorkey-color-chip.active {
+  border-color: var(--accent, #00e68a);
+}
+
+.colorkey-color-chip:hover {
+  background: rgba(255,255,255,0.1);
+}
+
+.colorkey-color-swatch-sm {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1px solid rgba(255,255,255,0.2);
+  flex-shrink: 0;
+}
+
+.colorkey-chip-hex {
+  color: var(--text-secondary, #888);
+  font-family: monospace;
+  font-size: 0.7rem;
+}
+
+.colorkey-chip-remove {
+  background: none;
+  border: none;
+  color: var(--text-secondary, #666);
+  cursor: pointer;
+  font-size: 0.7rem;
+  padding: 0 2px;
+  line-height: 1;
+}
+
+.colorkey-chip-remove:hover {
+  color: var(--error, #ff4d4d);
+}
+
+.colorkey-colors-hint {
+  font-size: 0.75rem;
+  color: var(--text-secondary, #666);
+  margin-top: 4px;
+}
+
 .colorkey-ai-hint {
   font-size: 0.8rem;
   color: var(--accent, #00e68a);

@@ -13,6 +13,7 @@ interface RemoveBgPanelProps {
 export default function RemoveBgPanel({ imageUrl, onResult, onClose }: RemoveBgPanelProps) {
     const [activeMode, setActiveMode] = useState<RemoveBgMode>('ai');
     const [keyColor, setKeyColor] = useState<string | null>(null);
+    const [keyColors, setKeyColors] = useState<string[]>([]);
     const [tolerance, setTolerance] = useState(30);
     const [softEdge, setSoftEdge] = useState(15);
     const [edgeSmooth, setEdgeSmooth] = useState(false);
@@ -79,6 +80,10 @@ export default function RemoveBgPanel({ imageUrl, onResult, onClose }: RemoveBgP
         const color = getPixelColor(e.clientX, e.clientY);
         if (color) {
             setKeyColor(color);
+            setKeyColors(prev => {
+                if (prev.includes(color)) return prev;
+                return [...prev, color];
+            });
             setResultUrl(null);
         }
     }, [getPixelColor]);
@@ -133,6 +138,7 @@ export default function RemoveBgPanel({ imageUrl, onResult, onClose }: RemoveBgP
                     imageUrl,
                     mode: activeMode, // 'colorkey' or 'ai-colorkey'
                     keyColor,
+                    keyColors: keyColors.length > 0 ? keyColors : undefined,
                     tolerance,
                     softEdge,
                     edgeSmooth,
@@ -256,31 +262,30 @@ export default function RemoveBgPanel({ imageUrl, onResult, onClose }: RemoveBgP
 
                         <div className="colorkey-controls-section">
                             <div className="colorkey-selected">
-                                <label>Màu đã chọn</label>
-                                {keyColor ? (
-                                    <div className="colorkey-color-display">
-                                        <div className="colorkey-color-swatch" style={{ background: keyColor }} />
-                                        <input
-                                            type="color"
-                                            value={keyColor}
-                                            onChange={(e) => { setKeyColor(e.target.value); setResultUrl(null); }}
-                                            className="colorkey-color-input"
-                                        />
-                                        <input
-                                            type="text"
-                                            value={keyColor}
-                                            onChange={(e) => {
-                                                const v = e.target.value;
-                                                if (/^#[0-9a-fA-F]{6}$/.test(v)) { setKeyColor(v); setResultUrl(null); }
-                                            }}
-                                            className="colorkey-hex-input"
-                                            spellCheck={false}
-                                        />
+                                <label>Màu đã chọn {keyColors.length > 1 && `(${keyColors.length})`}</label>
+                                {keyColors.length > 0 ? (
+                                    <div className="colorkey-colors-list">
+                                        {keyColors.map((c, i) => (
+                                            <div key={i} className={`colorkey-color-chip ${c === keyColor ? 'active' : ''}`}
+                                                onClick={() => setKeyColor(c)}>
+                                                <div className="colorkey-color-swatch-sm" style={{ background: c }} />
+                                                <span className="colorkey-chip-hex">{c}</span>
+                                                <button className="colorkey-chip-remove" onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setKeyColors(prev => prev.filter((_, idx) => idx !== i));
+                                                    if (c === keyColor) setKeyColor(keyColors[0] === c ? keyColors[1] || null : keyColors[0]);
+                                                    setResultUrl(null);
+                                                }}>✕</button>
+                                            </div>
+                                        ))}
                                     </div>
                                 ) : (
                                     <div className="colorkey-no-color">
-                                        <span>Click vào ảnh để chọn màu</span>
+                                        <span>Click vào ảnh để chọn màu nền</span>
                                     </div>
+                                )}
+                                {keyColors.length > 0 && (
+                                    <div className="colorkey-colors-hint">Click thêm vào ảnh để chọn nhiều màu</div>
                                 )}
                             </div>
 
