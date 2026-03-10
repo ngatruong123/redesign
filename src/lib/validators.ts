@@ -95,7 +95,7 @@ export const uploadSchema = z.object({
 // Remove BG
 export const removeBgSchema = z.object({
     imageUrl: z.string().min(1),
-    mode: z.enum(['transparent', 'color', 'gradient', 'custom']).optional(),
+    mode: z.enum(['transparent', 'color', 'gradient', 'custom', 'colorkey']).optional(),
     method: z.enum(['auto', 'rembg', 'ai', 'color']).optional(),
     bgColor: z.string().optional(),
     gradientId: z.string().optional(),
