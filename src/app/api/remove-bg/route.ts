@@ -26,9 +26,12 @@ async function removeBackgroundRembg(inputBuffer: Buffer): Promise<Buffer> {
     try {
         await writeFile(inputPath, inputBuffer);
         const rembgEnv = { ...process.env };
-        // Ensure rembg can find its Python packages even when running as a different user
+        // Ensure rembg can find its Python packages and model files
         if (process.env.REMBG_PYTHONPATH) {
             rembgEnv.PYTHONPATH = process.env.REMBG_PYTHONPATH;
+        }
+        if (process.env.U2NET_HOME) {
+            rembgEnv.U2NET_HOME = process.env.U2NET_HOME;
         }
         await execFileAsync(REMBG_PATH, ['i', '-m', REMBG_MODEL, inputPath, outputPath], { timeout: 60000, env: rembgEnv });
         const result = await readFile(outputPath);
