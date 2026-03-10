@@ -103,17 +103,34 @@ export async function POST(request: NextRequest) {
             const th = tol * 0.5, sz = soft * 0.5;
             for (let i = 0; i < px.length; i += 4) {
                 const pixelIdx = i / 4;
-                // If subject mask exists and pixel is part of subject, skip it
-                if (subjectMask && subjectMask[pixelIdx] > 128) continue;
-
                 const d = deltaE(px[i], px[i + 1], px[i + 2], target.r, target.g, target.b);
-                if (d <= th) px[i + 3] = 0;
-                else if (sz > 0 && d <= th + sz) {
-                    const t = (d - th) / sz;
-                    // Blend with subject mask for smooth transitions near edges
-                    const maskFactor = subjectMask ? subjectMask[pixelIdx] / 128 : 0;
-                    const alpha = Math.round(t * t * (3 - 2 * t) * px[i + 3]);
-                    px[i + 3] = Math.min(px[i + 3], Math.max(alpha, Math.round(maskFactor * px[i + 3])));
+
+                if (subjectMask) {
+                    const maskVal = subjectMask[pixelIdx]; // 0=background, 255=subject
+                    // Color strongly matches key → remove regardless of mask
+                    // Color doesn't match key → protect if in subject
+                    if (d <= th) {
+                        // Strong color match: remove, but reduce effect inside subject edges
+                        // Deep inside subject (mask=255) with exact color match → still remove
+                        // At subject edge (mask~128) → partial removal
+                        const protection = maskVal > 200 ? 0 : maskVal / 200;
+                        px[i + 3] = Math.round(protection * px[i + 3]);
+                    } else if (sz > 0 && d <= th + sz) {
+                        const t = (d - th) / sz;
+                        const colorAlpha = Math.round(t * t * (3 - 2 * t) * px[i + 3]);
+                        // In subject area: blend between color removal and full protection
+                        // Higher mask = more protection for non-matching colors
+                        const protection = Math.min(1, maskVal / 255);
+                        const subjectAlpha = Math.round(protection * px[i + 3]);
+                        px[i + 3] = Math.min(px[i + 3], Math.max(colorAlpha, subjectAlpha));
+                    }
+                } else {
+                    // No AI mask: basic colorkey
+                    if (d <= th) px[i + 3] = 0;
+                    else if (sz > 0 && d <= th + sz) {
+                        const t = (d - th) / sz;
+                        px[i + 3] = Math.min(px[i + 3], Math.round(t * t * (3 - 2 * t) * px[i + 3]));
+                    }
                 }
             }
             let out = await sharp(Buffer.from(px.buffer), { raw: { width: info.width, height: info.height, channels: 4 } }).png().toBuffer();
