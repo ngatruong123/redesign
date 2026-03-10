@@ -14,6 +14,8 @@ interface GeneratedMockupsGridProps {
     onRetry: () => void;
     onEditMockup?: (mockup: GeneratedMockup) => void;
     editingMockupId?: string | null;
+    isCompositing?: boolean;
+    totalExpected?: number;
 }
 
 function makeSafeFilename(templateName: string, variationName: string) {
@@ -55,6 +57,8 @@ export default function GeneratedMockupsGrid({
     onRetry,
     onEditMockup,
     editingMockupId,
+    isCompositing,
+    totalExpected = 0,
 }: GeneratedMockupsGridProps) {
     const addToast = useToastStore((s) => s.addToast);
     const sourceDesigns = useWorkflowStore((s) => s.sourceDesigns);
@@ -284,10 +288,15 @@ export default function GeneratedMockupsGrid({
         </div>
     );
 
+    const placeholderCount = isCompositing ? Math.max(0, totalExpected - generatedMockups.length) : 0;
+
     return (
-        <div className="generated-mockups-section">
+        <div className={`generated-mockups-section ${isCompositing ? 'compositing' : ''}`}>
             <div className="generated-header">
-                <h3 style={{ display: 'flex', alignItems: 'center', gap: 6 }}>{Icons.image} Mockups ({generatedMockups.length})</h3>
+                <h3 style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    {isCompositing && <span className="spinner-sm" />}
+                    {Icons.image} Mockups {isCompositing ? `(${generatedMockups.length}/${totalExpected})` : `(${generatedMockups.length})`}
+                </h3>
                 <div className="generated-header-actions">
                     <button className="btn-ghost-sm" onClick={selectAllMockups}>Chọn tất cả</button>
                     <button className="btn-ghost-sm" onClick={() => setSelectedMockupIds(new Set())}>Bỏ chọn</button>
@@ -326,6 +335,13 @@ export default function GeneratedMockupsGrid({
             ) : (
                 <div className="generated-grid">
                     {generatedMockups.map(renderMockupCard)}
+                    {Array.from({ length: placeholderCount }, (_, i) => (
+                        <div key={`placeholder-${i}`} className="generated-card placeholder">
+                            <div className="generated-image-wrap skeleton-shimmer">
+                                <span className="spinner-sm" />
+                            </div>
+                        </div>
+                    ))}
                 </div>
             )}
         </div>

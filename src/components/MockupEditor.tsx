@@ -491,7 +491,7 @@ export default function MockupEditor() {
                 />
             )}
 
-            {generatedMockups.length > 0 && (
+            {(generatedMockups.length > 0 || isCompositing) && (
                 <GeneratedMockupsGrid
                     generatedMockups={generatedMockups}
                     setLightboxImage={setLightboxImage}
@@ -499,6 +499,8 @@ export default function MockupEditor() {
                     onRetry={() => gen.handleGenerateMockups()}
                     onEditMockup={handleEditMockupWrapper}
                     editingMockupId={gen.editingMockupId}
+                    isCompositing={isCompositing}
+                    totalExpected={gen.totalMockupCount}
                 />
             )}
 

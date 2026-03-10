@@ -209,12 +209,18 @@ export function useMockupGeneration() {
                 throw new Error(data.error);
             }
 
-            // SSE streaming - collect all results then update state once
+            // SSE streaming - batch state updates to avoid excessive re-renders
             const itemsByKey = new Map(items.map(it => [`${it.templateId}__${it.variationId}`, it]));
             const reader = res.body!.getReader();
             const decoder = new TextDecoder();
             let buffer = '';
             const allResults: GeneratedMockup[] = [];
+            let pendingFlush = false;
+
+            const flushResults = () => {
+                pendingFlush = false;
+                setGeneratedMockups([...allResults]);
+            };
 
             while (true) {
                 const { done, value } = await reader.read();
@@ -223,6 +229,7 @@ export function useMockupGeneration() {
 
                 const lines = buffer.split('\n');
                 buffer = lines.pop() || '';
+                let hasNew = false;
 
                 for (const line of lines) {
                     if (!line.startsWith('data: ')) continue;
@@ -240,11 +247,19 @@ export function useMockupGeneration() {
                             }
                         }
                         allResults.push(r);
+                        hasNew = true;
                     } catch { /* skip malformed */ }
+                }
+
+                // Debounce: schedule a flush if new results arrived
+                if (hasNew && !pendingFlush) {
+                    pendingFlush = true;
+                    setTimeout(flushResults, 300);
                 }
             }
 
-            setGeneratedMockups(allResults);
+            // Final flush to ensure all results are shown
+            setGeneratedMockups([...allResults]);
             addToast('success', `Đã tạo ${allResults.length} mockup!`);
         } catch (err) {
             const msg = err instanceof Error ? err.message : 'Tạo mockup thất bại';
