@@ -133,7 +133,9 @@ export default function GeneratedMockupsGrid({
         }
         const result = Array.from(map.values());
         console.log('[MockupsGrid] groups:', result.length, 'keys:', Array.from(map.keys()),
-            'first mockup srcId:', generatedMockups[0]?.sourceDesignId, 'srcName:', generatedMockups[0]?.sourceDesignName);
+            'sourceDesigns:', sourceDesigns.map(d => d.id),
+            'mockups srcIds:', generatedMockups.map(m => m.sourceDesignId).filter(Boolean),
+            'first mockup:', { srcId: generatedMockups[0]?.sourceDesignId, srcName: generatedMockups[0]?.sourceDesignName, varId: generatedMockups[0]?.variationId });
         return result;
     }, [generatedMockups, sourceDesigns, resolveGroupKey]);
 
