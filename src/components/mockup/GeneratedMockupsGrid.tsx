@@ -134,12 +134,21 @@ export default function GeneratedMockupsGrid({
         const result = Array.from(map.values());
         console.log('[MockupsGrid] groups:', result.length, 'keys:', Array.from(map.keys()),
             'sourceDesigns:', sourceDesigns.map(d => d.id),
-            'mockups srcIds:', generatedMockups.map(m => m.sourceDesignId).filter(Boolean),
+            'mockups srcIds:', generatedMockups.map(m => m.sourceDesignId),
             'first mockup:', { srcId: generatedMockups[0]?.sourceDesignId, srcName: generatedMockups[0]?.sourceDesignName, varId: generatedMockups[0]?.variationId });
+        if (generatedMockups.length > 0 && generatedMockups.length <= 3) {
+            console.warn('[MockupsGrid DEBUG] All mockups:', generatedMockups.map(m => ({ id: m.id?.slice(0,8), srcId: m.sourceDesignId, srcName: m.sourceDesignName, varId: m.variationId })));
+        }
         return result;
     }, [generatedMockups, sourceDesigns, resolveGroupKey]);
 
     const isMultiDesign = groups.length > 1;
+    // DEBUG: temporary indicator
+    if (generatedMockups.length > 0) {
+        console.log('[MockupsGrid] isMultiDesign:', isMultiDesign, 'groups:', groups.length,
+            'unique srcIds:', new Set(generatedMockups.map(m => m.sourceDesignId).filter(Boolean)).size,
+            'srcDesigns:', sourceDesigns.length);
+    }
 
     const toggleMockupSelection = (id: string) => {
         setSelectedMockupIds((prev) => {
