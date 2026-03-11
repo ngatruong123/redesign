@@ -25,7 +25,9 @@
       "Bash(git push:*)",
       "Bash(COOKIE=\"design-tool-auth=eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhZG1pbiIsImlhdCI6MTc3MjY4NTg1NCwiZXhwIjoxNzc1Mjc3ODU0fQ.eC5d7ALOX0Wn3l-wcvIAYFE2kkiUIFArALRCtEIuv2Y\")",
       "Bash(for ws in default cmma03v6e0001gj1b4gbuoxdz cmmbi2ojo00009f1bt2iymvmo)",
-      "Bash(do)"
+      "Bash(do)",
+      "Bash(git rm:*)",
+      "Bash(gh run view:*)"
     ]
   }
 }

@@ -126,7 +126,11 @@ export default function BatchPreviewModal({
             }
             map.get(designId)!.combos.push(combo);
         }
-        return Array.from(map.values());
+        const result = Array.from(map.values());
+        console.log('[BatchPreview] comboGroups:', result.length, 'keys:', Array.from(map.keys()),
+            'sourceDesigns:', sourceDesigns.map(d => ({ id: d.id, name: d.name })),
+            'variations srcIds:', selectedVariations.map(v => ({ id: v.id?.slice(0,12), srcId: v.sourceDesignId, srcName: v.sourceDesignName })));
+        return result;
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [combos, sourceDesigns, designGroupMap]);
 
