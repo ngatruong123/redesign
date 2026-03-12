@@ -204,6 +204,9 @@ export default function BatchPreviewModal({
                 <p className="batch-modal-subtitle">
                     Click phải / giữ để xem to. Click trái để chọn/bỏ chọn.
                 </p>
+                <p style={{ fontSize: 11, color: '#f88', padding: '0 16px' }}>
+                    DEBUG: groups={comboGroups.length} designs={sourceDesigns.length} vars={selectedVariations.length} srcIds=[{selectedVariations.map(v => v.sourceDesignId || 'null').join(', ')}]
+                </p>
                 {isMultiDesign ? (
                     comboGroups.map(({ design, displayName, combos: groupCombos }, gi) => {
                         const groupActiveCount = groupCombos.filter(c => !batchExcluded.has(c.key)).length;
