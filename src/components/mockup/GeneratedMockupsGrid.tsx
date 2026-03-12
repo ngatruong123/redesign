@@ -44,9 +44,9 @@ function dataUrlToBlob(dataUrl: string): Blob {
 }
 
 interface MockupGroup {
-    sourceDesignId: string;
-    sourceDesignName: string;
-    sourceDesignUrl?: string;
+    groupId: string;
+    groupName: string;
+    thumbUrl?: string;
     mockups: GeneratedMockup[];
 }
 
@@ -113,42 +113,39 @@ export default function GeneratedMockupsGrid({
     }, [variations, sourceDesigns, designGroupMap]);
 
     const groups = useMemo<MockupGroup[]>(() => {
+        // Determine grouping strategy: by source design or by variation
+        const uniqueDesignIds = new Set(generatedMockups.map(m => resolveGroupKey(m)));
+        const groupByVariation = uniqueDesignIds.size <= 1 && generatedMockups.length > 1;
+
         const map = new Map<string, MockupGroup>();
         for (const m of generatedMockups) {
-            const key = resolveGroupKey(m);
+            const key = groupByVariation ? (m.variationId || resolveGroupKey(m)) : resolveGroupKey(m);
             if (!map.has(key)) {
-                const isNameKey = key.startsWith('name:');
-                const displayId = isNameKey ? key.slice(5) : key;
-                const sd = isNameKey ? undefined : sourceDesigns.find(d => d.id === key);
-                // Try to get inferred name from designGroupMap via variation
-                const inferred = m.variationId ? designGroupMap.get(m.variationId) : undefined;
-                map.set(key, {
-                    sourceDesignId: key,
-                    sourceDesignName: m.sourceDesignName || sd?.name || inferred?.groupName || displayId.slice(0, 8),
-                    sourceDesignUrl: sd?.url,
-                    mockups: [],
-                });
+                if (groupByVariation) {
+                    const v = variations.find(v => v.id === m.variationId);
+                    map.set(key, {
+                        groupId: key,
+                        groupName: m.variationName || v?.styleName || key.slice(0, 8),
+                        thumbUrl: v?.imageUrl,
+                        mockups: [],
+                    });
+                } else {
+                    const sd = sourceDesigns.find(d => d.id === key);
+                    const inferred = m.variationId ? designGroupMap.get(m.variationId) : undefined;
+                    map.set(key, {
+                        groupId: key,
+                        groupName: m.sourceDesignName || sd?.name || inferred?.groupName || key.slice(0, 8),
+                        thumbUrl: sd?.url,
+                        mockups: [],
+                    });
+                }
             }
             map.get(key)!.mockups.push(m);
         }
-        const result = Array.from(map.values());
-        console.log('[MockupsGrid] groups:', result.length, 'keys:', Array.from(map.keys()),
-            'sourceDesigns:', sourceDesigns.map(d => d.id),
-            'mockups srcIds:', generatedMockups.map(m => m.sourceDesignId),
-            'first mockup:', { srcId: generatedMockups[0]?.sourceDesignId, srcName: generatedMockups[0]?.sourceDesignName, varId: generatedMockups[0]?.variationId });
-        if (generatedMockups.length > 0 && generatedMockups.length <= 3) {
-            console.warn('[MockupsGrid DEBUG] All mockups:', generatedMockups.map(m => ({ id: m.id?.slice(0,8), srcId: m.sourceDesignId, srcName: m.sourceDesignName, varId: m.variationId })));
-        }
-        return result;
-    }, [generatedMockups, sourceDesigns, resolveGroupKey]);
+        return Array.from(map.values());
+    }, [generatedMockups, sourceDesigns, variations, resolveGroupKey, designGroupMap]);
 
     const isMultiDesign = groups.length > 1;
-    // DEBUG: temporary indicator
-    if (generatedMockups.length > 0) {
-        console.log('[MockupsGrid] isMultiDesign:', isMultiDesign, 'groups:', groups.length,
-            'unique srcIds:', new Set(generatedMockups.map(m => m.sourceDesignId).filter(Boolean)).size,
-            'srcDesigns:', sourceDesigns.length);
-    }
 
     const toggleMockupSelection = (id: string) => {
         setSelectedMockupIds((prev) => {
@@ -189,9 +186,7 @@ export default function GeneratedMockupsGrid({
             const zip = new JSZip();
             let failed = 0;
 
-            // Check if multiple source designs
-            const designIds = new Set(toDownload.map(m => resolveGroupKey(m)).filter(Boolean));
-            const useFolder = designIds.size > 1;
+            const useFolder = groups.length > 1;
 
             for (const mockup of toDownload) {
                 try {
@@ -206,9 +201,8 @@ export default function GeneratedMockupsGrid({
                     if (blob.size === 0) { failed++; continue; }
                     const filename = makeSafeFilename(mockup.templateName, mockup.variationName).replace('.png', `_${mockup.id.slice(0, 8)}.png`);
                     if (useFolder) {
-                        const dId = resolveGroupKey(mockup);
-                        const group = groups.find(g => g.sourceDesignId === dId);
-                        const folderName = (mockup.sourceDesignName || group?.sourceDesignName || 'Unknown').replace(/[^a-zA-Z0-9._-\s]/g, '_').trim();
+                        const group = groups.find(g => g.mockups.some(gm => gm.id === mockup.id));
+                        const folderName = (group?.groupName || mockup.sourceDesignName || 'Unknown').replace(/[^a-zA-Z0-9._-\s]/g, '_').trim();
                         zip.file(`${folderName}/${filename}`, blob);
                     } else {
                         zip.file(filename, blob);
@@ -323,12 +317,12 @@ export default function GeneratedMockupsGrid({
                     const groupIds = group.mockups.filter(m => m.imageUrl).map(m => m.id);
                     const allGroupSelected = groupIds.length > 0 && groupIds.every(id => selectedMockupIds.has(id));
                     return (
-                        <div key={group.sourceDesignId} className="variation-group">
+                        <div key={group.groupId} className="variation-group">
                             <div className="variation-group-header">
-                                {group.sourceDesignUrl && (
-                                    <img src={group.sourceDesignUrl} alt={group.sourceDesignName} className="variation-group-thumb" />
+                                {group.thumbUrl && (
+                                    <img src={group.thumbUrl} alt={group.groupName} className="variation-group-thumb" />
                                 )}
-                                <span>{group.sourceDesignName} ({group.mockups.length})</span>
+                                <span>{group.groupName} ({group.mockups.length})</span>
                                 <button
                                     className="btn-ghost-sm"
                                     style={{ marginLeft: 'auto' }}

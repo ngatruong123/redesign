@@ -110,29 +110,37 @@ export default function BatchPreviewModal({
         return '__unknown__';
     };
 
-    // Group combos by source design
+    // Group combos: by source design when multiple designs, by variation when single design
     const comboGroups = useMemo(() => {
-        const map = new Map<string, { design: DesignFile | undefined; displayName: string; combos: Combo[] }>();
+        const uniqueDesignIds = new Set(selectedVariations.map(v => resolveDesignIdFromVariation(v)));
+        const groupByVariation = uniqueDesignIds.size <= 1 && selectedVariations.length > 1;
+
+        const map = new Map<string, { design: DesignFile | undefined; thumbUrl?: string; displayName: string; combos: Combo[] }>();
         for (const combo of combos) {
-            const designId = resolveDesignIdFromVariation(combo.variation);
-            if (!map.has(designId)) {
-                const design = sourceDesigns.find(d => d.id === designId);
-                const inferred = designGroupMap.get(combo.variation.id);
-                map.set(designId, {
-                    design,
-                    displayName: design?.name || inferred?.groupName || combo.variation.sourceDesignName || designId.slice(0, 8),
-                    combos: [],
-                });
+            const key = groupByVariation ? combo.variation.id : resolveDesignIdFromVariation(combo.variation);
+            if (!map.has(key)) {
+                if (groupByVariation) {
+                    map.set(key, {
+                        design: undefined,
+                        thumbUrl: combo.variation.imageUrl,
+                        displayName: combo.variation.styleName || combo.variation.id.slice(0, 8),
+                        combos: [],
+                    });
+                } else {
+                    const design = sourceDesigns.find(d => d.id === key);
+                    const inferred = designGroupMap.get(combo.variation.id);
+                    map.set(key, {
+                        design,
+                        displayName: design?.name || inferred?.groupName || combo.variation.sourceDesignName || key.slice(0, 8),
+                        combos: [],
+                    });
+                }
             }
-            map.get(designId)!.combos.push(combo);
+            map.get(key)!.combos.push(combo);
         }
-        const result = Array.from(map.values());
-        console.log('[BatchPreview] comboGroups:', result.length, 'keys:', Array.from(map.keys()),
-            'sourceDesigns:', sourceDesigns.map(d => ({ id: d.id, name: d.name })),
-            'variations srcIds:', selectedVariations.map(v => ({ id: v.id?.slice(0,12), srcId: v.sourceDesignId, srcName: v.sourceDesignName })));
-        return result;
+        return Array.from(map.values());
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [combos, sourceDesigns, designGroupMap]);
+    }, [combos, sourceDesigns, designGroupMap, selectedVariations]);
 
     const isMultiDesign = comboGroups.length > 1;
 
@@ -204,17 +212,15 @@ export default function BatchPreviewModal({
                 <p className="batch-modal-subtitle">
                     Click phải / giữ để xem to. Click trái để chọn/bỏ chọn.
                 </p>
-                <p style={{ fontSize: 11, color: '#f88', padding: '0 16px' }}>
-                    DEBUG: groups={comboGroups.length} designs={sourceDesigns.length} vars={selectedVariations.length} srcIds=[{selectedVariations.map(v => v.sourceDesignId || 'null').join(', ')}]
-                </p>
                 {isMultiDesign ? (
-                    comboGroups.map(({ design, displayName, combos: groupCombos }, gi) => {
+                    comboGroups.map(({ design, thumbUrl, displayName, combos: groupCombos }, gi) => {
                         const groupActiveCount = groupCombos.filter(c => !batchExcluded.has(c.key)).length;
+                        const imgUrl = design?.url || thumbUrl;
                         return (
                             <div key={design?.id || `group-${gi}`} className="variation-group">
                                 <div className="variation-group-header">
-                                    {design?.url && (
-                                        <img src={design.url} alt={displayName} className="variation-group-thumb" />
+                                    {imgUrl && (
+                                        <img src={imgUrl} alt={displayName} className="variation-group-thumb" />
                                     )}
                                     <span>{displayName} ({groupActiveCount}/{groupCombos.length})</span>
                                     <button
