@@ -192,6 +192,7 @@ export function useMockupGeneration() {
         });
 
         if (items.length === 0) return;
+        console.log('[generateMockups] shadow check:', items.map(it => ({ tmpl: (it as Record<string,unknown>).templateName, shadow: ((it as Record<string,unknown>).mask as Record<string,unknown>)?.shadow })));
 
         console.log('[generateMockups] items:', items.length,
             'sample srcId:', items[0]?.sourceDesignId, 'srcName:', items[0]?.sourceDesignName,
