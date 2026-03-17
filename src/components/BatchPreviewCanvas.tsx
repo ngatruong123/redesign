@@ -99,8 +99,11 @@ export default function BatchPreviewCanvas({ templateImageUrl, designImageUrl, m
             const hasShadow = mask.shadow && mask.shadow.blur > 0;
             if (hasShadow) {
                 const shadowBlur = mask.shadow!.blur * scale;
-                const offsetX = Math.max(1, Math.round(shadowBlur * 0.3));
-                const offsetY = Math.max(1, Math.round(shadowBlur * 0.3));
+                const offsetX = Math.max(2, Math.round(shadowBlur * 0.4));
+                const offsetY = Math.max(2, Math.round(shadowBlur * 0.4));
+                const shadowColorRaw = mask.shadow!.color || 'rgba(0,0,0,0.5)';
+                const alphaMatch = shadowColorRaw.match(/[\d.]+\s*\)$/);
+                const shadowAlpha = alphaMatch ? parseFloat(alphaMatch[0]) : 0.5;
 
                 // Draw design to temp canvas
                 const tmpCanvas = document.createElement('canvas');
@@ -121,14 +124,14 @@ export default function BatchPreviewCanvas({ templateImageUrl, designImageUrl, m
                     drawPerspectiveClient(tmpCtx, designImg, quad, edgeCurves, 12, mask.fitMode || 'contain');
                 }
 
-                // Create silhouette
+                // Create opaque black silhouette
                 tmpCtx.globalCompositeOperation = 'source-in';
-                tmpCtx.fillStyle = mask.shadow!.color || 'rgba(0,0,0,0.5)';
+                tmpCtx.fillStyle = 'black';
                 tmpCtx.fillRect(0, 0, cw, ch);
 
                 ctx.save();
                 ctx.globalCompositeOperation = 'source-over';
-                ctx.globalAlpha = 1;
+                ctx.globalAlpha = shadowAlpha;
                 ctx.filter = `blur(${shadowBlur}px)`;
                 ctx.drawImage(tmpCanvas, offsetX, offsetY);
                 ctx.filter = 'none';

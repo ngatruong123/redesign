@@ -122,27 +122,31 @@ async function processItem(item: BatchItem) {
 
     if (hasShadow) {
         const shadowBlur = mask.shadow!.blur;
-        const shadowColor = mask.shadow!.color || 'rgba(0,0,0,0.5)';
-        const offsetX = Math.max(2, Math.round(shadowBlur * 0.3));
-        const offsetY = Math.max(2, Math.round(shadowBlur * 0.3));
+        const shadowColorRaw = mask.shadow!.color || 'rgba(0,0,0,0.5)';
+        const offsetX = Math.max(3, Math.round(shadowBlur * 0.4));
+        const offsetY = Math.max(3, Math.round(shadowBlur * 0.4));
 
-        // Downscale design to output size first
+        // Parse shadow opacity from color string
+        const alphaMatch = shadowColorRaw.match(/[\d.]+\s*\)$/);
+        const shadowAlpha = alphaMatch ? parseFloat(alphaMatch[0]) : 0.5;
+
+        // Downscale design to output size
         const dsCanvas = createCanvas(mockupImg.width, mockupImg.height);
         const dsCtx = dsCanvas.getContext('2d');
         dsCtx.drawImage(tmpCanvas, 0, 0, tmpCanvas.width, tmpCanvas.height, 0, 0, mockupImg.width, mockupImg.height);
 
-        // Create silhouette at output size
+        // Create opaque black silhouette (source-in with solid black)
         const silCanvas = createCanvas(mockupImg.width, mockupImg.height);
         const silCtx = silCanvas.getContext('2d');
         silCtx.drawImage(dsCanvas, 0, 0);
         silCtx.globalCompositeOperation = 'source-in';
-        silCtx.fillStyle = shadowColor;
+        silCtx.fillStyle = 'black';
         silCtx.fillRect(0, 0, silCanvas.width, silCanvas.height);
 
-        // Draw blurred silhouette with offset
+        // Draw blurred silhouette with offset, use globalAlpha for shadow opacity
         ctx.save();
         ctx.globalCompositeOperation = 'source-over';
-        ctx.globalAlpha = 1;
+        ctx.globalAlpha = shadowAlpha;
         ctx.filter = `blur(${shadowBlur}px)`;
         ctx.drawImage(silCanvas, offsetX, offsetY);
         ctx.filter = 'none';
