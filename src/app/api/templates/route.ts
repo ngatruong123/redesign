@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { requireAuth } from '@/lib/api-auth';
 import { getAuthUsername } from '@/auth';
+import { deleteFile } from '@/lib/blob-storage';
 
 export async function GET(request: NextRequest) {
     const authError = await requireAuth();
@@ -81,6 +82,15 @@ export async function PUT(request: NextRequest) {
         });
 
         if (existing) {
+            // Delete files for removed templates
+            const oldTemplates = (existing.metadata as { templates?: { imageUrl?: string }[] })?.templates || [];
+            const newUrls = new Set(templates.map((t: { imageUrl?: string }) => t.imageUrl).filter(Boolean));
+            const removedUrls = oldTemplates
+                .map(t => t.imageUrl)
+                .filter((url): url is string => !!url && !newUrls.has(url));
+            // Fire and forget - don't block the response
+            Promise.all(removedUrls.map(url => deleteFile(url))).catch(() => {});
+
             await prisma.asset.update({
                 where: { id: existing.id },
                 data: { metadata: { templates } },

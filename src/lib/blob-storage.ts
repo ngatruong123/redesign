@@ -1,5 +1,5 @@
 import path from 'path';
-import { writeFile, readFile, mkdir } from 'fs/promises';
+import { writeFile, readFile, mkdir, unlink } from 'fs/promises';
 
 type StorageType = 'uploads' | 'variations' | 'mockups' | 'videos';
 
@@ -82,6 +82,27 @@ export async function storeTemplateFile(
     await mkdir(dir, { recursive: true });
     await writeFile(path.join(dir, filename), data);
     return { url: `/api/files/${pathname}`, pathname };
+}
+
+/** Delete a file by its API url (e.g. /api/files/templates/abc.png) or R2 url */
+export async function deleteFile(url: string): Promise<void> {
+    if (!url) return;
+    // Local file: /api/files/{type}/{filename}
+    const localMatch = url.match(/\/api\/files\/(.+)$/);
+    if (localMatch) {
+        const filePath = path.join(CACHE_ROOT, localMatch[1]);
+        await unlink(filePath).catch(() => {});
+        return;
+    }
+    // R2 file
+    if (isR2() && process.env.R2_PUBLIC_URL && url.startsWith(process.env.R2_PUBLIC_URL)) {
+        const key = url.slice(process.env.R2_PUBLIC_URL.replace(/\/$/, '').length + 1);
+        if (key) {
+            const { DeleteObjectCommand } = await import('@aws-sdk/client-s3');
+            const client = await getR2Client();
+            await client.send(new DeleteObjectCommand({ Bucket: process.env.R2_BUCKET_NAME!, Key: key })).catch(() => {});
+        }
+    }
 }
 
 /** Delete all files under given prefixes from R2 */
