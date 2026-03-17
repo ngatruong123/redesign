@@ -119,6 +119,7 @@ async function processItem(item: BatchItem) {
     ctx.globalAlpha = opacity;
 
     const hasShadow = mask.shadow && mask.shadow.blur > 0;
+    console.log('[batch] shadow:', JSON.stringify(mask.shadow), 'hasShadow:', hasShadow);
 
     if (hasShadow) {
         // Find bounding box of non-transparent pixels in tmpCanvas to apply shadow correctly
