@@ -119,53 +119,40 @@ async function processItem(item: BatchItem) {
     ctx.globalAlpha = opacity;
 
     const hasShadow = mask.shadow && mask.shadow.blur > 0;
-    console.log('[batch] shadow:', JSON.stringify(mask.shadow), 'hasShadow:', hasShadow);
 
     if (hasShadow) {
-        // Find bounding box of non-transparent pixels in tmpCanvas to apply shadow correctly
-        const tmpData = tmpCtx.getImageData(0, 0, tmpCanvas.width, tmpCanvas.height);
-        const px = tmpData.data;
-        let minX = tmpCanvas.width, minY = tmpCanvas.height, maxX = 0, maxY = 0;
-        for (let y = 0; y < tmpCanvas.height; y++) {
-            for (let x = 0; x < tmpCanvas.width; x++) {
-                if (px[(y * tmpCanvas.width + x) * 4 + 3] > 0) {
-                    if (x < minX) minX = x;
-                    if (x > maxX) maxX = x;
-                    if (y < minY) minY = y;
-                    if (y > maxY) maxY = y;
-                }
-            }
-        }
-        if (maxX >= minX && maxY >= minY) {
-            const pad = Math.ceil(mask.shadow!.blur * SS * 2);
-            const cw = maxX - minX + 1;
-            const ch = maxY - minY + 1;
-            const cropCanvas = createCanvas(cw, ch);
-            const cropCtx = cropCanvas.getContext('2d');
-            cropCtx.drawImage(tmpCanvas, minX, minY, cw, ch, 0, 0, cw, ch);
+        const shadowBlur = mask.shadow!.blur;
+        const shadowColor = mask.shadow!.color || 'rgba(0,0,0,0.5)';
+        const offsetX = Math.max(2, Math.round(shadowBlur * 0.3));
+        const offsetY = Math.max(2, Math.round(shadowBlur * 0.3));
 
-            // Draw shadow on a padded canvas
-            const shadowCanvas = createCanvas(cw + pad * 2, ch + pad * 2);
-            const shadowCtx = shadowCanvas.getContext('2d');
-            shadowCtx.shadowBlur = mask.shadow!.blur * SS;
-            shadowCtx.shadowColor = mask.shadow!.color || 'rgba(0,0,0,0.5)';
-            shadowCtx.shadowOffsetX = 0;
-            shadowCtx.shadowOffsetY = 0;
-            shadowCtx.drawImage(cropCanvas, pad, pad);
-            shadowCtx.shadowBlur = 0;
-            shadowCtx.shadowColor = 'transparent';
-            // Draw design on top of shadow
-            shadowCtx.drawImage(cropCanvas, pad, pad);
+        // Downscale design to output size first
+        const dsCanvas = createCanvas(mockupImg.width, mockupImg.height);
+        const dsCtx = dsCanvas.getContext('2d');
+        dsCtx.drawImage(tmpCanvas, 0, 0, tmpCanvas.width, tmpCanvas.height, 0, 0, mockupImg.width, mockupImg.height);
 
-            const destX = (minX - pad) / SS;
-            const destY = (minY - pad) / SS;
-            const destW = (cw + pad * 2) / SS;
-            const destH = (ch + pad * 2) / SS;
-            ctx.drawImage(shadowCanvas, 0, 0, shadowCanvas.width, shadowCanvas.height, destX, destY, destW, destH);
-        }
-    } else {
-        ctx.drawImage(tmpCanvas, 0, 0, tmpCanvas.width, tmpCanvas.height, 0, 0, mockupImg.width, mockupImg.height);
+        // Create silhouette at output size
+        const silCanvas = createCanvas(mockupImg.width, mockupImg.height);
+        const silCtx = silCanvas.getContext('2d');
+        silCtx.drawImage(dsCanvas, 0, 0);
+        silCtx.globalCompositeOperation = 'source-in';
+        silCtx.fillStyle = shadowColor;
+        silCtx.fillRect(0, 0, silCanvas.width, silCanvas.height);
+
+        // Draw blurred silhouette with offset
+        ctx.save();
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.globalAlpha = 1;
+        ctx.filter = `blur(${shadowBlur}px)`;
+        ctx.drawImage(silCanvas, offsetX, offsetY);
+        ctx.filter = 'none';
+        ctx.restore();
     }
+
+    // Draw design on top
+    ctx.globalCompositeOperation = compositeMap[blendMode] || 'source-over';
+    ctx.globalAlpha = opacity;
+    ctx.drawImage(tmpCanvas, 0, 0, tmpCanvas.width, tmpCanvas.height, 0, 0, mockupImg.width, mockupImg.height);
 
     ctx.globalCompositeOperation = 'source-over';
     ctx.globalAlpha = 1;

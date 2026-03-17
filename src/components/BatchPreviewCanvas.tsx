@@ -95,6 +95,46 @@ export default function BatchPreviewCanvas({ templateImageUrl, designImageUrl, m
                 : mask.blendMode === 'soft-light' ? 'soft-light'
                 : mask.blendMode as GlobalCompositeOperation;
 
+            // Shadow: draw blurred silhouette before design
+            const hasShadow = mask.shadow && mask.shadow.blur > 0;
+            if (hasShadow) {
+                const shadowBlur = mask.shadow!.blur * scale;
+                const offsetX = Math.max(1, Math.round(shadowBlur * 0.3));
+                const offsetY = Math.max(1, Math.round(shadowBlur * 0.3));
+
+                // Draw design to temp canvas
+                const tmpCanvas = document.createElement('canvas');
+                tmpCanvas.width = cw;
+                tmpCanvas.height = ch;
+                const tmpCtx = tmpCanvas.getContext('2d')!;
+                if (overlay) {
+                    const cT = (overlay.cropTop ?? 0) / 100, cR = (overlay.cropRight ?? 0) / 100;
+                    const cB = (overlay.cropBottom ?? 0) / 100, cL = (overlay.cropLeft ?? 0) / 100;
+                    const sx = cL * designImg.width, sy = cT * designImg.height;
+                    const sw = designImg.width * (1 - cL - cR), sh = designImg.height * (1 - cT - cB);
+                    const dx2 = (overlay.x + overlay.width * cL) * scale;
+                    const dy2 = (overlay.y + overlay.height * cT) * scale;
+                    const dw2 = overlay.width * (1 - cL - cR) * scale;
+                    const dh2 = overlay.height * (1 - cT - cB) * scale;
+                    tmpCtx.drawImage(designImg, sx, sy, sw, sh, dx2, dy2, dw2, dh2);
+                } else {
+                    drawPerspectiveClient(tmpCtx, designImg, quad, edgeCurves, 12, mask.fitMode || 'contain');
+                }
+
+                // Create silhouette
+                tmpCtx.globalCompositeOperation = 'source-in';
+                tmpCtx.fillStyle = mask.shadow!.color || 'rgba(0,0,0,0.5)';
+                tmpCtx.fillRect(0, 0, cw, ch);
+
+                ctx.save();
+                ctx.globalCompositeOperation = 'source-over';
+                ctx.globalAlpha = 1;
+                ctx.filter = `blur(${shadowBlur}px)`;
+                ctx.drawImage(tmpCanvas, offsetX, offsetY);
+                ctx.filter = 'none';
+                ctx.restore();
+            }
+
             if (overlay) {
                 // Overlay mode: draw design at overlay position with crop support
                 const cT = (overlay.cropTop ?? 0) / 100;
